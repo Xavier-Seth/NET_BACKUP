@@ -1,7 +1,7 @@
 <template>
   <div class="dashboard-layout">
     <!-- Sidebar -->
-    <Sidebar />
+    <Sidebar :activeMenu="activeMenu" @update-active="setActive" />
 
     <!-- Main Content -->
     <div class="main-content">
@@ -51,7 +51,15 @@ export default {
   components: {
     Sidebar, // Register Sidebar Component
   },
+  data() {
+    return {
+      activeMenu: "dashboard", // Default active menu
+    };
+  },
   methods: {
+    setActive(menuItem) {
+      this.activeMenu = menuItem;
+    },
     logout() {
       router.post("/logout", {}, {
         onFinish: () => {
@@ -75,9 +83,7 @@ export default {
 }
 
 /* Sidebar */
-.sidebar {
-  width: 220px;
-}
+
 /* Main Content */
 .main-content {
   flex: 1;
