@@ -44,3 +44,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 Route::get('/users', function () {
     return Inertia::render('Users');
 })->name('users.index');
+
+Route::middleware(['auth', 'verified'])->group(function () {
+    Route::get('/documents', function () {
+        return Inertia::render('Documents'); // Ensure 'Documents.vue' exists in resources/js/Pages/
+    })->name('documents');
+});
