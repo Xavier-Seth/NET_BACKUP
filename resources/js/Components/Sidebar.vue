@@ -39,9 +39,25 @@ export default {
     isActive(path) {
       return window.location.pathname === path;
     },
-    logout() {
-      console.log("User logged out");
-      // Implement logout functionality here
+    async logout() {
+      try {
+        const response = await fetch('/logout', {
+          method: 'POST',
+          headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+            'Content-Type': 'application/json',
+          },
+          credentials: 'same-origin',
+        });
+
+        if (response.ok) {
+          window.location.href = '/'; // Redirect to the login or home page
+        } else {
+          console.error('Logout failed');
+        }
+      } catch (error) {
+        console.error('Error during logout:', error);
+      }
     }
   }
 };
@@ -82,7 +98,7 @@ export default {
 
 .menu li a {
   text-decoration: none;
-  color: white; /* Keep text white */
+  color: white;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -108,7 +124,7 @@ export default {
   transition: 0.3s ease-in-out;
 }
 
-/* Active Icon (Only the circle turns white, text remains white) */
+/* Active Icon */
 .active-icon {
   background: white !important;
   color: #1a1f3a !important;
@@ -117,7 +133,7 @@ export default {
 /* Hover Effect */
 .menu li a:hover .icon-circle {
   background: white;
-  color: #1a1f3a; /* Change icon color when hovered */
+  color: #1a1f3a;
   transition: 0.3s ease-in-out;
 }
 
