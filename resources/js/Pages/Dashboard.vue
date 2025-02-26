@@ -59,15 +59,7 @@ export default {
   methods: {
     setActive(menuItem) {
       this.activeMenu = menuItem;
-    },
-    logout() {
-      router.post("/logout", {}, {
-        onFinish: () => {
-          localStorage.removeItem("token");
-          window.location.href = "/login";
-        },
-      });
-    },
+    }
   },
 };
 </script>
@@ -156,14 +148,14 @@ export default {
 /* Stat Cards */
 .stats {
   margin-top: 35px;
-  margin-left: 50px;
+  margin-left: 30px;
   display: flex;
   justify-content: flex-start;
   gap: 100px;
 }
 
 .stat-card {
-  width: 300px;
+  width: 280px;
   height: 180px;
   background: #1D1B42;
   border-radius: 15px;
