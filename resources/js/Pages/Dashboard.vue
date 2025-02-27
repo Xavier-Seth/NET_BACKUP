@@ -22,11 +22,16 @@
             <ul class="dropdown-menu dropdown-menu-end">
               <li><a class="dropdown-item" href="#">Profile Settings</a></li>
               <li><a class="dropdown-item" @click="navigateToRegister">Register New User</a></li>
-              <li><Link class="dropdown-item text-danger" href="/logout" method="post" as="button">Logout</Link></li>
+              <li>
+                <Link class="dropdown-item text-danger" href="/logout" method="post" as="button">
+                  Logout
+                </Link>
+              </li>
             </ul>
           </div>
         </header>
 
+        <!-- Search Bar -->
         <div class="search-container">
           <input type="text" placeholder="Search..." class="search-bar" />
           <i class="bi bi-search search-icon"></i>
@@ -50,6 +55,39 @@
             <p>6.7GB</p>
           </div>
         </section>
+
+        <!-- Table of Recently Uploaded -->
+        <section class="files-table-section">
+          <div class="table-heading">
+            <h2>Recently Uploaded</h2>
+          </div>
+          <div class="table-container">
+            <table class="dashboard-table">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Uploaded File</th>
+                  <th>Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                <!-- Three blank rows to represent recent uploads -->
+                <tr v-for="(file, index) in recentUploads" :key="index">
+                  <td>{{ file.name }}</td>
+                  <td>{{ file.uploadedFile }}</td>
+                  <td>
+                    <button class="btn-action edit">
+                      <i class="bi bi-pencil-square"></i>
+                    </button>
+                    <button class="btn-action delete">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </section>
       </div>
     </div>
   </keep-alive>
@@ -68,6 +106,12 @@ export default {
   data() {
     return {
       activeMenu: "dashboard",
+      // Three dummy rows for now
+      recentUploads: [
+        { name: "", uploadedFile: "" },
+        { name: "", uploadedFile: "" },
+        { name: "", uploadedFile: "" },
+      ],
     };
   },
   methods: {
@@ -92,7 +136,7 @@ export default {
 
 .main-content {
   flex: 1;
-  margin-left: 220px;
+  margin-left: 220px; /* Reserve space for the sidebar */
   display: flex;
   flex-direction: column;
   padding: 20px;
@@ -114,14 +158,17 @@ export default {
 }
 
 .school-logo {
-  width: 50px;
+  margin-top: -10px;
+  width: 70px;
   height: auto;
+  margin-left: 5px;
 }
 
+/* Search Container */
 .search-container {
   display: flex;
   position: relative;
-  margin-top: 20px;
+  margin-top: 10px;
   margin-left: 4%;
   width: 400px;
 }
@@ -146,6 +193,7 @@ export default {
   cursor: pointer;
 }
 
+/* Profile Dropdown */
 .profile {
   display: flex;
   align-items: center;
@@ -155,8 +203,10 @@ export default {
 }
 
 .avatar {
+  margin-top: -10px;
   width: 40px;
   height: 40px;
+  margin-left: 30px;
   border-radius: 50%;
   border: 2px solid white;
 }
@@ -176,6 +226,7 @@ export default {
   background: #f1f1f1;
 }
 
+/* Stat Cards */
 .stats {
   margin-top: 30px;
   margin-left: 80px;
@@ -187,7 +238,7 @@ export default {
 .stat-card {
   width: 300px;
   height: 150px;
-  background: #1D1B42;
+  background: #1d1b42;
   border-radius: 15px;
   box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
   color: white;
@@ -204,12 +255,81 @@ export default {
 }
 
 .navy {
-  background: #19184F;
+  background: #19184f;
 }
 .green {
   background: #002500;
 }
 .red {
-  background: #7B0828;
+  background: #7b0828;
+}
+
+/* Table Section */
+.files-table-section {
+  margin-top: 10px;
+  margin-left: 80px;
+}
+
+/* Table Heading */
+.table-heading {
+  margin-bottom: 15px;
+}
+
+.table-heading h2 {
+  font-size: 20px;
+  font-weight: bold;
+  margin: 0;
+}
+
+/* Table Container */
+.table-container {
+  background: white;
+  border-radius: 10px;
+  padding: 15px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+/* Dashboard Table */
+.dashboard-table {
+  width: 100%;
+  border-collapse: collapse;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.dashboard-table th,
+.dashboard-table td {
+  padding: 15px;
+  border-bottom: 1px solid #ddd;
+  font-size: 15px;
+}
+
+.dashboard-table thead th {
+  background: #19184f;
+  color: white;
+  font-weight: 600;
+}
+
+/* Action Buttons in Table */
+.btn-action {
+  border: none;
+  background: none;
+  cursor: pointer;
+  margin-right: 10px;
+  font-size: 18px;
+  color: #333;
+  transition: color 0.3s;
+}
+
+.btn-action:hover {
+  color: #007bff;
+}
+
+.edit i {
+  color: #ffa500; /* orange */
+}
+
+.delete i {
+  color: #dc3545; /* red */
 }
 </style>
