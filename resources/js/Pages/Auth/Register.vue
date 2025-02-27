@@ -1,5 +1,5 @@
 <script setup>
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm, Link } from '@inertiajs/vue3';
 
 const form = useForm({
     name: '',
@@ -97,7 +97,7 @@ const clearErrors = () => {
                 </button>
 
                 <div class="text-center mt-2">
-                    <a :href="route('login')" class="text-light" style="font-size: 14px;">Already registered? Log in</a>
+                    <Link :href="route('login')" class="text-light" style="font-size: 14px;">Already registered? Log in</Link>
                 </div>
             </form>
         </div>

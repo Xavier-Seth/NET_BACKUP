@@ -8,13 +8,8 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 
 Route::get('/', function () {
-    return Inertia::render('Welcome', [
-        'canLogin' => Route::has('login'),
-        'canRegister' => Route::has('register'),
-        'laravelVersion' => Application::VERSION,
-        'phpVersion' => PHP_VERSION,
-    ]);
-});
+    return Inertia::render('Auth/Login'); // Ensure this is the correct path to your login component
+})->name('login');
 
 Route::get('/dashboard', function () {
     return Inertia::render('Dashboard');
@@ -50,3 +45,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         return Inertia::render('Documents'); // Ensure 'Documents.vue' exists in resources/js/Pages/
     })->name('documents');
 });
+
+Route::get('/register', function () {
+    return Inertia::render('Auth/Register'); // Correct path
+})->name('register');

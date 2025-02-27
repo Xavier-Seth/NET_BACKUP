@@ -1,5 +1,5 @@
 <script setup>
-import { Head, useForm } from '@inertiajs/vue3';
+import { Head, useForm, router } from '@inertiajs/vue3';
 
 const form = useForm({
     email: '',
@@ -10,7 +10,7 @@ const form = useForm({
 const submit = () => {
     form.post(route('login'), {
         onSuccess: () => {
-            window.location.href = route('dashboard'); // Redirect to dashboard
+            router.visit(route('dashboard')); // Fix: No full page reload
         },
         onError: () => {
             console.error("Login failed. Check your email and password.");
@@ -93,7 +93,7 @@ const clearErrors = () => {
 
 /* Ensure placeholder text is visible */
 .form-control::placeholder {
-    color: rgba(255, 255, 255, 0.6); /* Light gray for visibility */
+    color: rgba(255, 255, 255, 0.6);
     font-size: 14px;
 }
 

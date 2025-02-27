@@ -11,7 +11,8 @@
       </div>
 
       <div 
-        class="upload-container"
+        class="upload-container" 
+        :class="{ dragging: isDragging }"
         @dragover.prevent="handleDragOver"
         @dragleave="handleDragLeave"
         @drop="handleDrop"
@@ -39,8 +40,13 @@
           </ul>
         </div>
 
-        <button v-if="selectedFiles.length" class="upload-btn">
-          Upload Document
+        <button 
+          v-if="selectedFiles.length" 
+          @click="uploadFiles" 
+          class="upload-btn"
+          :disabled="isUploading"
+        >
+          {{ isUploading ? 'Uploading...' : 'Upload Document' }}
         </button>
       </div>
     </div>
@@ -48,17 +54,17 @@
 </template>
 
 <script>
-import Sidebar from "@/Components/Sidebar.vue"; // Import Sidebar Component
+import { router } from '@inertiajs/vue3';
+import Sidebar from "@/Components/Sidebar.vue";
 
 export default {
-  components: {
-    Sidebar, // Register Sidebar Component
-  },
+  components: { Sidebar },
   name: "Upload",
   data() {
     return {
       selectedFiles: [],
-      isDragging: false
+      isDragging: false,
+      isUploading: false
     };
   },
   methods: {
@@ -66,12 +72,12 @@ export default {
       document.getElementById("fileInput").click();
     },
     handleFileUpload(event) {
-      this.selectedFiles = [...this.selectedFiles, ...Array.from(event.target.files)];
+      const newFiles = Array.from(event.target.files);
+      this.addFiles(newFiles);
     },
     removeFile(index) {
       this.selectedFiles.splice(index, 1);
     },
-    // Handle drag and drop
     handleDragOver(event) {
       event.preventDefault();
       this.isDragging = true;
@@ -82,18 +88,44 @@ export default {
     handleDrop(event) {
       event.preventDefault();
       this.isDragging = false;
+      const droppedFiles = Array.from(event.dataTransfer.files);
+      this.addFiles(droppedFiles);
+    },
+    addFiles(files) {
+      files.forEach(file => {
+        if (!this.selectedFiles.some(existingFile => existingFile.name === file.name)) {
+          this.selectedFiles.push(file);
+        }
+      });
+    },
+    uploadFiles() {
+      if (this.selectedFiles.length === 0) return;
 
-      const droppedFiles = event.dataTransfer.files;
-      if (droppedFiles.length) {
-        this.selectedFiles = [...this.selectedFiles, ...Array.from(droppedFiles)];
-      }
+      this.isUploading = true;
+      const formData = new FormData();
+
+      this.selectedFiles.forEach((file, index) => {
+        formData.append(`files[${index}]`, file);
+      });
+
+      router.post('/upload', formData, {
+        forceFormData: true,
+        onSuccess: () => {
+          this.selectedFiles = [];
+          this.isUploading = false;
+          alert('Upload successful!');
+        },
+        onError: () => {
+          this.isUploading = false;
+          alert('Upload failed. Please try again.');
+        }
+      });
     }
   }
 };
 </script>
 
 <style scoped>
-
 .upload-container {
   display: flex;
   flex-direction: column;
@@ -108,11 +140,10 @@ export default {
   flex-direction: column;
   align-items: center;
   justify-content: center;
-  border: 2px dashed #ccc;
+  border: 3px dashed #ccc;
   transition: border-color 0.3s ease;
 }
 
-/* Change border color when dragging */
 .upload-box:hover,
 .upload-container.dragging .upload-box {
   border-color: #2563eb;
@@ -151,7 +182,6 @@ export default {
   color: #333;
 }
 
-/* Upload button */
 .upload-btn {
   margin-top: 30px;
   align-self: flex-start;
@@ -168,5 +198,10 @@ export default {
 
 .upload-btn:hover {
   background-color: #1e40af;
+}
+
+.upload-btn:disabled {
+  background-color: #a0aec0;
+  cursor: not-allowed;
 }
 </style>

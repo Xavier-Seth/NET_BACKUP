@@ -3,12 +3,13 @@
     <nav class="menu">
       <ul>
         <li v-for="item in menuItems" :key="item.path">
-          <a :href="item.path" :class="{ active: isActive(item.path) }">
+          <!-- Using Inertia's Link component with explicit URL string -->
+          <Link :href="`/${item.path}`" :class="{ active: isActive(item.path) }">
             <div class="icon-circle" :class="{ 'active-icon': isActive(item.path) }">
               <i :class="item.icon"></i>
             </div>
             <span>{{ item.label }}</span>
-          </a>
+          </Link>
         </li>
         <li class="exit" @click="logout">
           <div class="icon-circle exit-icon">
@@ -22,44 +23,32 @@
 </template>
 
 <script>
+import { Link, router } from '@inertiajs/vue3';
+
 export default {
-  name: "Sidebar",
-  data() {
-    return {
-      menuItems: [
-        { path: "/dashboard", label: "Dashboard", icon: "bi bi-grid" },
-        { path: "/users", label: "Users", icon: "bi bi-people" },
-        { path: "/documents", label: "Documents", icon: "bi bi-file-earmark-text" },
-        { path: "/active-files", label: "Active Files", icon: "bi bi-folder2-open" },
-        { path: "/upload", label: "Upload Files", icon: "bi bi-upload" }
-      ],
-    };
+  name: 'Sidebar',
+  components: { Link },
+  computed: {
+    menuItems() {
+      return [
+        { path: 'dashboard', label: 'Dashboard', icon: 'bi bi-grid' },
+        { path: 'users', label: 'Users', icon: 'bi bi-people' },
+        { path: 'documents', label: 'Documents', icon: 'bi bi-file-earmark-text' },
+        { path: 'active-files', label: 'Active Files', icon: 'bi bi-folder2-open' },
+        { path: 'upload', label: 'Upload Files', icon: 'bi bi-upload' },
+      ];
+    },
   },
   methods: {
     isActive(path) {
-      return window.location.pathname === path;
+      // Use window.location.pathname for active checking
+      return window.location.pathname.startsWith(`/${path}`);
     },
-    async logout() {
-      try {
-        const response = await fetch('/logout', {
-          method: 'POST',
-          headers: {
-            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-            'Content-Type': 'application/json',
-          },
-          credentials: 'same-origin',
-        });
-
-        if (response.ok) {
-          window.location.href = '/'; // Redirect to the login or home page
-        } else {
-          console.error('Logout failed');
-        }
-      } catch (error) {
-        console.error('Error during logout:', error);
-      }
-    }
-  }
+    logout() {
+      // Use a simple string URL for logout
+      router.post('/logout');
+    },
+  },
 };
 </script>
 
@@ -105,7 +94,6 @@ export default {
   transition: 0.3s ease-in-out;
 }
 
-/* Active Link Styling */
 .menu li a.active {
   font-weight: bold;
 }
@@ -142,7 +130,6 @@ export default {
   margin-top: auto;
   cursor: pointer;
 }
-
 .exit:hover {
   opacity: 0.8;
 }
