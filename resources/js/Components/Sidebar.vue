@@ -3,22 +3,21 @@
     <nav class="menu">
       <ul>
         <li v-for="item in menuItems" :key="item.path">
-          <!-- Using Inertia's Link component with explicit URL string -->
-          <Link :href="`/${item.path}`" :class="{ active: isActive(item.path) }">
-            <div class="icon-circle" :class="{ 'active-icon': isActive(item.path) }">
+          <Link :href="`/${item.path}`" :class="{ active: isActive(item.path) }" class="menu-item">
+            <div class="icon-box" :class="{ 'active-icon': isActive(item.path) }">
               <i :class="item.icon"></i>
             </div>
             <span>{{ item.label }}</span>
           </Link>
         </li>
-        <li class="exit" @click="logout">
-          <div class="icon-circle exit-icon">
-            <i class="bi bi-box-arrow-right"></i>
-          </div>
-          <span>Exit</span>
-        </li>
       </ul>
     </nav>
+    <div class="exit" @click="logout">
+      <div class="icon-box exit-icon">
+        <i class="bi bi-box-arrow-right"></i>
+      </div>
+      <span>Exit</span>
+    </div>
   </aside>
 </template>
 
@@ -41,11 +40,9 @@ export default {
   },
   methods: {
     isActive(path) {
-      // Use window.location.pathname for active checking
       return window.location.pathname.startsWith(`/${path}`);
     },
     logout() {
-      // Use a simple string URL for logout
       router.post('/logout');
     },
   },
@@ -53,22 +50,22 @@ export default {
 </script>
 
 <style scoped>
-/* Sidebar */
 .sidebar {
   width: 220px;
+  height: 100vh;
   position: fixed;
   left: 0;
   top: 0;
-  bottom: 0;
   background: linear-gradient(to bottom, #12172B, #1a1f3a);
   color: white;
   padding: 10px 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
   z-index: 1000;
 }
-
-/* Menu Styling */
-.menu {
-  margin-top: 35px;
+.menu{
+  margin-top: 15px;
 }
 
 .menu ul {
@@ -81,55 +78,56 @@ export default {
   align-items: center;
 }
 
-.menu li {
-  margin: 10px 0;
-}
-
-.menu li a {
+.menu-item {
   text-decoration: none;
   color: white;
   display: flex;
   flex-direction: column;
   align-items: center;
+  width: 100%;
+  padding: 10px;
   transition: 0.3s ease-in-out;
 }
 
-.menu li a.active {
+.menu-item.active {
   font-weight: bold;
 }
 
-/* Icon Circle */
-.icon-circle {
-  width: 45px;
-  height: 45px;
+.icon-box {
+  width: 50px;
+  height: 50px;
   background: #2c2f48;
-  border-radius: 50%;
+  border-radius: 8px;
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 1.2rem;
-  margin-bottom: 3px;
+  font-size: 1.3rem;
+  margin-bottom: 4px;
   transition: 0.3s ease-in-out;
 }
 
-/* Active Icon */
 .active-icon {
   background: white !important;
   color: #1a1f3a !important;
 }
 
-/* Hover Effect */
-.menu li a:hover .icon-circle {
+.menu-item:hover .icon-box {
   background: white;
   color: #1a1f3a;
-  transition: 0.3s ease-in-out;
 }
 
-/* Exit Button */
 .exit {
-  margin-top: auto;
+  margin-right: 12px;
+  margin-bottom: 20px;
+  text-align: center;
   cursor: pointer;
 }
+
+.exit-icon {
+  margin-left: 80px;
+  background: #d9534f;
+}
+
 .exit:hover {
   opacity: 0.8;
 }
