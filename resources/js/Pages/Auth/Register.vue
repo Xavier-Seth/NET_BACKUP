@@ -11,7 +11,7 @@ const form = useForm({
 const submit = () => {
     form.post(route('register'), {
         onSuccess: () => {
-            window.location.href = route('dashboard'); // Redirect after successful registration
+            router.visit(route('dashboard')); // Redirect back to the Register page
         },
         onError: () => {
             console.error("Registration failed. Please check your inputs.");
@@ -19,6 +19,8 @@ const submit = () => {
         onFinish: () => form.reset('password', 'password_confirmation'),
     });
 };
+
+
 
 // Clear errors on focus
 const clearErrors = () => {

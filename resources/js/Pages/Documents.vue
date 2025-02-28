@@ -1,277 +1,222 @@
-<template>
-  <div class="container">
-    <Sidebar />
+<script setup>
+import MainLayout from "@/Layouts/MainLayout.vue";
+import { ref, computed, watch } from "vue";
+import { FilePlus } from "lucide-vue-next";
 
-    <div class="main-content">
-      <!-- Top Bar with Logo & Profile -->
-      <header class="top-bar">
-        <div class="left-top">
-          <img src="/images/school_logo.png" alt="Logo" class="logo" />
-          <h1>DocuNet</h1>
-        </div>
-        <div class="right-top">
-          <div class="profile">
-            <img src="/images/user-avatar.png" alt="User Avatar" class="profile-img" />
-            <span class="profile-name">Xavier Noynay</span>
-          </div>
-        </div>
-      </header>
+const documents = ref([
+    { id: "doc_01", name: "Document 1", dateCreated: "2024-02-28", type: "Form 137" },
+    { id: "doc_02", name: "Document 2", dateCreated: "2024-02-27", type: "PSA" },
+    { id: "doc_03", name: "Document 3", dateCreated: "2024-02-26", type: "Kindergarten Record" },
+    { id: "doc_04", name: "Document 4", dateCreated: "2024-02-25", type: "Form 137" },
+    { id: "doc_05", name: "Document 5", dateCreated: "2024-02-24", type: "PSA" },
+    { id: "doc_06", name: "Document 6", dateCreated: "2024-02-23", type: "PSA" },
+    { id: "doc_07", name: "Document 7", dateCreated: "2024-02-22", type: "PSA" },
+    { id: "doc_08", name: "Document 8", dateCreated: "2024-02-21", type: "Form 137" },
+    { id: "doc_09", name: "Document 9", dateCreated: "2024-02-20", type: "PSA" },
+]);
 
-      <!-- Documents Container -->
-      <div class="documents-container">
-        <div class="header-section">
-          <h2>Documents</h2>
-          <div class="actions">
-            <button class="upload-btn">
-              <i class="bi bi-upload"></i> Upload
-            </button>
-            <button class="settings-btn">
-              <i class="bi bi-gear"></i>
-            </button>
-          </div>
-        </div>
+const entries = ref(5);
+const currentPage = ref(1);
+const tableHeight = ref("auto");
 
-        <!-- Table Controls -->
-        <div class="table-controls">
-          <label>
-            Show
-            <select v-model="entriesToShow">
-              <option>10</option>
-              <option>25</option>
-              <option>50</option>
-            </select>
-            Entries
-          </label>
-          <div class="search-bar">
-            <label>Search: <input v-model="searchQuery" type="text" /></label>
-          </div>
-        </div>
+watch(entries, (newVal) => {
+    if (newVal == 10 || newVal == 25) {
+        tableHeight.value = "400px";
+    } else {
+        tableHeight.value = "auto";
+    }
+});
 
-        <!-- Documents Table -->
-        <div class="table-wrapper">
-          <table class="documents-table">
-            <thead>
-              <tr>
-                <th><input type="checkbox" /></th>
-                <th>File ID</th>
-                <th>Name</th>
-                <th>Date Created</th>
-                <th>Type of Document</th>
-              </tr>
-            </thead>
-            <tbody>
-              <tr v-for="(document, index) in paginatedDocuments" :key="index">
-                <td><input type="checkbox" /></td>
-                <td>{{ document.fileId }}</td>
-                <td>{{ document.name }}</td>
-                <td>{{ document.dateCreated }}</td>
-                <td>{{ document.type }}</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
+const paginatedDocuments = computed(() => {
+    const start = (currentPage.value - 1) * entries.value;
+    return documents.value.slice(start, start + entries.value);
+});
 
-        <!-- Pagination Controls -->
-        <div class="pagination">
-          <button @click="prevPage" :disabled="currentPage === 1">&lt;</button>
-          <span>Page {{ currentPage }}</span>
-          <button @click="nextPage" :disabled="currentPage * entriesToShow >= filteredDocuments.length">&gt;</button>
-        </div>
-      </div>
-    </div>
-  </div>
-</template>
-
-<script>
-import Sidebar from "../Components/Sidebar.vue";
-
-
-export default {
-  components: {
-    Sidebar,
-  },
-  data() {
-    return {
-      entriesToShow: 10,
-      searchQuery: "",
-      currentPage: 1,
-      documents: [
-        { fileId: "doc_01", name: "Document 1", dateCreated: "2024-02-24", type: "Report" },
-        { fileId: "doc_02", name: "Document 2", dateCreated: "2024-02-23", type: "Invoice" },
-        // ... add more sample documents as needed
-      ],
-    };
-  },
-  computed: {
-    filteredDocuments() {
-      return this.documents.filter(doc =>
-        doc.name.toLowerCase().includes(this.searchQuery.toLowerCase())
-      );
-    },
-    paginatedDocuments() {
-      const start = (this.currentPage - 1) * this.entriesToShow;
-      return this.filteredDocuments.slice(start, start + this.entriesToShow);
-    },
-  },
-  methods: {
-    nextPage() {
-      if (this.currentPage * this.entriesToShow < this.filteredDocuments.length) {
-        this.currentPage++;
-      }
-    },
-    prevPage() {
-      if (this.currentPage > 1) {
-        this.currentPage--;
-      }
-    },
-  },
-};
+const totalPages = computed(() => Math.ceil(documents.value.length / entries.value));
 </script>
 
-<style scoped>
-/* Overall Layout */
-.container {
-  display: flex;
-}
+<template>
+    <MainLayout>
+        <div class="documents-container">
+            <div class="controls d-flex align-items-center">
+                <button class="btn upload-btn">
+                    <FilePlus class="icon" /> Upload
+                </button>
+                <div class="entries-dropdown ms-3">
+                    <label for="entries">Show</label>
+                    <select id="entries" v-model="entries" class="form-select">
+                        <option value="5">5</option>
+                        <option value="10">10</option>
+                        <option value="25">25</option>
+                    </select>
+                    <span>Entries</span>
+                </div>
+                <input type="text" class="search-bar ms-auto" placeholder="Search" />
+            </div>
 
-.main-content {
-  flex-grow: 1;
-  margin-left: 220px; /* Space for the sidebar */
-  min-height: 100vh;
-  background: #f4f4f4;
-  display: flex;
-  flex-direction: column;
-  /* Remove extra margin on top/right */
-  margin-top: 0;
-  margin-right: 0;
-}
+            <div class="table-wrapper">
+                <div class="table-container mt-3" :style="{ maxHeight: tableHeight, overflowY: 'auto' }">
+                    <table class="table documents-table">
+                        <thead>
+                            <tr>
+                                <th>File ID</th>
+                                <th>Name</th>
+                                <th>Date Created</th>
+                                <th>Type of Document</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            <tr v-for="document in paginatedDocuments" :key="document.id">
+                                <td>{{ document.id }}</td>
+                                <td>{{ document.name }}</td>
+                                <td>{{ document.dateCreated }}</td>
+                                <td>{{ document.type }}</td>
+                            </tr>
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+            
+            <!-- Pagination -->
+            <div class="pagination-container fixed-pagination">
+                <button @click="currentPage--" :disabled="currentPage === 1" class="pagination-btn">Previous</button>
+                <span class="pagination-text">Page {{ currentPage }} of {{ totalPages }}</span>
+                <button @click="currentPage++" :disabled="currentPage === totalPages" class="pagination-btn">Next</button>
+            </div>
+        </div>
+    </MainLayout>
+</template>
 
-/* Top Bar */
-.top-bar {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  background: #12172B;
-  color: white;
-  padding: 10px 20px;
-  border-radius: 10px;
-}
-.left-top {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.logo {
-  height: 40px;
-}
-.right-top .profile {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-.profile-img {
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
-}
-.profile-name {
-  font-size: 14px;
-}
-
-/* Documents Container */
+<style>
 .documents-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  margin-top: 15px;
-  /* Minimizing side margins so table can fill space */
-  padding: 0 10px 20px;
-  background: white;
-  border-radius: 10px;
-  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    padding: 20px;
+    background: #f4f4f4;
+    min-height: 100vh;
+    width: 100%;
+    position: relative;
 }
 
-/* Header Section (Documents Title & Actions) */
-.header-section {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  margin: 15px 0;
-}
-.header-section h2 {
-  margin: 0;
-  font-size: 24px;
-  font-weight: bold;
-}
-.actions button {
-  background: #28a745;
-  color: white;
-  border: none;
-  padding: 8px 12px;
-  margin-right: 5px;
-  cursor: pointer;
-  border-radius: 5px;
-  transition: background 0.3s ease;
-}
-.actions button:hover {
-  background: #1e7e34;
-}
-.settings-btn {
-  background: #6c757d;
+.controls {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
 }
 
-/* Table Controls */
-.table-controls {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 15px;
-  padding: 0 10px;
+.upload-btn {
+    background: #28a745;
+    color: white;
+    padding: 10px 15px;
+    border: none;
+    border-radius: 5px;
+    cursor: pointer;
+    font-size: 16px;
+    display: flex;
+    align-items: center;
+    gap: 5px;
 }
-.search-bar input {
-  padding: 5px;
-  border-radius: 4px;
-  border: 1px solid #ccc;
+.upload-btn:hover {
+    background: #218838;
 }
 
-/* Table Wrapper */
+.entries-dropdown {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+}
+
+.entries-dropdown label,
+.entries-dropdown span {
+    font-size: 14px;
+}
+
+.form-select {
+    padding: 5px;
+    border-radius: 5px;
+    border: 1px solid #707070;
+    width: 70px;
+}
+
+.search-bar {
+    padding: 8px;
+    border-radius: 8px;
+    border: 2px solid #707070;
+    width: 250px;
+}
+.search-bar:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+}
+
 .table-wrapper {
-  flex: 1;
-  overflow-x: auto;
-  border-radius: 10px;
-  padding: 0 10px;
+    position: relative;
+    padding-bottom: 60px;
 }
 
-/* Documents Table */
+.table-container {
+    margin-top: 20px;
+    background: white;
+    border-radius: 10px;
+    padding: 15px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    width: 100%;
+    overflow-x: auto;
+}
+
 .documents-table {
-  width: 100%;
-  border-collapse: collapse;
-  background: white;
-  margin-top: 15px;
-}
-.documents-table th,
-.documents-table td {
-  padding: 12px;
-  border: 1px solid #ddd;
-  text-align: left;
-}
-.documents-table thead th {
-  background: #12172B;
-  color: white;
+    width: 100%;
+    border-collapse: collapse;
+    border-radius: 10px;
+    overflow: hidden;
 }
 
-/* Pagination */
-.pagination {
-  margin-top: 15px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
+.documents-table thead {
+    background: #0D0C37 !important; /* Updated header color */
+    color: white;
 }
-.pagination button {
-  background: #1a1f3a;
-  color: white;
-  border: none;
-  padding: 5px 10px;
-  cursor: pointer;
-  margin: 0 5px;
+
+.documents-table th, .documents-table td {
+    padding: 12px;
+    text-align: left;
+    font-size: 15px;
+    border-bottom: 1px solid #ddd;
+}
+
+.documents-table tbody tr:nth-child(even) {
+    background-color: #f9f9f9;
+}
+
+.pagination-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+}
+
+.fixed-pagination {
+    position: fixed;
+    bottom: 10px;
+    left: 55%;
+    transform: translateX(-50%);
+    padding: 10px;
+    border-radius: 10px;
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+}
+
+.pagination-btn {
+    padding: 8px 12px;
+    border: none;
+    background: #007bff;
+    color: white;
+    cursor: pointer;
+    border-radius: 5px;
+}
+.pagination-btn:disabled {
+    background: #ccc;
+    cursor: not-allowed;
+}
+.pagination-text {
+    font-size: 14px;
+    font-weight: bold;
 }
 </style>

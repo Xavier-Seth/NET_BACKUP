@@ -1,5 +1,5 @@
 <script setup>
-import { Head, useForm, router } from '@inertiajs/vue3';
+import { Head, useForm, router, Link } from '@inertiajs/vue3';
 
 const form = useForm({
     email: '',
@@ -74,7 +74,9 @@ const clearErrors = () => {
                 </button>
 
                 <div class="text-center mt-2">
-                    <a href="#" class="text-light" style="font-size: 14px;">Forgot password?</a>
+                    <Link :href="route('password.request')" class="text-light" style="font-size: 14px;">
+                        Forgot password?
+                    </Link>
                 </div>
             </form>
         </div>
