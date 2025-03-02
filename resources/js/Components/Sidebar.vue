@@ -3,12 +3,17 @@
     <nav class="menu">
       <ul>
         <li v-for="item in menuItems" :key="item.path">
-          <Link :href="`/${item.path}`" :class="{ active: isActive(item.path) }" class="menu-item">
+          <a
+            href="javascript:void(0);"
+            @click="checkUserAccess(item.path)"
+            :class="{ active: isActive(item.path) }"
+            class="menu-item"
+          >
             <div class="icon-box" :class="{ 'active-icon': isActive(item.path) }">
               <i :class="item.icon"></i>
             </div>
             <span>{{ item.label }}</span>
-          </Link>
+          </a>
         </li>
       </ul>
     </nav>
@@ -22,19 +27,31 @@
 </template>
 
 <script>
-import { Link, router } from '@inertiajs/vue3';
+import { router, usePage } from "@inertiajs/vue3";
 
 export default {
-  name: 'Sidebar',
-  components: { Link },
+  name: "Sidebar",
+  setup() {
+    const user = usePage().props.auth.user;
+
+    const checkUserAccess = (path) => {
+      if (path === "users" && user.role !== "LIS") {
+        alert("❌ Access Denied: Only LIS users can access this page.");
+      } else {
+        router.visit(`/${path}`);
+      }
+    };
+
+    return { checkUserAccess };
+  },
   computed: {
     menuItems() {
       return [
-        { path: 'dashboard', label: 'Dashboard', icon: 'bi bi-grid' },
-        { path: 'users', label: 'Users', icon: 'bi bi-people' },
-        { path: 'documents', label: 'Documents', icon: 'bi bi-file-earmark-text' },
-        { path: 'active-files', label: 'Active Files', icon: 'bi bi-folder2-open' },
-        { path: 'upload', label: 'Upload Files', icon: 'bi bi-upload' },
+        { path: "dashboard", label: "Dashboard", icon: "bi bi-grid" },
+        { path: "users", label: "Users", icon: "bi bi-people" },
+        { path: "documents", label: "Documents", icon: "bi bi-file-earmark-text" },
+        { path: "active-files", label: "Active Files", icon: "bi bi-folder2-open" },
+        { path: "upload", label: "Upload Files", icon: "bi bi-upload" },
       ];
     },
   },
@@ -43,7 +60,7 @@ export default {
       return window.location.pathname.startsWith(`/${path}`);
     },
     logout() {
-      router.post('/logout');
+      router.post("/logout");
     },
   },
 };
@@ -64,10 +81,9 @@ export default {
   justify-content: space-between;
   z-index: 1000;
 }
-.menu{
+.menu {
   margin-top: 15px;
 }
-
 .menu ul {
   list-style: none;
   padding: 0;
@@ -77,7 +93,6 @@ export default {
   flex-direction: column;
   align-items: center;
 }
-
 .menu-item {
   text-decoration: none;
   color: white;
@@ -87,12 +102,11 @@ export default {
   width: 100%;
   padding: 10px;
   transition: 0.3s ease-in-out;
+  cursor: pointer;
 }
-
 .menu-item.active {
   font-weight: bold;
 }
-
 .icon-box {
   width: 50px;
   height: 50px;
@@ -105,29 +119,24 @@ export default {
   margin-bottom: 4px;
   transition: 0.3s ease-in-out;
 }
-
 .active-icon {
   background: white !important;
   color: #1a1f3a !important;
 }
-
 .menu-item:hover .icon-box {
   background: white;
   color: #1a1f3a;
 }
-
 .exit {
   margin-right: 12px;
   margin-bottom: 20px;
   text-align: center;
   cursor: pointer;
 }
-
 .exit-icon {
   margin-left: 80px;
   background: #d9534f;
 }
-
 .exit:hover {
   opacity: 0.8;
 }

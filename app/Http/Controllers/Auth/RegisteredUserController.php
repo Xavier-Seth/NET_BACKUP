@@ -10,6 +10,7 @@ use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
+use Illuminate\Support\Facades\Gate;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -28,25 +29,38 @@ class RegisteredUserController extends Controller
      *
      * @throws \Illuminate\Validation\ValidationException
      */
+    /**
+     * Handle an incoming registration request.
+     *
+     * @throws \Illuminate\Validation\ValidationException
+     */
+    // Import Gate
+
     public function store(Request $request): RedirectResponse
     {
+        // ✅ Check if the logged-in user is LIS
+        if (Auth::user()->role !== 'LIS') {
+            return redirect()->route('dashboard')->with('error', 'Unauthorized action.');
+        }
+
         $request->validate([
             'name' => 'required|string|max:255',
-            'email' => 'required|string|lowercase|email|max:255|unique:' . User::class,
+            'email' => 'required|string|lowercase|email|max:255|unique:users',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
+            'role' => 'required|in:Admin,LIS',
         ]);
 
         $user = User::create([
             'name' => $request->name,
             'email' => $request->email,
             'password' => Hash::make($request->password),
+            'role' => $request->role,
         ]);
 
         event(new Registered($user));
 
-        Auth::login($user);
-
-        // ✅ Redirect back to the Register page instead of the dashboard
-        return redirect(route('register', absolute: false));
+        return redirect()->route('dashboard')->with('success', 'User registered successfully!');
     }
+
+
 }

@@ -9,11 +9,13 @@
     <div class="profile dropdown">
       <div class="dropdown-toggle" data-bs-toggle="dropdown">
         <img src="/images/user-avatar.png" alt="User Avatar" class="avatar" />
-        <span>Xavier Noynay</span>
+        <span>{{ userName }}</span>
       </div>
       <ul class="dropdown-menu dropdown-menu-end">
         <li><a class="dropdown-item" href="#">Profile Settings</a></li>
-        <li><a class="dropdown-item" @click="confirmRegister">Register New User</a></li>
+        <li>
+          <button @click="checkRole" class="dropdown-item">Register New User</button>
+        </li>
         <li>
           <Link class="dropdown-item text-danger" href="/logout" method="post" as="button">
             Logout
@@ -24,24 +26,19 @@
   </header>
 </template>
 
-<script>
-import { Link, router } from "@inertiajs/vue3";
+<script setup>
+import { Link, router, usePage } from "@inertiajs/vue3";
+import { ref } from "vue";
 
-export default {
-  components: { Link },
-  methods: {
-    confirmRegister() {
-      if (confirm("Registering a new user will log you out of your current account. Do you want to continue?")) {
-        this.logoutAndRedirect();
-      }
-    },
-    logoutAndRedirect() {
-      router.post("/logout", {}, {
-        onSuccess: () => {
-          router.visit("/register"); // Redirect to register page after logging out
-        }
-      });
-    }
+const user = usePage().props.auth.user;
+const userName = user?.name || "User";
+
+// Check role before navigating to register page
+const checkRole = () => {
+  if (user.role !== "LIS") {
+    alert("❌ Access Denied: Only LIS users can register new users.");
+  } else {
+    router.visit("/register"); // ✅ Proceed if LIS
   }
 };
 </script>
@@ -51,9 +48,10 @@ export default {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  color: rgb(0, 0, 0);
-  padding: 10px 20px;
+  padding: 12px 20px;
+  background: white;
   border-radius: 10px;
+  box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
 }
 
 .brand {
@@ -63,28 +61,23 @@ export default {
 }
 
 .school-logo {
-  margin-top: -10px;
-  width: 70px;
+  width: 60px;
   height: auto;
-  margin-left: 5px;
 }
 
-/* Profile Dropdown */
 .profile {
   display: flex;
   align-items: center;
   gap: 10px;
-  position: relative;
   cursor: pointer;
 }
 
 .avatar {
-  margin-top: -10px;
   width: 40px;
   height: 40px;
-  margin-left: 30px;
   border-radius: 50%;
-  border: 2px solid white;
+  border: 2px solid #ccc;
+  object-fit: cover;
 }
 
 .dropdown-menu {
