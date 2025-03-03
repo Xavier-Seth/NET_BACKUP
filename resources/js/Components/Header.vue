@@ -9,7 +9,10 @@
     <div class="profile dropdown">
       <div class="dropdown-toggle" data-bs-toggle="dropdown">
         <img src="/images/user-avatar.png" alt="User Avatar" class="avatar" />
-        <span>{{ userName }}</span>
+        <div class="user-info">
+          <span class="user-name">{{ userName }}</span>
+          <small class="user-role">{{ userRole }}</small>
+        </div>
       </div>
       <ul class="dropdown-menu dropdown-menu-end">
         <li><a class="dropdown-item" href="#">Profile Settings</a></li>
@@ -28,15 +31,15 @@
 
 <script setup>
 import { Link, router, usePage } from "@inertiajs/vue3";
-import { ref } from "vue";
 
 const user = usePage().props.auth.user;
-const userName = user?.name || "User";
+const userName = user ? `${user.last_name}, ${user.first_name}` : "User"; // Display Lastname, Firstname
+const userRole = user?.role ? `(${user.role})` : ""; // Display user role
 
 // Check role before navigating to register page
 const checkRole = () => {
-  if (user.role !== "LIS") {
-    alert("❌ Access Denied: Only LIS users can register new users.");
+  if (user.role !== "Admin") {
+    alert("❌ Access Denied: Only Admin users can register new users.");
   } else {
     router.visit("/register"); // ✅ Proceed if LIS
   }
@@ -70,6 +73,8 @@ const checkRole = () => {
   align-items: center;
   gap: 10px;
   cursor: pointer;
+  min-width: 180px; /* Ensures enough space for name */
+  justify-content: flex-end; /* Keeps profile content aligned */
 }
 
 .avatar {
@@ -78,6 +83,22 @@ const checkRole = () => {
   border-radius: 50%;
   border: 2px solid #ccc;
   object-fit: cover;
+  flex-shrink: 0; /* Prevents avatar from shrinking */
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+}
+
+.user-name {
+  font-weight: bold;
+}
+
+.user-role {
+  font-size: 12px;
+  color: gray;
 }
 
 .dropdown-menu {
@@ -93,5 +114,15 @@ const checkRole = () => {
 
 .dropdown-item:hover {
   background: #f1f1f1;
+}
+
+.dropdown-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  white-space: nowrap; /* Prevents name from wrapping */
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 200px; /* Prevents long names from expanding the element */
 }
 </style>

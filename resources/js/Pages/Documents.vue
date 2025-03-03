@@ -36,7 +36,7 @@ const totalPages = computed(() => Math.ceil(documents.value.length / entries.val
 </script>
 
 <template>
-    <MainLayout>
+    <MainLayout >
         <div class="documents-container">
             <div class="controls d-flex align-items-center">
                 <button class="btn upload-btn">

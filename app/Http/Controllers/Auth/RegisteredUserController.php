@@ -38,23 +38,40 @@ class RegisteredUserController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        // ✅ Check if the logged-in user is LIS
-        if (Auth::user()->role !== 'LIS') {
+        // ✅ Ensure only authorized users (e.g., LIS) can register new users
+        if (Auth::user()->role !== 'Admin') {
             return redirect()->route('dashboard')->with('error', 'Unauthorized action.');
         }
 
+        // ✅ Validate the new fields
         $request->validate([
-            'name' => 'required|string|max:255',
+            'last_name' => 'required|string|max:255',
+            'first_name' => 'required|string|max:255',
+            'middle_name' => 'nullable|string|max:255',
+            'sex' => 'required|in:Male,Female',
+            'civil_status' => 'required|in:Single,Married,Widowed',
+            'date_of_birth' => 'nullable|date',
+            'religion' => 'nullable|string|max:255',
+            'phone_number' => 'required|string|max:15|unique:users,phone_number',
             'email' => 'required|string|lowercase|email|max:255|unique:users',
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
             'role' => 'required|in:Admin,LIS',
         ]);
 
+        // ✅ Store new user with updated fields
         $user = User::create([
-            'name' => $request->name,
+            'last_name' => $request->last_name,
+            'first_name' => $request->first_name,
+            'middle_name' => $request->middle_name,
+            'sex' => $request->sex,
+            'civil_status' => $request->civil_status,
+            'date_of_birth' => $request->date_of_birth,
+            'religion' => $request->religion,
+            'phone_number' => $request->phone_number,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role' => $request->role,
+            'role' => $request->role, // Save the user role
+            'status' => $request->status ?? 'active', // ✅ Fixed status field
         ]);
 
         event(new Registered($user));

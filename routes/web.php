@@ -44,7 +44,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
 });
 
 // Admin and LIS Routes
-Route::middleware(['auth', 'role:LIS'])->group(function () {
+Route::middleware(['auth', 'role:Admin'])->group(function () {
     Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
     Route::post('/register', [RegisteredUserController::class, 'store']);
 
@@ -60,4 +60,5 @@ Route::post('/logout', function (Request $request) {
     $request->session()->regenerateToken();
     return redirect()->route('login');
 })->middleware('auth')->name('logout');
+
 

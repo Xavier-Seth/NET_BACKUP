@@ -35,8 +35,8 @@ export default {
     const user = usePage().props.auth.user;
 
     const checkUserAccess = (path) => {
-      if (path === "users" && user.role !== "LIS") {
-        alert("❌ Access Denied: Only LIS users can access this page.");
+      if (path === "users" && user.role !== "Admin") {
+        alert("❌ Access Denied: Only Admin users can access this page.");
       } else {
         router.visit(`/${path}`);
       }
