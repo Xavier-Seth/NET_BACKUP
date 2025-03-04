@@ -148,7 +148,7 @@ export default {
   width: 100%;
 }
 .header {
-  margin-top: -50px;
+  margin-top: 10px;
   margin-left: 250px;
 }
 .input-field {
