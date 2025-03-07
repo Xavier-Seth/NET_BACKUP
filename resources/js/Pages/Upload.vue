@@ -20,9 +20,9 @@
         <div class="upload-box bg-white p-10 rounded-lg shadow-lg text-center">
           <i class="bi bi-cloud-arrow-up-fill upload-icon"></i>
           <h2 class="text-xl font-bold mt-4">Drag and drop your files</h2>
-          <p class="text-gray-500 text-sm mt-2">Files supported: JPG, PNG, GIF, PDF, DOCX</p>
+          <p class="text-gray-500 text-sm mt-2">Any file type is supported</p>
           <p class="text-gray-500 text-sm mt-2">Or</p>
-          <input type="file" id="fileInput" class="hidden" multiple @change="handleFileUpload">
+          <input type="file" id="fileInput" class="hidden" multiple @change="handleFileUpload" accept="*/*">
           <button @click="browseFile" class="mt-4 px-6 py-2 border-2 border-indigo-900 text-indigo-900 font-bold rounded-lg hover:bg-indigo-900 hover:text-white">
             Browse files
           </button>
@@ -32,7 +32,7 @@
           <p class="text-gray-700 font-bold">Selected Files:</p>
           <ul class="file-list">
             <li v-for="(file, index) in selectedFiles" :key="index" class="text-gray-700 flex items-center justify-between border-b py-2">
-              <span>{{ file.name }}</span>
+              <span>{{ file.name }} ({{ formatFileSize(file.size) }})</span>
               <button @click="removeFile(index)" class="text-red-500 hover:text-red-700">
                 <i class="bi bi-trash"></i>
               </button>
@@ -48,6 +48,11 @@
         >
           {{ isUploading ? 'Uploading...' : 'Upload Document' }}
         </button>
+
+        <!-- Styled Success Message -->
+        <p v-if="uploadMessage" class="mt-4 p-2 text-green-700 bg-green-100 border border-green-400 rounded-lg shadow-md">
+          {{ uploadMessage }}
+        </p>
       </div>
     </div>
   </div>
@@ -64,7 +69,8 @@ export default {
     return {
       selectedFiles: [],
       isDragging: false,
-      isUploading: false
+      isUploading: false,
+      uploadMessage: "",
     };
   },
   methods: {
@@ -98,29 +104,55 @@ export default {
         }
       });
     },
-    uploadFiles() {
-      if (this.selectedFiles.length === 0) return;
+    formatFileSize(size) {
+      if (size < 1024) return `${size} B`;
+      if (size < 1024 * 1024) return `${(size / 1024).toFixed(2)} KB`;
+      return `${(size / (1024 * 1024)).toFixed(2)} MB`;
+    },
+    async uploadFiles() {
+  if (this.selectedFiles.length === 0) return;
 
-      this.isUploading = true;
-      const formData = new FormData();
+  this.isUploading = true;
+  this.uploadMessage = "";
+  const formData = new FormData();
 
-      this.selectedFiles.forEach((file, index) => {
-        formData.append(`files[${index}]`, file);
-      });
+  this.selectedFiles.forEach((file) => {
+    formData.append('files[]', file);
+  });
 
-      router.post('/upload', formData, {
-        forceFormData: true,
-        onSuccess: () => {
-          this.selectedFiles = [];
-          this.isUploading = false;
-          alert('Upload successful!');
-        },
-        onError: () => {
-          this.isUploading = false;
-          alert('Upload failed. Please try again.');
-        }
-      });
-    }
+  try {
+    await router.post('/upload', formData, {
+      forceFormData: true,
+      onSuccess: () => {
+        this.selectedFiles = [];
+        this.isUploading = false;
+        this.uploadMessage = "🎉 Your files have been uploaded successfully! 🚀";
+
+        // Automatically remove the message after 3 seconds
+        setTimeout(() => {
+          this.uploadMessage = "";
+        }, 3000);
+      },
+      onError: () => {
+        this.isUploading = false;
+        this.uploadMessage = "⚠️ Upload failed. Please try again.";
+
+        // Hide the error message after 3 seconds
+        setTimeout(() => {
+          this.uploadMessage = "";
+        }, 3000);
+      }
+    });
+  } catch (error) {
+    this.isUploading = false;
+    this.uploadMessage = "❌ An error occurred while uploading.";
+
+    // Hide the error message after 3 seconds
+    setTimeout(() => {
+      this.uploadMessage = "";
+    }, 3000);
+  }
+}
   }
 };
 </script>
@@ -184,8 +216,6 @@ export default {
 
 .upload-btn {
   margin-top: 30px;
-  align-self: flex-start;
-  margin-left: 550px;
   padding: 12px 24px;
   background-color: #2563eb;
   color: white;

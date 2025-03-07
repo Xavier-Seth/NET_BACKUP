@@ -8,6 +8,7 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use Illuminate\Support\Facades\Route;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Http\Request;
+use App\Http\Controllers\DocumentController;
 use Inertia\Inertia;
 
 // ✅ Guest Routes (Publicly Accessible)
@@ -64,3 +65,6 @@ Route::post('/logout', function (Request $request) {
     $request->session()->regenerateToken();
     return redirect()->route('login');
 })->middleware('auth')->name('logout');
+
+Route::post('/upload', [DocumentController::class, 'upload']);
+

@@ -15,7 +15,9 @@
         </div>
       </div>
       <ul class="dropdown-menu dropdown-menu-end">
-        <li><a class="dropdown-item" href="#">Profile Settings</a></li>
+        <li>
+            <Link class="dropdown-item" href="/profile">Profile Settings</Link>
+        </li>
         <li>
           <button @click="checkRole" class="dropdown-item">Register New User</button>
         </li>
