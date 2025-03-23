@@ -26,49 +26,40 @@
   </aside>
 </template>
 
-<script>
+<script setup>
 import { router, usePage } from "@inertiajs/vue3";
+import { computed } from "vue";
 
-export default {
-  name: "Sidebar",
-  setup() {
-    const user = usePage().props.auth.user;
+const user = usePage().props.auth.user;
 
-    const checkUserAccess = (path) => {
-      if (path === "users" && user.role !== "Admin") {
-        alert("❌ Access Denied: Only Admin users can access this page.");
-      } else {
-        router.visit(`/${path}`);
-      }
-    };
+const menuItems = computed(() => [
+  { path: "dashboard", label: "Dashboard", icon: "bi bi-grid" },
+  { path: "users", label: "Users", icon: "bi bi-people" },
+  { path: "documents", label: "Documents", icon: "bi bi-file-earmark-text" },
+  { path: "active-files", label: "Active Files", icon: "bi bi-folder2-open" },
+  { path: "upload", label: "Upload Files", icon: "bi bi-upload" },
+]);
 
-    return { checkUserAccess };
-  },
-  computed: {
-    menuItems() {
-      return [
-        { path: "dashboard", label: "Dashboard", icon: "bi bi-grid" },
-        { path: "users", label: "Users", icon: "bi bi-people" },
-        { path: "documents", label: "Documents", icon: "bi bi-file-earmark-text" },
-        { path: "active-files", label: "Active Files", icon: "bi bi-folder2-open" },
-        { path: "upload", label: "Upload Files", icon: "bi bi-upload" },
-      ];
-    },
-  },
-  methods: {
-    isActive(path) {
-      return window.location.pathname.startsWith(`/${path}`);
-    },
-    logout() {
-      router.post("/logout");
-    },
-  },
+const checkUserAccess = (path) => {
+  if (path === "users" && user.role !== "Admin") {
+    alert("❌ Access Denied: Only Admin users can access this page.");
+  } else {
+    router.visit(`/${path}`);
+  }
+};
+
+const isActive = (path) => {
+  return window.location.pathname.startsWith(`/${path}`);
+};
+
+const logout = () => {
+  router.post("/logout");
 };
 </script>
 
 <style scoped>
 .sidebar {
-  width: 220px;
+  width: 200px;
   height: 100vh;
   position: fixed;
   left: 0;
@@ -108,8 +99,8 @@ export default {
   font-weight: bold;
 }
 .icon-box {
-  width: 50px;
-  height: 50px;
+  width: 40px;
+  height: 40px;
   background: #2c2f48;
   border-radius: 8px;
   display: flex;

@@ -6,34 +6,51 @@ use Illuminate\Http\Request;
 use App\Models\Document;
 use Illuminate\Support\Facades\Storage;
 use Inertia\Inertia;
-use Inertia\Response;
 
 class DocumentController extends Controller
 {
+    // Display all stored documents
+    public function index()
+    {
+        $documents = Document::orderBy('created_at', 'desc')->get();
+
+        return Inertia::render('Documents', [
+            'documents' => $documents,
+        ]);
+    }
+
+    // View a single document in browser
+    public function show(Document $document)
+    {
+        $path = storage_path("app/public/{$document->path}");
+
+        if (!file_exists($path)) {
+            abort(404, 'File not found.');
+        }
+
+        return response()->file($path);
+    }
+
+    // Your existing upload method stays unchanged:
     public function upload(Request $request)
     {
         $request->validate([
-            'files.*' => 'required|file|max:20480', // 20MB max
+            'files.*' => 'required|file|mimes:pdf,docx,png,jpg|max:20480',
         ]);
 
-        $uploadedFiles = [];
         foreach ($request->file('files') as $file) {
-            $path = $file->store('documents', 'public'); // Store in 'storage/app/public/documents'
+            $path = $file->store('documents', 'public');
 
-            $document = Document::create([
+            Document::create([
                 'name' => $file->getClientOriginalName(),
                 'path' => $path,
                 'mime_type' => $file->getMimeType(),
                 'size' => $file->getSize(),
+                'category' => $request->category,
+                'lrn' => $request->lrn,
             ]);
-
-            $uploadedFiles[] = $document;
         }
 
-        return Inertia::render('Upload', [
-            'message' => 'Files uploaded successfully!',
-            'documents' => $uploadedFiles,
-        ]);
+        return back()->with('message', 'Your files have been uploaded successfully!');
     }
 }
-

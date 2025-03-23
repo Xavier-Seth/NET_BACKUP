@@ -7,7 +7,7 @@
     <div class="flex-1 flex flex-col items-center justify-center p-6">
       <h1 class="header text-2xl font-bold text-gray-700 mb-6">Register New User</h1>
 
-      <form @submit.prevent="registerUser" class="all-field bg-white p-6 rounded-lg shadow-md w-full max-w-5xl">
+      <form @submit.prevent="showModal = true" class="all-field bg-white p-6 rounded-lg shadow-md w-full max-w-5xl">
         <div class="grid grid-cols-3 gap-4">
           <!-- Name Fields -->
           <div>
@@ -95,10 +95,27 @@
         </button>
       </form>
     </div>
+
+    <!-- Confirmation Modal -->
+    <div v-if="showModal" class="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-50">
+      <div class="bg-white p-6 rounded-lg shadow-lg w-96">
+        <h2 class="text-lg font-semibold text-gray-700 mb-4">Confirm Registration</h2>
+        <p class="text-gray-600">Are you sure you want to register this user?</p>
+        <div class="mt-4 flex justify-end space-x-4">
+          <button @click="registerUser" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
+            Yes
+          </button>
+          <button @click="showModal = false" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
 <script>
+import { ref } from 'vue'; // ✅ Import ref
 import { useForm } from '@inertiajs/vue3';
 import Sidebar from '@/Components/Sidebar.vue';
 
@@ -119,8 +136,10 @@ export default {
       password: '',
       password_confirmation: '',
       role: '',
-      status: '' // ✅ Added status field
+      status: ''
     });
+
+    const showModal = ref(false); // ✅ Use ref properly
 
     const registerUser = () => {
       if (form.password !== form.password_confirmation) {
@@ -130,6 +149,7 @@ export default {
       form.post(route('register'), {
         onSuccess: () => {
           alert('User registered successfully!');
+          showModal.value = false; // ✅ Correct usage of ref value
         },
         onError: (errors) => {
           console.log('Validation errors:', errors);
@@ -137,7 +157,7 @@ export default {
       });
     };
 
-    return { form, registerUser };
+    return { form, showModal, registerUser };
   },
 };
 </script>
@@ -145,16 +165,17 @@ export default {
 <style scoped>
 .all-field {
   margin-left: 200px;
-  width: 100%;
+  width: 90%;
+  margin-top: -10px;
 }
 .header {
-  margin-top: 10px;
+  margin-top: 50px;
   margin-left: 250px;
 }
 .input-field {
   width: 100%;
   padding: 8px;
-  margin-top: 4px;
+  margin-top: 1px;
   border: 1px solid #ccc;
   border-radius: 4px;
 }

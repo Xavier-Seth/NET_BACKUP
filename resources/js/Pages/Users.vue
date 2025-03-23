@@ -1,74 +1,9 @@
-<script setup>
-import { ref, computed, onMounted } from 'vue';
-import MainLayout from "@/Layouts/MainLayout.vue";
-import axios from 'axios';
-
-// Users List (Initially empty)
-const users = ref([]);
-const searchQuery = ref("");
-const loading = ref(true);
-const sortKey = ref(null);
-const sortOrder = ref(1);
-const selectedStatus = ref(""); // For selecting Active or Inactive status
-const selectedRoles = ref({ admin: false, lis: false }); // For selecting roles
-
-// Fetch users from Laravel API
-const fetchUsers = async () => {
-    try {
-        const response = await axios.get('/api/users');
-        users.value = response.data;
-    } catch (error) {
-        console.error("Error fetching users:", error);
-    } finally {
-        loading.value = false;
-    }
-};
-
-// Computed: Filter users based on search, status, and selected roles
-const filteredUsers = computed(() => {
-    return users.value.filter(user => {
-        // Filter by search query
-        const matchesSearch = (`${user.first_name} ${user.last_name}`.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
-            user.email.toLowerCase().includes(searchQuery.value.toLowerCase()));
-
-        // Filter by selected status
-        const matchesStatus = selectedStatus.value === "" || user.status.toLowerCase() === selectedStatus.value.toLowerCase();
-
-        // Filter by selected roles: Show all users if no role is selected
-        const matchesRole = (!selectedRoles.value.admin && !selectedRoles.value.lis) ||
-                            (selectedRoles.value.admin && user.role.toLowerCase() === 'admin') ||
-                            (selectedRoles.value.lis && user.role.toLowerCase() === 'lis');
-
-        return matchesSearch && matchesStatus && matchesRole;
-    });
-});
-
-// Sort users dynamically
-const sortUsers = (key) => {
-    if (sortKey.value === key) {
-        sortOrder.value *= -1;
-    } else {
-        sortKey.value = key;
-        sortOrder.value = 1;
-    }
-    users.value.sort((a, b) => {
-        return (a[key] > b[key] ? 1 : -1) * sortOrder.value;
-    });
-};
-
-// Fetch users when the component loads
-onMounted(fetchUsers);
-</script>
-
-
 <template>
     <MainLayout>
-        <!-- User Stats -->
         <div class="stats d-flex align-items-center">
             <button class="btn active-user btn-success me-2">Active Users</button>
             <button class="btn total-user btn-primary me-3">Total Users</button>
-            
-            <!-- Role Filter Checkboxes (Moved beside the Total Users button) -->
+
             <div class="role-filter">
                 <label class="form-check me-3">
                     <input type="checkbox" class="form-check-input" v-model="selectedRoles.admin" />
@@ -80,10 +15,7 @@ onMounted(fetchUsers);
                 </label>
             </div>
 
-            <!-- Search Bar -->
             <input type="text" v-model="searchQuery" class="form-control search-bar ms-auto" placeholder="Search Users" />
-
-            <!-- Status Filter Dropdown -->
             <select v-model="selectedStatus" class="form-select status-select ms-3">
                 <option value="">All Users</option>
                 <option value="active">Active</option>
@@ -91,10 +23,8 @@ onMounted(fetchUsers);
             </select>
         </div>
 
-        <!-- Loading Indicator -->
         <div v-if="loading" class="loading">Loading users...</div>
 
-        <!-- User Table -->
         <div v-else class="table-container mt-3">
             <table class="table users-table">
                 <thead>
@@ -117,8 +47,9 @@ onMounted(fetchUsers);
                         <td>{{ user.email }}</td>
                         <td>{{ user.status.charAt(0).toUpperCase() + user.status.slice(1) }}</td>
                         <td>
-                            <button class="btn btn-save"><i class="bi bi-check2"></i> Save</button>
-                            <button class="btn btn-edit ms-2"><i class="bi bi-pencil-square"></i></button>
+                            <button class="btn btn-edit" @click="confirmEdit(user)">
+                                <i class="bi bi-pencil-square"></i>
+                            </button>
                             <button class="btn btn-delete ms-2"><i class="bi bi-trash"></i></button>
                         </td>
                     </tr>
@@ -127,6 +58,69 @@ onMounted(fetchUsers);
         </div>
     </MainLayout>
 </template>
+
+<script setup>
+import { ref, computed, onMounted } from 'vue';
+import { useRouter } from 'vue-router';
+import MainLayout from "@/Layouts/MainLayout.vue";
+import axios from 'axios';
+
+// Variables
+const users = ref([]);
+const searchQuery = ref("");
+const loading = ref(true);
+const router = useRouter();
+const selectedStatus = ref("");
+const selectedRoles = ref({ admin: false, lis: false });
+
+// Fetch users from Laravel API
+const fetchUsers = async () => {
+    try {
+        const response = await axios.get('/api/users');
+        users.value = response.data;
+    } catch (error) {
+        console.error("Error fetching users:", error);
+    } finally {
+        loading.value = false;
+    }
+};
+
+// Computed Property for Filtering Users
+const filteredUsers = computed(() => {
+    return users.value.filter(user => {
+        const matchesSearch = (`${user.first_name} ${user.last_name}`.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+            user.email.toLowerCase().includes(searchQuery.value.toLowerCase()));
+
+        const matchesStatus = selectedStatus.value === "" || user.status.toLowerCase() === selectedStatus.value.toLowerCase();
+
+        const matchesRole = (!selectedRoles.value.admin && !selectedRoles.value.lis) ||
+                            (selectedRoles.value.admin && user.role.toLowerCase() === 'admin') ||
+                            (selectedRoles.value.lis && user.role.toLowerCase() === 'lis');
+
+        return matchesSearch && matchesStatus && matchesRole;
+    });
+});
+
+// Redirect Admin to User Profile Page
+const confirmEdit = (user) => {
+    console.log("Selected User:", user); // ✅ Debug log to check selected user
+
+    if (!user || !user.id) {
+        alert("Invalid user selected.");
+        return;
+    }
+
+    if (confirm(`Do you want to edit the profile of ${user.last_name}, ${user.first_name}?`)) {
+        console.log("Redirecting to AdminEditUser.vue for ID:", user.id); // ✅ Debug log to check redirect
+        router.push({ name: 'admin.edit-user', params: { id: user.id } });
+    }
+};
+
+
+// Fetch users when the component loads
+onMounted(fetchUsers);
+</script>
+
 
 <style scoped>
 /* Main Content */
@@ -138,6 +132,9 @@ onMounted(fetchUsers);
 }
 
 /* Role Filter */
+.form-select{
+    width: 160px;
+}
 .role-filter {
     display: flex;
     align-items: center;
@@ -145,120 +142,65 @@ onMounted(fetchUsers);
 }
 
 .form-check {
-    position: relative;
     display: flex;
     align-items: center;
 }
 
 .form-check input[type="checkbox"] {
-    appearance: none;
-    -webkit-appearance: none;
-    -moz-appearance: none;
-    width: 20px;
-    height: 20px;
-    border: 2px solid #ccc;
-    border-radius: 4px;
-    background-color: #fff;
+    width: 16px;
+    height: 16px;
+    margin-right: 5px;
     cursor: pointer;
-    transition: background-color 0.3s, border-color 0.3s;
-    margin-right: 10px;
 }
-
-.form-check input[type="checkbox"]:checked {
-    background-color: #007bff;
-    border-color: #007bff;
+.search-bar{
+    width: 300px;
 }
-
-.form-check input[type="checkbox"]:checked::before {
-    content: '✔';
-    font-size: 14px;
-    color: white;
-    position: absolute;
-    top: 0;
-    left: 2px;
-}
-
-.form-check label {
-    font-size: 14px;
-    color: #555;
-    cursor: pointer;
-    transition: color 0.3s;
-}
-
-.form-check input[type="checkbox"]:hover {
-    border-color: #007bff;
-}
-
-.form-check input[type="checkbox"]:checked:hover {
-    background-color: #0056b3;
-    border-color: #0056b3;
-}
-
-.form-check label:hover {
-    color: #007bff;
-}
-
-/* Search Bar */
-.search-bar {
+.search-bar, .status-select {
     padding: 8px;
     border-radius: 8px;
-    border: 2px solid #707070;
+    border: 1px solid #ccc;
     outline: none;
-    width: 350px;
-    height: 45px;
-    color: black;
-    transition: border-color 0.3s;
+    transition: 0.3s;
 }
 
-.search-bar:focus {
+.search-bar:focus, .status-select:focus {
     border-color: #007bff;
     box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
 }
 
-/* Status Filter Dropdown */
-.status-select {
-    padding: 8px;
-    border-radius: 8px;
-    border: 2px solid #707070;
-    outline: none;
-    width: 150px;
+/* Table */
+.table-container {
+    max-height: 500px;
+    overflow-y: auto;
+    border-radius: 10px;
+    background: white;
+    padding: 10px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
 
-/* Table */
-.table {
+.users-table {
     width: 100%;
     border-collapse: collapse;
-    border-radius: 10px;
-    overflow: hidden;
-}
-
-/* Table Header */
-.users-table thead {
-    background: #19184F;
-    color: white;
 }
 
 .users-table th {
-    padding: 15px;
-    text-align: left;
-    font-weight: 600;
-    font-size: 16px;
+    background: #19184F;
+    color: white;
+    padding: 12px;
     cursor: pointer;
 }
 
 .users-table th:hover {
-    background: #4540c5;
+    background: #3a35c4;
 }
 
-/* Table Rows */
 .users-table td {
-    padding: 15px;
+    padding: 10px;
     border-bottom: 1px solid #ddd;
-    font-size: 15px;
 }
 
 /* Action Buttons */
-.btn-save, .btn-edit, .btn-delete {
+.btn-edit, .btn-delete {
     border: none;
     color: white;
     padding: 6px 10px;
@@ -266,15 +208,6 @@ onMounted(fetchUsers);
     font-size: 14px;
     cursor: pointer;
     transition: background 0.3s;
-}
-
-/* Save (green) */
-.btn-save {
-    background: #28a745;
-}
-
-.btn-save:hover {
-    background: #218838;
 }
 
 /* Edit (orange) */
@@ -294,12 +227,5 @@ onMounted(fetchUsers);
 
 .btn-delete:hover {
     background: #c82333;
-}
-
-.table-container {
-    max-height: 500px; /* Adjust based on preference */
-    overflow-y: auto;
-    border: 1px solid #ddd;
-    border-radius: 10px;
 }
 </style>

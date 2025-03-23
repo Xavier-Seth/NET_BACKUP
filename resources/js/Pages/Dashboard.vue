@@ -112,7 +112,7 @@ export default {
   gap: 75px;
 }
 .stat-card {
-  width: 300px;
+  width: 280px;
   height: 150px;
   border-radius: 15px;
   box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
@@ -132,7 +132,7 @@ export default {
 .red { background: #7b0828; }
 
 .files-table-section {
-  margin-top: 10px;
+  margin-top: 5px;
   margin-left: 80px;
 }
 .table-container {

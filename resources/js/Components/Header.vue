@@ -16,8 +16,9 @@
       </div>
       <ul class="dropdown-menu dropdown-menu-end">
         <li>
-            <Link class="dropdown-item" href="/profile">Profile Settings</Link>
-        </li>
+      <!-- Use route('profile.edit') instead of a raw /profile -->
+           <Link class="dropdown-item" :href="route('profile.edit')">Profile Settings</Link>
+       </li>
         <li>
           <button @click="checkRole" class="dropdown-item">Register New User</button>
         </li>
@@ -55,6 +56,7 @@ const checkRole = () => {
   justify-content: space-between;
   padding: 12px 20px;
   background: white;
+  width: 1100px;
   border-radius: 10px;
   box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
 }

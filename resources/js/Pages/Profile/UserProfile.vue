@@ -10,6 +10,12 @@
             <img :src="user.profilePicture || '/images/user-avatar.png'" alt="Profile Picture" />
             <button class="change-photo" @click="changePhoto">Change Photo</button>
           </div>
+
+          <!-- ✅ Success message -->
+          <div v-if="successMessage" class="success-message">
+            {{ successMessage }}
+          </div>
+
           <form @submit.prevent="updateProfile" class="profile-form">
             <div class="form-row">
               <div class="form-group">
@@ -25,6 +31,7 @@
                 <input type="text" v-model="form.middle_name" :disabled="!isEditing" />
               </div>
             </div>
+
             <div class="form-row">
               <div class="form-group">
                 <label>Sex</label>
@@ -45,6 +52,7 @@
                 <input type="date" v-model="form.date_of_birth" :disabled="!isEditing" />
               </div>
             </div>
+
             <div class="form-row">
               <div class="form-group">
                 <label>Religion</label>
@@ -59,6 +67,7 @@
                 <input type="email" v-model="form.email" :disabled="!isEditing" />
               </div>
             </div>
+
             <div class="form-row">
               <div class="form-group">
                 <label>Password</label>
@@ -73,6 +82,7 @@
                 <input type="text" v-model="user.status" disabled />
               </div>
             </div>
+
             <div class="button-group">
               <button type="button" class="edit-btn" @click="toggleEdit">
                 {{ isEditing ? 'Cancel' : 'Edit' }}
@@ -96,61 +106,59 @@ import Header from '@/Components/Header.vue';
 
 const props = usePage().props;
 
-// Define editing toggle variable only once
-const isEditing = ref(false);
+// ✅ Ensure `user` is reactive
+const user = ref(props.user || {});
+const successMessage = ref(""); // ✅ Success message state
 
-// Extract user props
-const user = props.user;
-
-// Correctly format the date for the HTML input (YYYY-MM-DD)
-const formattedDob = user.date_of_birth ? user.date_of_birth.split('T')[0] : '';
-
+// ✅ Initialize form with existing user data
 const form = useForm({
-  first_name: user.first_name,
-  last_name: user.last_name,
-  middle_name: user.middle_name,
-  sex: user.sex,
-  civil_status: user.civil_status,
-  date_of_birth: formattedDate(user.date_of_birth),
-  religion: user.religion,
-  phone_number: user.phone_number,
-  email: user.email,
-  password: '',
-  password_confirmation: '',
+  first_name: user.value.first_name || "",
+  last_name: user.value.last_name || "",
+  middle_name: user.value.middle_name || "",
+  sex: user.value.sex || "",
+  civil_status: user.value.civil_status || "",
+  date_of_birth: user.value.date_of_birth ? user.value.date_of_birth.substring(0, 10) : "",
+  religion: user.value.religion || "",
+  phone_number: user.value.phone_number || "",
+  email: user.value.email || "",
+  password: "",
+  password_confirmation: "",
 });
 
+// ✅ State for edit mode
+const isEditing = ref(false);
 
-function toggleEdit() {
+// ✅ Toggle edit mode & reset form when canceled
+const toggleEdit = () => {
   isEditing.value = !isEditing.value;
   if (!isEditing.value) {
     form.reset();
-    form.date_of_birth = formattedDate(user.date_of_birth);
+    form.date_of_birth = user.value.date_of_birth ? user.value.date_of_birth.substring(0, 10) : "";
   }
-}
+};
 
-function formattedDate(date) {
-  return date ? date.substring(0, 10) : '';
-}
-
-function updateProfile() {
+// ✅ Update user profile with Inertia
+const updateProfile = () => {
   form.patch(route('profile.update'), {
     preserveScroll: true,
     onSuccess: () => {
       isEditing.value = false;
-      form.reset('password', 'password_confirmation');
+      form.reset("password", "password_confirmation");
+      successMessage.value = "Profile updated successfully! ✅"; // ✅ Show success message
+      setTimeout(() => successMessage.value = "", 3000); // ✅ Remove message after 3s
+    },
+    onError: (errors) => {
+      console.error("Update failed:", errors);
+      alert("Profile update failed. Please check your input.");
     },
   });
-}
+};
 
-function changePhoto() {
+// ✅ Upload photo placeholder
+const changePhoto = () => {
   console.log('Change photo clicked');
-}
+};
 </script>
-
-
-
-
-
 
 <style scoped>
 .app-layout {
@@ -192,6 +200,15 @@ function changePhoto() {
   color: white;
   border-radius: 6px;
   cursor: pointer;
+}
+.success-message {
+  background: #28a745;
+  color: white;
+  padding: 10px;
+  border-radius: 6px;
+  text-align: center;
+  font-weight: bold;
+  margin-bottom: 10px;
 }
 .form-row {
   display: flex;

@@ -1,9 +1,7 @@
 <template>
   <div class="flex h-screen bg-gray-100">
-    <!-- Sidebar -->
     <Sidebar />
 
-    <!-- Main Content -->
     <div class="flex-1 flex flex-col items-center justify-center relative">
       <div class="brand">
         <img src="/images/school_logo.png" alt="School Logo" class="school-logo" />
@@ -20,12 +18,25 @@
         <div class="upload-box bg-white p-10 rounded-lg shadow-lg text-center">
           <i class="bi bi-cloud-arrow-up-fill upload-icon"></i>
           <h2 class="text-xl font-bold mt-4">Drag and drop your files</h2>
-          <p class="text-gray-500 text-sm mt-2">Any file type is supported</p>
+          <p class="text-gray-500 text-sm mt-2">Supports: PDF, DOCX, PNG, JPG</p>
           <p class="text-gray-500 text-sm mt-2">Or</p>
-          <input type="file" id="fileInput" class="hidden" multiple @change="handleFileUpload" accept="*/*">
-          <button @click="browseFile" class="mt-4 px-6 py-2 border-2 border-indigo-900 text-indigo-900 font-bold rounded-lg hover:bg-indigo-900 hover:text-white">
-            Browse files
-          </button>
+
+          <div class="flex gap-2 justify-center mt-4">
+            <input 
+              type="file" 
+              id="fileInput" 
+              class="hidden" 
+              multiple 
+              @change="handleFileUpload" 
+              accept=".pdf,.docx,.png,.jpg"
+            >
+            <button 
+              @click="browseFile" 
+              class="px-4 py-2 border-2 border-indigo-900 text-indigo-900 font-bold rounded-lg hover:bg-indigo-900 hover:text-white"
+            >
+              Browse Files
+            </button>
+          </div>
         </div>
 
         <div v-if="selectedFiles.length" class="selected-files bg-white p-4 rounded-lg shadow-lg">
@@ -41,123 +52,118 @@
         </div>
 
         <button 
-          v-if="selectedFiles.length" 
-          @click="uploadFiles" 
+          v-if="selectedFiles.length && !uploadSuccess" 
+          @click="showModal=true" 
           class="upload-btn"
           :disabled="isUploading"
         >
           {{ isUploading ? 'Uploading...' : 'Upload Document' }}
         </button>
 
-        <!-- Styled Success Message -->
-        <p v-if="uploadMessage" class="mt-4 p-2 text-green-700 bg-green-100 border border-green-400 rounded-lg shadow-md">
+        <p v-if="uploadMessage" class="message mt-4 p-2 text-green-700 bg-green-100 border border-green-400 rounded-lg shadow-md">
           {{ uploadMessage }}
         </p>
       </div>
+
+      <div v-if="showModal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center">
+        <div class="bg-white rounded-lg shadow-lg p-6 w-80">
+          <h3 class="text-lg font-semibold mb-4">Categorize Document</h3>
+          <select v-model="category" class="border rounded p-2 w-full mb-4">
+            <option disabled value="">Select Document Type</option>
+            <option>Form 137</option>
+            <option>PSA</option>
+            <option>ECCRPD</option>
+          </select>
+
+          <input type="text" v-model="lrn" class="border rounded p-2 w-full mb-4" placeholder="Enter LRN">
+
+          <div class="flex justify-end gap-2">
+            <button @click="showModal=false" class="px-4 py-2 bg-gray-400 rounded text-white hover:bg-gray-500">
+              Cancel
+            </button>
+            <button @click="uploadFiles" class="px-4 py-2 bg-indigo-600 rounded text-white hover:bg-indigo-700">
+              Upload
+            </button>
+          </div>
+        </div>
+      </div>
+
     </div>
   </div>
 </template>
 
 <script>
-import { router } from '@inertiajs/vue3';
 import Sidebar from "@/Components/Sidebar.vue";
+import { router } from '@inertiajs/vue3';
 
 export default {
   components: { Sidebar },
-  name: "Upload",
   data() {
     return {
       selectedFiles: [],
       isDragging: false,
       isUploading: false,
       uploadMessage: "",
+      uploadSuccess: false,
+      showModal: false,
+      category: "",
+      lrn: "",
     };
   },
   methods: {
-    browseFile() {
-      document.getElementById("fileInput").click();
+    browseFile() { document.getElementById("fileInput").click(); },
+    handleFileUpload(event) { 
+      this.selectedFiles = Array.from(event.target.files);
+      this.uploadSuccess = false;
+      this.isUploading = false;
+      this.uploadMessage = "";
     },
-    handleFileUpload(event) {
-      const newFiles = Array.from(event.target.files);
-      this.addFiles(newFiles);
+    removeFile(index) { this.selectedFiles.splice(index, 1); },
+    handleDragOver(e) { e.preventDefault(); this.isDragging = true; },
+    handleDragLeave() { this.isDragging = false; },
+    handleDrop(e) { 
+      e.preventDefault(); 
+      this.selectedFiles = Array.from(e.dataTransfer.files); 
+      this.isDragging = false; 
+      this.uploadSuccess = false;
+      this.isUploading = false;
+      this.uploadMessage = "";
     },
-    removeFile(index) {
-      this.selectedFiles.splice(index, 1);
-    },
-    handleDragOver(event) {
-      event.preventDefault();
-      this.isDragging = true;
-    },
-    handleDragLeave() {
-      this.isDragging = false;
-    },
-    handleDrop(event) {
-      event.preventDefault();
-      this.isDragging = false;
-      const droppedFiles = Array.from(event.dataTransfer.files);
-      this.addFiles(droppedFiles);
-    },
-    addFiles(files) {
-      files.forEach(file => {
-        if (!this.selectedFiles.some(existingFile => existingFile.name === file.name)) {
-          this.selectedFiles.push(file);
+    formatFileSize(size) { return `${(size / 1024).toFixed(2)} KB`; },
+    uploadFiles() {
+      this.isUploading = true;
+      const formData = new FormData();
+      this.selectedFiles.forEach(file => formData.append('files[]', file));
+      formData.append('category', this.category);
+      formData.append('lrn', this.lrn);
+
+      router.post('/upload', formData, {
+        forceFormData: true,
+        onSuccess: () => {
+          this.selectedFiles = [];
+          this.uploadMessage = "Uploaded successfully!";
+          this.uploadSuccess = false;
+          this.showModal = false;
+          this.category = "";
+          this.lrn = "";
+          this.isUploading = false;
+        },
+        onError: () => {
+          this.uploadMessage = "Upload error.";
+          this.isUploading = false;
+          this.uploadSuccess = false;
         }
       });
-    },
-    formatFileSize(size) {
-      if (size < 1024) return `${size} B`;
-      if (size < 1024 * 1024) return `${(size / 1024).toFixed(2)} KB`;
-      return `${(size / (1024 * 1024)).toFixed(2)} MB`;
-    },
-    async uploadFiles() {
-  if (this.selectedFiles.length === 0) return;
-
-  this.isUploading = true;
-  this.uploadMessage = "";
-  const formData = new FormData();
-
-  this.selectedFiles.forEach((file) => {
-    formData.append('files[]', file);
-  });
-
-  try {
-    await router.post('/upload', formData, {
-      forceFormData: true,
-      onSuccess: () => {
-        this.selectedFiles = [];
-        this.isUploading = false;
-        this.uploadMessage = "🎉 Your files have been uploaded successfully! 🚀";
-
-        // Automatically remove the message after 3 seconds
-        setTimeout(() => {
-          this.uploadMessage = "";
-        }, 3000);
-      },
-      onError: () => {
-        this.isUploading = false;
-        this.uploadMessage = "⚠️ Upload failed. Please try again.";
-
-        // Hide the error message after 3 seconds
-        setTimeout(() => {
-          this.uploadMessage = "";
-        }, 3000);
-      }
-    });
-  } catch (error) {
-    this.isUploading = false;
-    this.uploadMessage = "❌ An error occurred while uploading.";
-
-    // Hide the error message after 3 seconds
-    setTimeout(() => {
-      this.uploadMessage = "";
-    }, 3000);
-  }
-}
+    }
   }
 };
 </script>
 
+
 <style scoped>
+.message{
+  margin-left: 340px;
+}
 .upload-container {
   display: flex;
   flex-direction: column;
@@ -188,13 +194,6 @@ export default {
   overflow-y: auto;
 }
 
-.file-list {
-  max-height: none;
-  overflow-y: visible;
-  list-style: none;
-  padding: 0;
-}
-
 .brand {
   display: flex;
   align-items: center;
@@ -209,13 +208,10 @@ export default {
   height: auto;
 }
 
-.upload-icon {
-  font-size: 90px;
-  color: #333;
-}
-
 .upload-btn {
-  margin-top: 30px;
+  display: block;
+  margin: 20px auto;  /* Centers horizontally */
+  margin-left: 550px;
   padding: 12px 24px;
   background-color: #2563eb;
   color: white;

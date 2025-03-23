@@ -9,6 +9,7 @@ class Document extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['name', 'path', 'mime_type', 'size'];
+    protected $fillable = ['name', 'path', 'mime_type', 'size', 'category', 'lrn'];
 }
+
 
