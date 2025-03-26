@@ -13,14 +13,17 @@
           <div>
             <label class="block text-gray-700">Last Name</label>
             <input type="text" v-model="form.last_name" class="input-field" required />
+            <span v-if="form.errors.last_name" class="text-red-600 text-sm">{{ form.errors.last_name }}</span>
           </div>
           <div>
             <label class="block text-gray-700">First Name</label>
             <input type="text" v-model="form.first_name" class="input-field" required />
+            <span v-if="form.errors.first_name" class="text-red-600 text-sm">{{ form.errors.first_name }}</span>
           </div>
           <div>
             <label class="block text-gray-700">Middle Name</label>
             <input type="text" v-model="form.middle_name" class="input-field" />
+            <span v-if="form.errors.middle_name" class="text-red-600 text-sm">{{ form.errors.middle_name }}</span>
           </div>
 
           <!-- Personal Info -->
@@ -31,6 +34,7 @@
               <option value="Male">Male</option>
               <option value="Female">Female</option>
             </select>
+            <span v-if="form.errors.sex" class="text-red-600 text-sm">{{ form.errors.sex }}</span>
           </div>
           <div>
             <label class="block text-gray-700">Civil Status</label>
@@ -40,30 +44,43 @@
               <option value="Married">Married</option>
               <option value="Widowed">Widowed</option>
             </select>
+            <span v-if="form.errors.civil_status" class="text-red-600 text-sm">{{ form.errors.civil_status }}</span>
           </div>
           <div>
             <label class="block text-gray-700">Date of Birth</label>
             <input type="date" v-model="form.date_of_birth" class="input-field" required />
+            <span v-if="form.errors.date_of_birth" class="text-red-600 text-sm">{{ form.errors.date_of_birth }}</span>
           </div>
 
           <!-- Religion & Contact -->
           <div>
             <label class="block text-gray-700">Religion</label>
             <input type="text" v-model="form.religion" class="input-field" />
+            <span v-if="form.errors.religion" class="text-red-600 text-sm">{{ form.errors.religion }}</span>
           </div>
           <div>
             <label class="block text-gray-700">Email Address</label>
-            <input type="email" v-model="form.email" class="input-field" required />
+            <input
+              type="email"
+              v-model="form.email"
+              class="input-field"
+              required
+              pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$"
+              title="Please enter a valid email address (e.g., user@example.com)"
+            />
+            <span v-if="form.errors.email" class="text-red-600 text-sm">{{ form.errors.email }}</span>
           </div>
           <div>
             <label class="block text-gray-700">Phone Number</label>
             <input type="text" v-model="form.phone_number" class="input-field" required />
+            <span v-if="form.errors.phone_number" class="text-red-600 text-sm">{{ form.errors.phone_number }}</span>
           </div>
 
           <!-- Password Fields -->
           <div>
             <label class="block text-gray-700">Password</label>
             <input type="password" v-model="form.password" class="input-field" required />
+            <span v-if="form.errors.password" class="text-red-600 text-sm">{{ form.errors.password }}</span>
           </div>
           <div>
             <label class="block text-gray-700">Confirm Password</label>
@@ -73,19 +90,20 @@
             <label class="block text-gray-700">Role</label>
             <select v-model="form.role" class="input-field" required>
               <option value="">Select</option>
-              <option value="LIS">LIS</option>
+              <option value="Admin Staff">Admin Staff</option>
               <option value="Admin">Admin</option>
             </select>
+            <span v-if="form.errors.role" class="text-red-600 text-sm">{{ form.errors.role }}</span>
           </div>
 
           <!-- Status Field -->
           <div>
             <label class="block text-gray-700">Status</label>
             <select v-model="form.status" class="input-field" required>
-              <option value="">Select</option>
               <option value="active">Active</option>
               <option value="inactive">Inactive</option>
             </select>
+            <span v-if="form.errors.status" class="text-red-600 text-sm">{{ form.errors.status }}</span>
           </div>
         </div>
 
@@ -115,7 +133,7 @@
 </template>
 
 <script>
-import { ref } from 'vue'; // ✅ Import ref
+import { ref } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 import Sidebar from '@/Components/Sidebar.vue';
 
@@ -136,23 +154,25 @@ export default {
       password: '',
       password_confirmation: '',
       role: '',
-      status: ''
+      status: 'active'
     });
 
-    const showModal = ref(false); // ✅ Use ref properly
+    const showModal = ref(false);
 
     const registerUser = () => {
       if (form.password !== form.password_confirmation) {
         alert('Passwords do not match!');
         return;
       }
+
       form.post(route('register'), {
         onSuccess: () => {
           alert('User registered successfully!');
-          showModal.value = false; // ✅ Correct usage of ref value
+          showModal.value = false;
         },
-        onError: (errors) => {
-          console.log('Validation errors:', errors);
+        onError: () => {
+          // Hide modal if validation fails
+          showModal.value = false;
         },
       });
     };
@@ -178,5 +198,11 @@ export default {
   margin-top: 1px;
   border: 1px solid #ccc;
   border-radius: 4px;
+}
+.text-red-600 {
+  color: #dc2626;
+}
+.text-sm {
+  font-size: 0.875rem;
 }
 </style>

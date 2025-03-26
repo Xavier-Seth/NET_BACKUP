@@ -101,7 +101,7 @@ class ProfileController extends Controller
             'phone_number' => ['required', 'string', 'max:20'],
             'email' => ['required', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
             'password' => ['nullable', 'confirmed'],
-            'role' => ['required', 'in:Admin,LIS,User'],
+            'role' => ['required', 'in:Admin,Admin Staff,User'],
             'status' => ['required', 'in:active,inactive'],
         ]);
 

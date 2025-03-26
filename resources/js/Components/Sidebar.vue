@@ -2,10 +2,10 @@
   <aside class="sidebar">
     <nav class="menu">
       <ul>
-        <li v-for="item in menuItems" :key="item.path">
+        <li v-for="item in menuItems" :key="item.label" class="menu-parent">
           <a
             href="javascript:void(0);"
-            @click="checkUserAccess(item.path)"
+            @click="handleMenuClick(item)"
             :class="{ active: isActive(item.path) }"
             class="menu-item"
           >
@@ -17,6 +17,7 @@
         </li>
       </ul>
     </nav>
+
     <div class="exit" @click="logout">
       <div class="icon-box exit-icon">
         <i class="bi bi-box-arrow-right"></i>
@@ -27,34 +28,38 @@
 </template>
 
 <script setup>
-import { router, usePage } from "@inertiajs/vue3";
-import { computed } from "vue";
+import { computed } from 'vue'
+import { usePage, router } from '@inertiajs/vue3'
 
-const user = usePage().props.auth.user;
+const user = usePage().props.auth.user
 
 const menuItems = computed(() => [
-  { path: "dashboard", label: "Dashboard", icon: "bi bi-grid" },
-  { path: "users", label: "Users", icon: "bi bi-people" },
-  { path: "documents", label: "Documents", icon: "bi bi-file-earmark-text" },
-  { path: "active-files", label: "Active Files", icon: "bi bi-folder2-open" },
-  { path: "upload", label: "Upload Files", icon: "bi bi-upload" },
-]);
+  { path: route('dashboard'), label: 'Dashboard', icon: 'bi bi-grid' },
+  { path: route('users.index'), label: 'Users', icon: 'bi bi-people' },
+  { path: route('documents'), label: 'Documents', icon: 'bi bi-file-earmark-text' },
+  { path: route('students.records'), label: 'Student Records', icon: 'bi bi-folder2-open' },
+  { path: route('upload'), label: 'Upload Files', icon: 'bi bi-upload' },
+])
 
-const checkUserAccess = (path) => {
-  if (path === "users" && user.role !== "Admin") {
-    alert("❌ Access Denied: Only Admin users can access this page.");
+const handleMenuClick = (item) => {
+  if (item.label === 'Users' && user.role !== 'Admin') {
+    alert('❌ Access Denied: Only Admin users can access this page.')
   } else {
-    router.visit(`/${path}`);
+    router.visit(item.path)
   }
-};
+}
 
 const isActive = (path) => {
-  return window.location.pathname.startsWith(`/${path}`);
-};
+  return window.location.pathname === new URL(path, window.location.origin).pathname
+}
 
 const logout = () => {
-  router.post("/logout");
-};
+  if (confirm('Are you sure you want to log out?')) {
+    router.post(route('logout'), {
+      preserveScroll: true,
+    })
+  }
+}
 </script>
 
 <style scoped>
@@ -71,7 +76,10 @@ const logout = () => {
   flex-direction: column;
   justify-content: space-between;
   z-index: 1000;
+  overflow-y: auto;
+  scroll-behavior: smooth;
 }
+
 .menu {
   margin-top: 15px;
 }
@@ -83,6 +91,10 @@ const logout = () => {
   display: flex;
   flex-direction: column;
   align-items: center;
+}
+.menu-parent {
+  position: relative;
+  width: 100%;
 }
 .menu-item {
   text-decoration: none;
@@ -118,6 +130,7 @@ const logout = () => {
   background: white;
   color: #1a1f3a;
 }
+
 .exit {
   margin-right: 12px;
   margin-bottom: 20px;

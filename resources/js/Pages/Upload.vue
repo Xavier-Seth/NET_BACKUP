@@ -5,7 +5,7 @@
     <div class="flex-1 flex flex-col items-center justify-center relative">
       <div class="brand">
         <img src="/images/school_logo.png" alt="School Logo" class="school-logo" />
-        <h1>DocuNet</h1>
+        <h1>Rizal Central School</h1>
       </div>
 
       <div 
@@ -18,7 +18,7 @@
         <div class="upload-box bg-white p-10 rounded-lg shadow-lg text-center">
           <i class="bi bi-cloud-arrow-up-fill upload-icon"></i>
           <h2 class="text-xl font-bold mt-4">Drag and drop your files</h2>
-          <p class="text-gray-500 text-sm mt-2">Supports: PDF, DOCX, PNG, JPG</p>
+          <p class="text-gray-500 text-sm mt-2">Supports: PDF, DOCX, XLSX, XLS, PNG, JPG</p>
           <p class="text-gray-500 text-sm mt-2">Or</p>
 
           <div class="flex gap-2 justify-center mt-4">
@@ -28,7 +28,7 @@
               class="hidden" 
               multiple 
               @change="handleFileUpload" 
-              accept=".pdf,.docx,.png,.jpg"
+              accept=".pdf,.docx,.xlsx,.xls,.png,.jpg"
             >
             <button 
               @click="browseFile" 
@@ -72,7 +72,7 @@
             <option disabled value="">Select Document Type</option>
             <option>Form 137</option>
             <option>PSA</option>
-            <option>ECCRPD</option>
+            <option>ECCRD</option>
           </select>
 
           <input type="text" v-model="lrn" class="border rounded p-2 w-full mb-4" placeholder="Enter LRN">
@@ -111,25 +111,36 @@ export default {
     };
   },
   methods: {
-    browseFile() { document.getElementById("fileInput").click(); },
-    handleFileUpload(event) { 
+    browseFile() {
+      document.getElementById("fileInput").click();
+    },
+    handleFileUpload(event) {
       this.selectedFiles = Array.from(event.target.files);
       this.uploadSuccess = false;
       this.isUploading = false;
       this.uploadMessage = "";
     },
-    removeFile(index) { this.selectedFiles.splice(index, 1); },
-    handleDragOver(e) { e.preventDefault(); this.isDragging = true; },
-    handleDragLeave() { this.isDragging = false; },
-    handleDrop(e) { 
-      e.preventDefault(); 
-      this.selectedFiles = Array.from(e.dataTransfer.files); 
-      this.isDragging = false; 
+    removeFile(index) {
+      this.selectedFiles.splice(index, 1);
+    },
+    handleDragOver(e) {
+      e.preventDefault();
+      this.isDragging = true;
+    },
+    handleDragLeave() {
+      this.isDragging = false;
+    },
+    handleDrop(e) {
+      e.preventDefault();
+      this.selectedFiles = Array.from(e.dataTransfer.files);
+      this.isDragging = false;
       this.uploadSuccess = false;
       this.isUploading = false;
       this.uploadMessage = "";
     },
-    formatFileSize(size) { return `${(size / 1024).toFixed(2)} KB`; },
+    formatFileSize(size) {
+      return `${(size / 1024).toFixed(2)} KB`;
+    },
     uploadFiles() {
       this.isUploading = true;
       const formData = new FormData();
@@ -159,9 +170,8 @@ export default {
 };
 </script>
 
-
 <style scoped>
-.message{
+.message {
   margin-left: 340px;
 }
 .upload-container {
@@ -210,7 +220,7 @@ export default {
 
 .upload-btn {
   display: block;
-  margin: 20px auto;  /* Centers horizontally */
+  margin: 20px auto;
   margin-left: 550px;
   padding: 12px 24px;
   background-color: #2563eb;

@@ -10,21 +10,23 @@ const documents = ref(props.documents);
 const entries = ref(5);
 const currentPage = ref(1);
 const searchQuery = ref("");
+const categoryFilter = ref("");
 
 const previewUrl = ref(null);
 const previewType = ref("pdf");
 
-function previewDocument(path) {
-  const fullPath = `/storage/${path}`;
-  if (path.endsWith(".pdf")) {
+function previewDocument(document) {
+  const extension = document.name.split(".").pop().toLowerCase();
+
+  if (extension === "pdf") {
     previewType.value = "pdf";
-    previewUrl.value = fullPath;
-  } else if (path.endsWith(".docx")) {
-    previewType.value = "docx";
-    previewUrl.value = `https://docs.google.com/gview?url=${window.location.origin}${fullPath}&embedded=true`;
+    previewUrl.value = `/storage/${document.path}`;
+  } else if (["docx", "xlsx", "xls"].includes(extension)) {
+    previewType.value = "pdf";
+    previewUrl.value = `/storage/${document.pdf_preview_path}`;
   } else {
     previewType.value = "image";
-    previewUrl.value = fullPath;
+    previewUrl.value = `/storage/${document.path}`;
   }
 }
 
@@ -33,19 +35,22 @@ function closePreview() {
   previewType.value = null;
 }
 
-watch(entries, () => {
+watch([entries, searchQuery, categoryFilter], () => {
   currentPage.value = 1;
 });
 
 const filteredDocuments = computed(() => {
-  return documents.value.filter((doc) =>
-    doc.lrn.toLowerCase().includes(searchQuery.value.toLowerCase())
-  );
+  return documents.value.filter((doc) => {
+    const matchesLRN = doc.lrn.toLowerCase().includes(searchQuery.value.toLowerCase());
+    const matchesCategory = categoryFilter.value === '' || doc.category === categoryFilter.value;
+    return matchesLRN && matchesCategory;
+  });
 });
 
 const paginatedDocuments = computed(() => {
   const start = (currentPage.value - 1) * entries.value;
-  return filteredDocuments.value.slice(start, start + entries.value);
+  const end = start + parseInt(entries.value);
+  return filteredDocuments.value.slice(start, end);
 });
 
 const totalPages = computed(() =>
@@ -68,11 +73,11 @@ const goToUpload = () => router.get("/upload");
 <template>
   <div class="layout">
     <Sidebar />
-
     <div class="content">
       <div class="documents-container">
         <div class="controls d-flex align-items-center">
           <button class="btn upload-btn" @click="goToUpload">Upload</button>
+
           <div class="entries-dropdown ms-3">
             <label for="entries">Show</label>
             <select id="entries" v-model="entries" class="form-select">
@@ -82,15 +87,21 @@ const goToUpload = () => router.get("/upload");
             </select>
             <span>Entries</span>
           </div>
-          <input
-            type="text"
-            v-model="searchQuery"
-            class="search-bar ms-auto"
-            placeholder="Search by LRN..."
-          />
+
+          <div class="category-filter ms-3">
+            <label for="category">Category</label>
+            <select id="category" v-model="categoryFilter" class="form-select">
+              <option value="">All</option>
+              <option value="Form 137">Form 137</option>
+              <option value="PSA">PSA</option>
+              <option value="ECCRD">ECCRD</option>
+            </select>
+          </div>
+
+          <input type="text" v-model="searchQuery" class="search-bar ms-auto" placeholder="Search by LRN..." />
         </div>
 
-        <div class="table-wrapper scrollable-body">
+        <div class="table-wrapper">
           <table class="documents-table">
             <thead>
               <tr>
@@ -103,53 +114,36 @@ const goToUpload = () => router.get("/upload");
                 <th>Actions</th>
               </tr>
             </thead>
-            <tbody>
-              <tr v-for="document in paginatedDocuments" :key="document.id">
-                <td>{{ document.id }}</td>
-                <td :title="document.name" class="truncate-cell">{{ document.name }}</td>
-                <td>{{ document.category }}</td>
-                <td>{{ document.lrn }}</td>
-                <td>{{ formatDate(document.created_at) }}</td>
-                <td>{{ formatSize(document.size) }}</td>
-                <td class="action-buttons">
-                  <button
-                    @click="previewDocument(document.path)"
-                    class="btn btn-xs btn-primary"
-                  >
-                    <Eye size="12" /> Preview
-                  </button>
-                  <a
-                    :href="`/storage/${document.path}`"
-                    :download="document.name"
-                    target="_blank"
-                    class="btn btn-xs btn-success"
-                  >
-                    ⬇ Download
-                  </a>
-                </td>
-              </tr>
-            </tbody>
           </table>
+
+          <div class="scrollable-body">
+            <table class="documents-table">
+              <tbody>
+                <tr v-for="document in paginatedDocuments" :key="document.id">
+                  <td>{{ document.id }}</td>
+                  <td :title="document.name" class="truncate-cell">{{ document.name }}</td>
+                  <td>{{ document.category }}</td>
+                  <td>{{ document.lrn }}</td>
+                  <td>{{ formatDate(document.created_at) }}</td>
+                  <td>{{ formatSize(document.size) }}</td>
+                  <td class="action-buttons">
+                    <button @click="previewDocument(document)" class="btn btn-xs btn-primary">
+                      <Eye size="12" /> Preview
+                    </button>
+                    <a :href="`/storage/${document.path}`" :download="document.name" target="_blank" class="btn btn-xs btn-success">
+                      ⬇ Download
+                    </a>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
         </div>
 
         <div class="pagination-container">
-          <button
-            @click="currentPage--"
-            :disabled="currentPage === 1"
-            class="pagination-btn"
-          >
-            Previous
-          </button>
-          <span class="pagination-text">
-            Page {{ currentPage }} of {{ totalPages }}
-          </span>
-          <button
-            @click="currentPage++"
-            :disabled="currentPage === totalPages"
-            class="pagination-btn"
-          >
-            Next
-          </button>
+          <button @click="currentPage--" :disabled="currentPage === 1" class="pagination-btn">Previous</button>
+          <span class="pagination-text">Page {{ currentPage }} of {{ totalPages }}</span>
+          <button @click="currentPage++" :disabled="currentPage === totalPages" class="pagination-btn">Next</button>
         </div>
       </div>
     </div>
@@ -157,20 +151,15 @@ const goToUpload = () => router.get("/upload");
     <div v-if="previewUrl" class="preview-modal">
       <div class="preview-content">
         <button class="close-preview" @click="closePreview">&times;</button>
-        <iframe
-          v-if="previewType === 'pdf' || previewType === 'docx'"
-          :src="previewUrl"
-          frameborder="0"
-        ></iframe>
+        <iframe v-if="previewType === 'pdf'" :src="previewUrl" frameborder="0"></iframe>
         <img v-else :src="previewUrl" alt="Document Preview" />
       </div>
     </div>
   </div>
 </template>
 
-<style>
-html,
-body {
+<style scoped>
+html, body {
   height: 100%;
   margin: 0;
   overflow: hidden;
@@ -286,7 +275,8 @@ body {
 .documents-table tbody tr:nth-child(even) {
   background-color: #f9f9f9;
 }
-.documents-table td:nth-child(2) {
+.documents-table td:nth-child(2),
+.truncate-cell {
   max-width: 200px;
   white-space: nowrap;
   overflow: hidden;
@@ -294,7 +284,7 @@ body {
 }
 
 .scrollable-body {
-  flex: 1;
+  max-height: 400px;
   overflow-y: auto;
   overflow-x: hidden;
 }
@@ -304,7 +294,7 @@ body {
   justify-content: center;
   align-items: center;
   gap: 10px;
-  padding: 15px 0;
+  padding: 10px 0;
   background-color: white;
   border-top: 1px solid #eee;
   border-radius: 0 0 10px 10px;
@@ -386,17 +376,20 @@ body {
   font-size: 16px;
   z-index: 1;
 }
-.documents-table td:nth-child(2),
-.truncate-cell {
-  max-width: 200px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+
+.category-filter select {
+  min-width: 140px;
+  padding: 6px 12px;
+  border-radius: 6px;
+  border: 1px solid #ccc;
+  font-size: 14px;
+  appearance: none;
 }
 
-.scrollable-body {
-  max-height: 400px;
-  overflow-y: auto;
-  overflow-x: hidden;
+.category-filter {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 4px;
 }
 </style>

@@ -11,17 +11,17 @@
       <div class="stat-card navy">
         <i class="bi bi-file-earmark-text stat-icon"></i>
         <h3>Total Documents</h3>
-        <p>3,467</p>
+        <p>{{ totalDocuments }}</p>
       </div>
       <div class="stat-card green">
         <i class="bi bi-people stat-icon"></i>
         <h3>Active Users</h3>
-        <p>30</p>
+        <p>{{ totalUsers }}</p>
       </div>
       <div class="stat-card red">
         <i class="bi bi-hdd-stack stat-icon"></i>
         <h3>Storage Usage</h3>
-        <p>6.7GB</p>
+        <p>{{ totalStorage }}</p>
       </div>
     </section>
 
@@ -59,26 +59,22 @@
   </MainLayout>
 </template>
 
-<script>
-import MainLayout from "@/Layouts/MainLayout.vue";
+<script setup>
+import MainLayout from '@/Layouts/MainLayout.vue';
+import { usePage } from '@inertiajs/vue3';
 
-export default {
-  components: {
-    MainLayout,
-  },
-  data() {
-    return {
-      recentUploads: [
-        { name: "Document 1", uploadedFile: "file1.pdf" },
-        { name: "Document 2", uploadedFile: "file2.docx" },
-      ],
-    };
-  },
-};
+const page = usePage();
+const totalDocuments = page.props.totalDocuments;
+const totalUsers = page.props.totalUsers;
+const totalStorage = page.props.totalStorage;
+
+const recentUploads = [
+  { name: 'Document 1', uploadedFile: 'file1.pdf' },
+  { name: 'Document 2', uploadedFile: 'file2.docx' }
+];
 </script>
 
 <style scoped>
-/* Keep your existing styles */
 .search-container {
   display: flex;
   position: relative;

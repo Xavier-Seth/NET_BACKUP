@@ -2,30 +2,43 @@
   <header class="top-bar">
     <div class="brand">
       <img src="/images/school_logo.png" alt="School Logo" class="school-logo" />
-      <h1>DocuNet</h1>
+      <h1>Rizal Central School</h1>
     </div>
 
     <!-- Profile Dropdown -->
     <div class="profile dropdown">
-      <div class="dropdown-toggle" data-bs-toggle="dropdown">
+      <button
+        class="dropdown-toggle"
+        data-bs-toggle="dropdown"
+        aria-expanded="false"
+        type="button"
+      >
         <img src="/images/user-avatar.png" alt="User Avatar" class="avatar" />
         <div class="user-info">
           <span class="user-name">{{ userName }}</span>
           <small class="user-role">{{ userRole }}</small>
         </div>
-      </div>
+      </button>
       <ul class="dropdown-menu dropdown-menu-end">
         <li>
-      <!-- Use route('profile.edit') instead of a raw /profile -->
-           <Link class="dropdown-item" :href="route('profile.edit')">Profile Settings</Link>
-       </li>
-        <li>
-          <button @click="checkRole" class="dropdown-item">Register New User</button>
+          <Link class="dropdown-item" :href="route('profile.edit')">
+            Profile Settings
+          </Link>
         </li>
         <li>
-          <Link class="dropdown-item text-danger" href="/logout" method="post" as="button">
+          <button @click="checkRole" class="dropdown-item">
+            Register New User
+          </button>
+        </li>
+        <li>
+          <button @click="checkRoleStudent" class="dropdown-item">
+            Register Student
+          </button>
+        </li>
+        <li>
+          <button @click="logout" class="dropdown-item text-danger">
             Logout
-          </Link>
+          </button>
         </li>
       </ul>
     </div>
@@ -33,20 +46,37 @@
 </template>
 
 <script setup>
-import { Link, router, usePage } from "@inertiajs/vue3";
+import { Link, router, usePage } from '@inertiajs/vue3'
 
-const user = usePage().props.auth.user;
-const userName = user ? `${user.last_name}, ${user.first_name}` : "User"; // Display Lastname, Firstname
-const userRole = user?.role ? `(${user.role})` : ""; // Display user role
+const page = usePage()
+const user = page.props.auth.user
 
-// Check role before navigating to register page
+const userName = user ? `${user.last_name}, ${user.first_name}` : 'User'
+const userRole = user?.role ? `(${user.role})` : ''
+
 const checkRole = () => {
-  if (user.role !== "Admin") {
-    alert("❌ Access Denied: Only Admin users can register new users.");
+  if (user.role !== 'Admin') {
+    alert('❌ Access Denied: Only Admin users can register new users.')
   } else {
-    router.visit("/register"); // ✅ Proceed if LIS
+    router.visit(route('register'))
   }
-};
+}
+
+const checkRoleStudent = () => {
+  if (user.role !== 'Admin') {
+    alert('❌ Access Denied: Only Admin users can register students.')
+  } else {
+    router.visit(route('students.register'))
+  }
+}
+
+const logout = () => {
+  if (confirm('Are you sure you want to log out?')) {
+    router.post(route('logout'), {
+      preserveScroll: true,
+    })
+  }
+}
 </script>
 
 <style scoped>
@@ -56,7 +86,7 @@ const checkRole = () => {
   justify-content: space-between;
   padding: 12px 20px;
   background: white;
-  width: 1100px;
+  width: 100%;
   border-radius: 10px;
   box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
 }
@@ -76,9 +106,8 @@ const checkRole = () => {
   display: flex;
   align-items: center;
   gap: 10px;
-  cursor: pointer;
-  min-width: 180px; /* Ensures enough space for name */
-  justify-content: flex-end; /* Keeps profile content aligned */
+  min-width: 180px;
+  justify-content: flex-end;
 }
 
 .avatar {
@@ -87,7 +116,7 @@ const checkRole = () => {
   border-radius: 50%;
   border: 2px solid #ccc;
   object-fit: cover;
-  flex-shrink: 0; /* Prevents avatar from shrinking */
+  flex-shrink: 0;
 }
 
 .user-info {
@@ -124,9 +153,8 @@ const checkRole = () => {
   display: flex;
   align-items: center;
   gap: 8px;
-  white-space: nowrap; /* Prevents name from wrapping */
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 200px; /* Prevents long names from expanding the element */
+  background: none;
+  border: none;
+  cursor: pointer;
 }
 </style>

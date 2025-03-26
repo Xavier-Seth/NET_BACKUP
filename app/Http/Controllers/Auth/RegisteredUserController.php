@@ -38,12 +38,10 @@ class RegisteredUserController extends Controller
 
     public function store(Request $request): RedirectResponse
     {
-        // ✅ Ensure only authorized users (e.g., LIS) can register new users
         if (Auth::user()->role !== 'Admin') {
             return redirect()->route('dashboard')->with('error', 'Unauthorized action.');
         }
 
-        // ✅ Validate the new fields
         $request->validate([
             'last_name' => 'required|string|max:255',
             'first_name' => 'required|string|max:255',
@@ -53,12 +51,12 @@ class RegisteredUserController extends Controller
             'date_of_birth' => 'nullable|date',
             'religion' => 'nullable|string|max:255',
             'phone_number' => 'required|string|max:15|unique:users,phone_number',
-            'email' => 'required|string|lowercase|email|max:255|unique:users',
+            'email' => ['required', 'string', 'email:rfc,dns', 'max:255', 'unique:users'],
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
-            'role' => 'required|in:Admin,LIS',
+            'role' => 'required|in:Admin,Admin Staff',
+            'status' => 'required|in:active,inactive',
         ]);
 
-        // ✅ Store new user with updated fields
         $user = User::create([
             'last_name' => $request->last_name,
             'first_name' => $request->first_name,
@@ -70,8 +68,8 @@ class RegisteredUserController extends Controller
             'phone_number' => $request->phone_number,
             'email' => $request->email,
             'password' => Hash::make($request->password),
-            'role' => $request->role, // Save the user role
-            'status' => $request->status ?? 'active', // ✅ Fixed status field
+            'role' => $request->role,
+            'status' => $request->status,
         ]);
 
         event(new Registered($user));

@@ -10,8 +10,8 @@
                     <span>Admin</span>
                 </label>
                 <label class="form-check">
-                    <input type="checkbox" class="form-check-input" v-model="selectedRoles.lis" />
-                    <span>LIS</span>
+                    <input type="checkbox" class="form-check-input" v-model="selectedRoles.adminStaff" />
+                    <span>Admin Staff</span>
                 </label>
             </div>
 
@@ -50,7 +50,9 @@
                             <button class="btn btn-edit" @click="confirmEdit(user)">
                                 <i class="bi bi-pencil-square"></i>
                             </button>
-                            <button class="btn btn-delete ms-2"><i class="bi bi-trash"></i></button>
+                            <button class="btn btn-delete ms-2">
+                                <i class="bi bi-trash"></i>
+                            </button>
                         </td>
                     </tr>
                 </tbody>
@@ -65,15 +67,13 @@ import { useRouter } from 'vue-router';
 import MainLayout from "@/Layouts/MainLayout.vue";
 import axios from 'axios';
 
-// Variables
 const users = ref([]);
 const searchQuery = ref("");
 const loading = ref(true);
 const router = useRouter();
 const selectedStatus = ref("");
-const selectedRoles = ref({ admin: false, lis: false });
+const selectedRoles = ref({ admin: false, adminStaff: false });
 
-// Fetch users from Laravel API
 const fetchUsers = async () => {
     try {
         const response = await axios.get('/api/users');
@@ -85,45 +85,39 @@ const fetchUsers = async () => {
     }
 };
 
-// Computed Property for Filtering Users
 const filteredUsers = computed(() => {
     return users.value.filter(user => {
-        const matchesSearch = (`${user.first_name} ${user.last_name}`.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+        const matchesSearch =
+            (`${user.first_name} ${user.last_name}`.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
             user.email.toLowerCase().includes(searchQuery.value.toLowerCase()));
 
-        const matchesStatus = selectedStatus.value === "" || user.status.toLowerCase() === selectedStatus.value.toLowerCase();
+        const matchesStatus =
+            selectedStatus.value === "" || user.status.toLowerCase() === selectedStatus.value.toLowerCase();
 
-        const matchesRole = (!selectedRoles.value.admin && !selectedRoles.value.lis) ||
-                            (selectedRoles.value.admin && user.role.toLowerCase() === 'admin') ||
-                            (selectedRoles.value.lis && user.role.toLowerCase() === 'lis');
+        const matchesRole =
+            (!selectedRoles.value.admin && !selectedRoles.value.adminStaff) ||
+            (selectedRoles.value.admin && user.role.toLowerCase() === 'admin') ||
+            (selectedRoles.value.adminStaff && user.role.toLowerCase() === 'admin staff');
 
         return matchesSearch && matchesStatus && matchesRole;
     });
 });
 
-// Redirect Admin to User Profile Page
 const confirmEdit = (user) => {
-    console.log("Selected User:", user); // ✅ Debug log to check selected user
-
     if (!user || !user.id) {
         alert("Invalid user selected.");
         return;
     }
 
     if (confirm(`Do you want to edit the profile of ${user.last_name}, ${user.first_name}?`)) {
-        console.log("Redirecting to AdminEditUser.vue for ID:", user.id); // ✅ Debug log to check redirect
         router.push({ name: 'admin.edit-user', params: { id: user.id } });
     }
 };
 
-
-// Fetch users when the component loads
 onMounted(fetchUsers);
 </script>
 
-
 <style scoped>
-/* Main Content */
 .stats {
     display: flex;
     align-items: center;
@@ -131,8 +125,7 @@ onMounted(fetchUsers);
     gap: 8px;
 }
 
-/* Role Filter */
-.form-select{
+.form-select {
     width: 160px;
 }
 .role-filter {
@@ -140,19 +133,17 @@ onMounted(fetchUsers);
     align-items: center;
     margin-left: 10px;
 }
-
 .form-check {
     display: flex;
     align-items: center;
 }
-
 .form-check input[type="checkbox"] {
     width: 16px;
     height: 16px;
     margin-right: 5px;
     cursor: pointer;
 }
-.search-bar{
+.search-bar {
     width: 300px;
 }
 .search-bar, .status-select {
@@ -162,13 +153,10 @@ onMounted(fetchUsers);
     outline: none;
     transition: 0.3s;
 }
-
 .search-bar:focus, .status-select:focus {
     border-color: #007bff;
     box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
 }
-
-/* Table */
 .table-container {
     max-height: 500px;
     overflow-y: auto;
@@ -177,29 +165,23 @@ onMounted(fetchUsers);
     padding: 10px;
     box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
 }
-
 .users-table {
     width: 100%;
     border-collapse: collapse;
 }
-
 .users-table th {
     background: #19184F;
     color: white;
     padding: 12px;
     cursor: pointer;
 }
-
 .users-table th:hover {
     background: #3a35c4;
 }
-
 .users-table td {
     padding: 10px;
     border-bottom: 1px solid #ddd;
 }
-
-/* Action Buttons */
 .btn-edit, .btn-delete {
     border: none;
     color: white;
@@ -209,22 +191,16 @@ onMounted(fetchUsers);
     cursor: pointer;
     transition: background 0.3s;
 }
-
-/* Edit (orange) */
 .btn-edit {
     background: #ffc107;
     color: black;
 }
-
 .btn-edit:hover {
     background: #e0a800;
 }
-
-/* Delete (red) */
 .btn-delete {
     background: #dc3545;
 }
-
 .btn-delete:hover {
     background: #c82333;
 }
