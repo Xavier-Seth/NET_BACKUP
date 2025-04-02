@@ -10,7 +10,7 @@ const form = useForm({
 const submit = () => {
     form.post(route('login'), {
         onSuccess: () => {
-            router.visit(route('dashboard')); // Fix: No full page reload
+            router.visit(route('dashboard'));
         },
         onError: () => {
             console.error("Login failed. Check your email and password.");
@@ -19,7 +19,6 @@ const submit = () => {
     });
 };
 
-// Clear errors when clicking the input field
 const clearErrors = () => {
     form.clearErrors();
 };
@@ -63,7 +62,6 @@ const clearErrors = () => {
                     </div>
                 </div>
 
-                <!-- Error Message (Only in Middle) -->
                 <div v-if="form.errors.email || form.errors.password" class="text-center">
                     <small class="text-danger">These credentials do not match our records.</small>
                 </div>
@@ -88,15 +86,29 @@ const clearErrors = () => {
     border-radius: 50px 0 0 50px;
     padding: 10px 15px;
 }
+
 .form-control {
     border-radius: 0 50px 50px 0;
     padding: 10px;
+    background-color: #212529; /* same as Bootstrap's bg-dark */
+    color: white;
 }
 
 /* Ensure placeholder text is visible */
 .form-control::placeholder {
     color: rgba(255, 255, 255, 0.6);
     font-size: 14px;
+}
+
+/* Autofill fix for Chrome/Edge */
+input:-webkit-autofill,
+input:-webkit-autofill:focus,
+input:-webkit-autofill:hover,
+input:-webkit-autofill:active {
+    -webkit-box-shadow: 0 0 0 1000px #212529 inset !important;
+    -webkit-text-fill-color: white !important;
+    caret-color: white !important;
+    transition: background-color 5000s ease-in-out 0s;
 }
 
 /* Blur effect for card */

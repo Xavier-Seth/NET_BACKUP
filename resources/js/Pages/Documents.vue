@@ -1,19 +1,31 @@
 <script setup>
 import Sidebar from "@/Components/Sidebar.vue";
-import { ref, computed, watch } from "vue";
+import { ref, computed, watch, onMounted } from "vue";
 import { Eye } from "lucide-vue-next";
 import { router, usePage } from "@inertiajs/vue3";
 
 const { props } = usePage();
 const documents = ref(props.documents);
 
-const entries = ref(5);
+const urlParams = new URLSearchParams(window.location.search);
 const currentPage = ref(1);
-const searchQuery = ref("");
+const searchQuery = ref(urlParams.get("search") || "");
 const categoryFilter = ref("");
+const typeFilter = ref(urlParams.get("type") || "");
 
 const previewUrl = ref(null);
 const previewType = ref("pdf");
+const ENTRIES_PER_PAGE = 20;
+
+const isSidebarVisible = ref(true);
+
+onMounted(() => {
+  if (!typeFilter.value) typeFilter.value = "student";
+});
+
+function toggleSidebar() {
+  isSidebarVisible.value = !isSidebarVisible.value;
+}
 
 function previewDocument(document) {
   const extension = document.name.split(".").pop().toLowerCase();
@@ -35,27 +47,47 @@ function closePreview() {
   previewType.value = null;
 }
 
-watch([entries, searchQuery, categoryFilter], () => {
+watch(previewUrl, (val) => {
+  document.body.style.overflow = val ? "hidden" : "";
+});
+
+watch([searchQuery, categoryFilter, typeFilter], () => {
   currentPage.value = 1;
 });
 
 const filteredDocuments = computed(() => {
+  if (!typeFilter.value) return [];
+
   return documents.value.filter((doc) => {
-    const matchesLRN = doc.lrn.toLowerCase().includes(searchQuery.value.toLowerCase());
-    const matchesCategory = categoryFilter.value === '' || doc.category === categoryFilter.value;
-    return matchesLRN && matchesCategory;
+    const lrn = doc.lrn ?? "";
+    const category = doc.category ?? "";
+    const type = doc.type ?? "";
+
+    const matchesLRN = lrn.toLowerCase().includes(searchQuery.value.toLowerCase());
+    const matchesCategory = categoryFilter.value === '' || category === categoryFilter.value;
+    const matchesType = type === typeFilter.value;
+
+    return matchesLRN && matchesCategory && matchesType;
   });
 });
 
 const paginatedDocuments = computed(() => {
-  const start = (currentPage.value - 1) * entries.value;
-  const end = start + parseInt(entries.value);
+  const start = (currentPage.value - 1) * ENTRIES_PER_PAGE;
+  const end = start + ENTRIES_PER_PAGE;
   return filteredDocuments.value.slice(start, end);
 });
 
 const totalPages = computed(() =>
-  Math.ceil(filteredDocuments.value.length / entries.value)
+  Math.ceil(filteredDocuments.value.length / ENTRIES_PER_PAGE)
 );
+
+const paginationRange = computed(() => {
+  const total = filteredDocuments.value.length;
+  if (total === 0) return { start: 0, end: 0, total };
+  const start = (currentPage.value - 1) * ENTRIES_PER_PAGE + 1;
+  const end = Math.min(start + ENTRIES_PER_PAGE - 1, total);
+  return { start, end, total };
+});
 
 function formatDate(date) {
   return new Date(date).toLocaleDateString();
@@ -72,21 +104,15 @@ const goToUpload = () => router.get("/upload");
 
 <template>
   <div class="layout">
-    <Sidebar />
+    <Sidebar v-if="isSidebarVisible" />
     <div class="content">
+      <button class="toggle-sidebar-btn d-md-none" @click="toggleSidebar">
+        Toggle Sidebar
+      </button>
+
       <div class="documents-container">
         <div class="controls d-flex align-items-center">
           <button class="btn upload-btn" @click="goToUpload">Upload</button>
-
-          <div class="entries-dropdown ms-3">
-            <label for="entries">Show</label>
-            <select id="entries" v-model="entries" class="form-select">
-              <option value="5">5</option>
-              <option value="10">10</option>
-              <option value="25">25</option>
-            </select>
-            <span>Entries</span>
-          </div>
 
           <div class="category-filter ms-3">
             <label for="category">Category</label>
@@ -94,21 +120,41 @@ const goToUpload = () => router.get("/upload");
               <option value="">All</option>
               <option value="Form 137">Form 137</option>
               <option value="PSA">PSA</option>
-              <option value="ECCRD">ECCRD</option>
+              <option value="ECCRPD">ECCRPD</option>
             </select>
           </div>
 
-          <input type="text" v-model="searchQuery" class="search-bar ms-auto" placeholder="Search by LRN..." />
+          <div class="type-filter ms-3">
+            <label for="type">Type</label>
+            <select id="type" v-model="typeFilter" class="form-select">
+              <option value="">All</option>
+              <option value="student">Student</option>
+              <option value="school">School</option>
+            </select>
+          </div>
+
+          <input
+            type="text"
+            v-model="searchQuery"
+            class="search-bar ms-auto"
+            placeholder="Search by LRN..."
+          />
         </div>
 
-        <div class="table-wrapper">
+        <div v-if="!typeFilter" class="text-center text-muted py-5 fs-6">
+          <i class="bi bi-info-circle"></i>
+          Please select a document type to view documents.
+        </div>
+
+        <div v-else class="table-wrapper">
           <table class="documents-table">
             <thead>
               <tr>
                 <th>ID</th>
                 <th>Name</th>
+                <th>Type</th>
                 <th>Category</th>
-                <th>LRN</th>
+                <th v-if="typeFilter === 'student'">LRN</th>
                 <th>Date Created</th>
                 <th>Size</th>
                 <th>Actions</th>
@@ -122,15 +168,16 @@ const goToUpload = () => router.get("/upload");
                 <tr v-for="document in paginatedDocuments" :key="document.id">
                   <td>{{ document.id }}</td>
                   <td :title="document.name" class="truncate-cell">{{ document.name }}</td>
-                  <td>{{ document.category }}</td>
-                  <td>{{ document.lrn }}</td>
+                  <td class="text-capitalize">{{ document.type ?? 'N/A' }}</td>
+                  <td>{{ document.category ?? 'N/A' }}</td>
+                  <td v-if="typeFilter === 'student'">{{ document.lrn ?? 'N/A' }}</td>
                   <td>{{ formatDate(document.created_at) }}</td>
                   <td>{{ formatSize(document.size) }}</td>
                   <td class="action-buttons">
-                    <button @click="previewDocument(document)" class="btn btn-xs btn-primary">
-                      <Eye size="12" /> Preview
+                    <button @click="previewDocument(document)" class="action-btn preview-btn">
+                      <Eye size="14" /> Preview
                     </button>
-                    <a :href="`/storage/${document.path}`" :download="document.name" target="_blank" class="btn btn-xs btn-success">
+                    <a :href="`/storage/${document.path}`" :download="document.name" target="_blank" class="action-btn download-btn">
                       ⬇ Download
                     </a>
                   </td>
@@ -138,12 +185,16 @@ const goToUpload = () => router.get("/upload");
               </tbody>
             </table>
           </div>
-        </div>
 
-        <div class="pagination-container">
-          <button @click="currentPage--" :disabled="currentPage === 1" class="pagination-btn">Previous</button>
-          <span class="pagination-text">Page {{ currentPage }} of {{ totalPages }}</span>
-          <button @click="currentPage++" :disabled="currentPage === totalPages" class="pagination-btn">Next</button>
+          <div class="pagination-info">
+            Showing {{ paginationRange.start }} to {{ paginationRange.end }} of {{ paginationRange.total }} entries
+          </div>
+
+          <div class="pagination-container">
+            <button @click="currentPage--" :disabled="currentPage === 1" class="pagination-btn">Previous</button>
+            <span class="pagination-text">Page {{ currentPage }} of {{ totalPages }}</span>
+            <button @click="currentPage++" :disabled="currentPage === totalPages" class="pagination-btn">Next</button>
+          </div>
         </div>
       </div>
     </div>
@@ -170,6 +221,7 @@ html, body {
   display: flex;
   height: 100vh;
   overflow: hidden;
+  flex-direction: row;
 }
 
 .content {
@@ -181,6 +233,16 @@ html, body {
   display: flex;
   flex-direction: column;
   overflow: hidden;
+}
+
+.toggle-sidebar-btn {
+  margin-bottom: 10px;
+  padding: 6px 12px;
+  border: none;
+  background: #343a40;
+  color: white;
+  border-radius: 4px;
+  cursor: pointer;
 }
 
 .documents-container {
@@ -197,6 +259,10 @@ html, body {
   gap: 10px;
   margin-bottom: 15px;
   flex-wrap: wrap;
+  position: sticky;
+  top: 0;
+  background: white;
+  z-index: 2;
 }
 
 .upload-btn {
@@ -215,20 +281,11 @@ html, body {
   background: #218838;
 }
 
-.entries-dropdown {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-.entries-dropdown label,
-.entries-dropdown span {
-  font-size: 14px;
-}
 .form-select {
   padding: 5px;
   border-radius: 5px;
   border: 1px solid #707070;
-  width: 70px;
+  width: 120px;
 }
 
 .search-bar {
@@ -262,11 +319,12 @@ html, body {
 }
 .documents-table th,
 .documents-table td {
-  padding: 10px;
+  padding: 6px 8px;
+  font-size: 13px;
   text-align: left;
-  font-size: 14px;
   border-bottom: 1px solid #ddd;
   word-wrap: break-word;
+  line-height: 1.4;
 }
 .documents-table thead {
   background: #0d0c37;
@@ -284,9 +342,16 @@ html, body {
 }
 
 .scrollable-body {
-  max-height: 400px;
+  max-height: 600px;
   overflow-y: auto;
-  overflow-x: hidden;
+  overflow-x: auto;
+}
+
+.pagination-info {
+  text-align: center;
+  font-size: 14px;
+  color: #555;
+  padding: 10px 0;
 }
 
 .pagination-container {
@@ -299,7 +364,6 @@ html, body {
   border-top: 1px solid #eee;
   border-radius: 0 0 10px 10px;
 }
-
 .pagination-btn {
   padding: 8px 12px;
   border: none;
@@ -319,18 +383,41 @@ html, body {
 
 .action-buttons {
   display: flex;
-  gap: 5px;
+  gap: 6px;
   flex-wrap: wrap;
 }
 
-.btn-xs {
-  padding: 3px 6px;
-  font-size: 11px;
-  line-height: 1;
+.action-btn {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
+  justify-content: center;
+  gap: 6px;
+  padding: 5px 10px;
+  font-size: 13px;
+  height: 28px;
+  line-height: 1;
+  font-weight: 500;
+  border-radius: 4px;
+  border: none;
+  text-decoration: none;
   white-space: nowrap;
+  min-width: 90px;
+}
+
+.preview-btn {
+  background-color: #0d6efd;
+  color: #fff;
+}
+.preview-btn:hover {
+  background-color: #0b5ed7;
+}
+
+.download-btn {
+  background-color: #198754;
+  color: #fff;
+}
+.download-btn:hover {
+  background-color: #157347;
 }
 
 .preview-modal {
@@ -346,10 +433,11 @@ html, body {
 .preview-content {
   position: relative;
   background: white;
-  width: 700px;
+  width: 90vw;
+  max-width: 700px;
   height: 500px;
   border-radius: 10px;
-  overflow: hidden;
+  overflow-y: auto;
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
   display: flex;
   align-items: center;
@@ -377,19 +465,77 @@ html, body {
   z-index: 1;
 }
 
-.category-filter select {
-  min-width: 140px;
-  padding: 6px 12px;
-  border-radius: 6px;
-  border: 1px solid #ccc;
-  font-size: 14px;
-  appearance: none;
-}
+@media (max-width: 768px) {
+  .layout {
+    flex-direction: column;
+    height: auto;
+  }
 
-.category-filter {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 4px;
+  .content {
+    margin-left: 0;
+    max-width: 100%;
+    padding: 10px;
+  }
+
+  .form-select,
+  .search-bar {
+    width: 100% !important;
+    margin-top: 8px;
+  }
+
+  .documents-table,
+  .documents-table thead,
+  .documents-table tbody,
+  .documents-table th,
+  .documents-table td,
+  .documents-table tr {
+    display: block;
+  }
+
+  .documents-table thead {
+    display: none;
+  }
+
+  .documents-table td {
+    position: relative;
+    padding-left: 50%;
+    border: none;
+    border-bottom: 1px solid #eee;
+    white-space: normal;
+  }
+
+  .documents-table td::before {
+    position: absolute;
+    top: 6px;
+    left: 8px;
+    width: 45%;
+    padding-right: 10px;
+    white-space: nowrap;
+    font-weight: bold;
+    color: #333;
+  }
+
+  .documents-table td:nth-of-type(1)::before { content: "ID"; }
+  .documents-table td:nth-of-type(2)::before { content: "Name"; }
+  .documents-table td:nth-of-type(3)::before { content: "Type"; }
+  .documents-table td:nth-of-type(4)::before { content: "Category"; }
+  .documents-table td:nth-of-type(5)::before { content: "LRN"; }
+  .documents-table td:nth-of-type(6)::before { content: "Date Created"; }
+  .documents-table td:nth-of-type(7)::before { content: "Size"; }
+  .documents-table td:nth-of-type(8)::before { content: "Actions"; }
+
+  .pagination-container {
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .pagination-btn {
+    width: 100%;
+  }
+
+  .preview-content {
+    height: 80%;
+    padding: 10px;
+  }
 }
 </style>

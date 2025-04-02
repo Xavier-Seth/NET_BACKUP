@@ -28,10 +28,22 @@ class Student extends Model
         'guardian_name',
     ];
 
+    // Append full_name attribute when using ->toArray() or in Vue
     protected $appends = ['full_name'];
 
+    /**
+     * Accessor for full_name
+     */
     public function getFullNameAttribute()
     {
         return trim("{$this->first_name} {$this->middle_name} {$this->last_name}");
+    }
+
+    /**
+     * Relationship to grades table (linked by LRN)
+     */
+    public function grades()
+    {
+        return $this->hasMany(Grade::class, 'lrn', 'lrn');
     }
 }

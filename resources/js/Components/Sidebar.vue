@@ -1,37 +1,57 @@
 <template>
-  <aside class="sidebar">
-    <nav class="menu">
-      <ul>
-        <li v-for="item in menuItems" :key="item.label" class="menu-parent">
-          <a
-            href="javascript:void(0);"
-            @click="handleMenuClick(item)"
-            :class="{ active: isActive(item.path) }"
-            class="menu-item"
-          >
-            <div class="icon-box" :class="{ 'active-icon': isActive(item.path) }">
-              <i :class="item.icon"></i>
-            </div>
-            <span>{{ item.label }}</span>
-          </a>
-        </li>
-      </ul>
-    </nav>
+  <div>
+    <!-- Sidebar -->
+    <aside :class="['sidebar', { open: isOpen }]">
+      <!-- Toggle button (Mobile only) -->
+      <button class="toggle-btn" @click="toggleSidebar">
+        <i class="bi bi-list"></i>
+      </button>
 
-    <div class="exit" @click="logout">
-      <div class="icon-box exit-icon">
-        <i class="bi bi-box-arrow-right"></i>
+      <!-- Menu -->
+      <nav class="menu">
+        <ul>
+          <li v-for="item in menuItems" :key="item.label" class="menu-parent">
+            <a
+              href="javascript:void(0);"
+              @click="handleMenuClick(item)"
+              :class="{ active: isActive(item.path) }"
+              class="menu-item"
+            >
+              <div class="icon-box" :class="{ 'active-icon': isActive(item.path) }">
+                <i :class="item.icon"></i>
+              </div>
+              <span>{{ item.label }}</span>
+            </a>
+          </li>
+        </ul>
+      </nav>
+
+      <!-- Exit -->
+      <div class="exit" @click="logout">
+        <div class="icon-box exit-icon">
+          <i class="bi bi-box-arrow-right"></i>
+        </div>
+        <span>Exit</span>
       </div>
-      <span>Exit</span>
-    </div>
-  </aside>
+    </aside>
+
+    <!-- Overlay for mobile -->
+    <div v-if="isOpen && isMobile" class="overlay" @click="isOpen = false"></div>
+  </div>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { usePage, router } from '@inertiajs/vue3'
 
 const user = usePage().props.auth.user
+const isOpen = ref(true)
+
+const isMobile = window.innerWidth < 768
+
+const toggleSidebar = () => {
+  isOpen.value = !isOpen.value
+}
 
 const menuItems = computed(() => [
   { path: route('dashboard'), label: 'Dashboard', icon: 'bi bi-grid' },
@@ -46,6 +66,7 @@ const handleMenuClick = (item) => {
     alert('❌ Access Denied: Only Admin users can access this page.')
   } else {
     router.visit(item.path)
+    if (isMobile) isOpen.value = false
   }
 }
 
@@ -60,6 +81,15 @@ const logout = () => {
     })
   }
 }
+
+onMounted(() => {
+  // Keyboard shortcut: Alt + S to toggle sidebar
+  window.addEventListener('keydown', (e) => {
+    if (e.altKey && e.key.toLowerCase() === 's') {
+      isOpen.value = !isOpen.value
+    }
+  })
+})
 </script>
 
 <style scoped>
@@ -78,8 +108,42 @@ const logout = () => {
   z-index: 1000;
   overflow-y: auto;
   scroll-behavior: smooth;
+  transition: transform 0.3s ease-in-out;
 }
 
+/* Mobile Hidden State */
+@media (max-width: 768px) {
+  .sidebar {
+    transform: translateX(-100%);
+  }
+  .sidebar.open {
+    transform: translateX(0);
+  }
+}
+
+/* Toggle Button */
+.toggle-btn {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .toggle-btn {
+    display: block;
+    position: fixed;
+    top: 10px;
+    left: 10px;
+    z-index: 1100;
+    background: #12172b;
+    color: white;
+    border: none;
+    font-size: 24px;
+    padding: 6px 12px;
+    border-radius: 6px;
+    cursor: pointer;
+  }
+}
+
+/* Menu Layout */
 .menu {
   margin-top: 15px;
 }
@@ -131,6 +195,7 @@ const logout = () => {
   color: #1a1f3a;
 }
 
+/* Exit Button */
 .exit {
   margin-right: 12px;
   margin-bottom: 20px;
@@ -143,5 +208,16 @@ const logout = () => {
 }
 .exit:hover {
   opacity: 0.8;
+}
+
+/* Overlay for mobile */
+.overlay {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 100vh;
+  width: 100vw;
+  background: rgba(0, 0, 0, 0.3);
+  z-index: 900;
 }
 </style>

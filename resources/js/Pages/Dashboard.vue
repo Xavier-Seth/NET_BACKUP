@@ -60,37 +60,37 @@
 </template>
 
 <script setup>
-import MainLayout from '@/Layouts/MainLayout.vue';
-import { usePage } from '@inertiajs/vue3';
+import MainLayout from '@/Layouts/MainLayout.vue'
+import { usePage } from '@inertiajs/vue3'
 
-const page = usePage();
-const totalDocuments = page.props.totalDocuments;
-const totalUsers = page.props.totalUsers;
-const totalStorage = page.props.totalStorage;
+const page = usePage()
+const totalDocuments = page.props.totalDocuments
+const totalUsers = page.props.totalUsers
+const totalStorage = page.props.totalStorage
 
 const recentUploads = [
   { name: 'Document 1', uploadedFile: 'file1.pdf' },
-  { name: 'Document 2', uploadedFile: 'file2.docx' }
-];
+  { name: 'Document 2', uploadedFile: 'file2.docx' },
+]
 </script>
 
 <style scoped>
+/* Search Bar */
 .search-container {
   display: flex;
   position: relative;
   margin-top: 10px;
   margin-left: 4%;
   width: 400px;
+  max-width: 90%;
 }
 .search-bar {
   width: 100%;
-  padding: 8px;
+  padding: 8px 30px 8px 12px;
   border-radius: 20px;
   border: 2px solid #3d3b3b;
   outline: none;
-  height: 30px;
   color: black;
-  padding-right: 30px;
 }
 .search-icon {
   position: absolute;
@@ -100,15 +100,20 @@ const recentUploads = [
   color: gray;
   cursor: pointer;
 }
+
+/* Stat Cards */
 .stats {
   margin-top: 30px;
   margin-left: 80px;
   display: flex;
   justify-content: flex-start;
   gap: 75px;
+  flex-wrap: wrap;
 }
 .stat-card {
-  width: 280px;
+  flex: 1;
+  min-width: 240px;
+  max-width: 280px;
   height: 150px;
   border-radius: 15px;
   box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
@@ -123,25 +128,38 @@ const recentUploads = [
   font-size: 2rem;
   margin-bottom: 10px;
 }
-.navy { background: #19184f; }
-.green { background: #002500; }
-.red { background: #7b0828; }
+.navy {
+  background: #19184f;
+}
+.green {
+  background: #002500;
+}
+.red {
+  background: #7b0828;
+}
 
+/* Recent Upload Table */
 .files-table-section {
-  margin-top: 5px;
+  margin-top: 20px;
   margin-left: 80px;
+  margin-right: 20px;
+}
+.table-heading {
+  margin-bottom: 10px;
 }
 .table-container {
   background: white;
   border-radius: 10px;
   padding: 15px;
   box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  overflow-x: auto;
 }
 .dashboard-table {
   width: 100%;
   border-collapse: collapse;
 }
-.dashboard-table th, .dashboard-table td {
+.dashboard-table th,
+.dashboard-table td {
   padding: 15px;
   border-bottom: 1px solid #ddd;
   font-size: 15px;
@@ -149,7 +167,10 @@ const recentUploads = [
 .dashboard-table thead th {
   background: #19184f;
   color: white;
+  white-space: nowrap;
 }
+
+/* Action Buttons */
 .btn-action {
   border: none;
   background: none;
@@ -158,7 +179,37 @@ const recentUploads = [
   font-size: 18px;
   color: #333;
 }
-.btn-action:hover { color: #007bff; }
-.edit i { color: #ffa500; }
-.delete i { color: #dc3545; }
+.btn-action:hover {
+  color: #007bff;
+}
+.edit i {
+  color: #ffa500;
+}
+.delete i {
+  color: #dc3545;
+}
+
+/* Responsive Fixes */
+@media (max-width: 768px) {
+  .stats {
+    margin-left: 20px;
+    justify-content: center;
+    gap: 20px;
+  }
+
+  .files-table-section {
+    margin-left: 20px;
+    margin-right: 20px;
+  }
+
+  .stat-card {
+    max-width: 100%;
+  }
+
+  .dashboard-table th,
+  .dashboard-table td {
+    font-size: 14px;
+    padding: 10px;
+  }
+}
 </style>

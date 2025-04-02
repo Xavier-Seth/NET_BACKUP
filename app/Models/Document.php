@@ -10,10 +10,12 @@ class Document extends Model
     use HasFactory;
 
     protected $fillable = [
+        'user_id',
         'name',
         'path',
         'mime_type',
         'size',
+        'type',
         'category',
         'lrn',
         'pdf_preview_path',

@@ -165,13 +165,16 @@ const changePhoto = () => {
   display: flex;
   height: 100vh;
   overflow: hidden;
+  flex-direction: row;
 }
+
 .main-content {
   flex: 1;
   padding: 20px;
   margin-left: 220px;
   overflow-y: auto;
 }
+
 .profile-settings {
   background: white;
   padding: 30px;
@@ -179,19 +182,22 @@ const changePhoto = () => {
   box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
   width: 90%;
   max-width: 1200px;
-  margin: auto;
-  margin-top: 20px;
+  margin: 20px auto;
 }
+
 .profile-container {
   display: flex;
   flex-direction: column;
   align-items: center;
 }
+
 .profile-image img {
   width: 150px;
   height: 150px;
   border-radius: 50%;
+  object-fit: cover;
 }
+
 .change-photo {
   margin-top: 10px;
   padding: 10px 15px;
@@ -201,6 +207,7 @@ const changePhoto = () => {
   border-radius: 6px;
   cursor: pointer;
 }
+
 .success-message {
   background: #28a745;
   color: white;
@@ -208,16 +215,21 @@ const changePhoto = () => {
   border-radius: 6px;
   text-align: center;
   font-weight: bold;
-  margin-bottom: 10px;
+  margin: 15px 0;
 }
+
+/* 👇 Responsive form layout */
 .form-row {
   display: flex;
   gap: 30px;
   margin-top: 15px;
+  flex-wrap: wrap;
 }
+
 .form-group {
-  flex: 1;
+  flex: 1 1 250px;
 }
+
 .form-group input,
 .form-group select {
   width: 100%;
@@ -225,12 +237,15 @@ const changePhoto = () => {
   border: 1px solid #ccc;
   border-radius: 6px;
 }
+
 .button-group {
   display: flex;
   justify-content: center;
   gap: 15px;
   margin-top: 25px;
+  flex-wrap: wrap;
 }
+
 .edit-btn,
 .update-btn {
   background: #007bff;
@@ -243,4 +258,42 @@ const changePhoto = () => {
 .update-btn {
   background: #28a745;
 }
+
+/* 📱 Mobile view tweaks */
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0;
+    padding: 15px;
+  }
+
+  .profile-settings {
+    padding: 20px;
+    width: 100%;
+    margin: 10px auto;
+    box-shadow: none;
+    border-radius: 0;
+  }
+
+  .form-row {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .profile-image img {
+    width: 120px;
+    height: 120px;
+  }
+
+  .button-group {
+    flex-direction: column;
+    align-items: center;
+  }
+
+  .edit-btn,
+  .update-btn {
+    width: 100%;
+    padding: 10px;
+  }
+}
 </style>
+

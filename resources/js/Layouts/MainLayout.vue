@@ -1,6 +1,6 @@
 <template>
   <div class="main-layout">
-    <!-- Unauthorized Access Alert (Fixed Position) -->
+    <!-- Floating Unauthorized Alert -->
     <div v-if="errorMessage" class="alert-box">
       <div class="alert alert-danger alert-dismissible fade show" role="alert">
         {{ errorMessage }}
@@ -8,7 +8,7 @@
       </div>
     </div>
 
-    <!-- Sidebar -->
+    <!-- Sidebar (Responsive) -->
     <Sidebar :activeMenu="activeMenu" @update-active="setActive" />
 
     <!-- Main Content -->
@@ -36,13 +36,12 @@ export default {
   setup() {
     const errorMessage = ref("");
 
-    // Listen for Unauthorized Errors (403)
     const handleUnauthorized = (errors) => {
       if (errors.status === 403) {
         errorMessage.value = "❌ Unauthorized Access: You do not have permission.";
         setTimeout(() => {
           errorMessage.value = "";
-        }, 5000); // Auto-hide error after 5 seconds
+        }, 5000);
       }
     };
 
@@ -63,28 +62,36 @@ export default {
 <style scoped>
 .main-layout {
   display: flex;
-  width: 100%;
-  height: 100vh;
-  overflow: hidden;
+  flex-direction: row;
+  min-height: 100vh;
   background: #f5f5f5;
+  overflow: hidden;
 }
 
+/* Main content area */
 .main-content {
   flex: 1;
-  margin-left: 220px;
-  display: flex;
-  flex-direction: column;
   padding: 20px;
+  margin-left: 200px;
+  transition: margin-left 0.3s ease;
 }
 
-/* Floating Alert Box */
+/* Alert */
 .alert-box {
   position: fixed;
   top: 15px;
   left: 50%;
   transform: translateX(-50%);
   z-index: 1050;
-  width: 350px;
+  width: 90%;
+  max-width: 350px;
   text-align: center;
+}
+
+/* On small screens, remove margin-left for content */
+@media (max-width: 768px) {
+  .main-content {
+    margin-left: 0;
+  }
 }
 </style>

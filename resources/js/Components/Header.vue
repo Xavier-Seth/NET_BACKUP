@@ -1,46 +1,49 @@
 <template>
   <header class="top-bar">
-    <div class="brand">
-      <img src="/images/school_logo.png" alt="School Logo" class="school-logo" />
-      <h1>Rizal Central School</h1>
-    </div>
+    <div class="container">
+      <!-- Left: Brand -->
+      <div class="brand">
+        <img src="/images/school_logo.png" alt="School Logo" class="school-logo" />
+        <h1 class="school-name">Rizal Central School</h1>
+      </div>
 
-    <!-- Profile Dropdown -->
-    <div class="profile dropdown">
-      <button
-        class="dropdown-toggle"
-        data-bs-toggle="dropdown"
-        aria-expanded="false"
-        type="button"
-      >
-        <img src="/images/user-avatar.png" alt="User Avatar" class="avatar" />
-        <div class="user-info">
-          <span class="user-name">{{ userName }}</span>
-          <small class="user-role">{{ userRole }}</small>
-        </div>
-      </button>
-      <ul class="dropdown-menu dropdown-menu-end">
-        <li>
-          <Link class="dropdown-item" :href="route('profile.edit')">
-            Profile Settings
-          </Link>
-        </li>
-        <li>
-          <button @click="checkRole" class="dropdown-item">
-            Register New User
-          </button>
-        </li>
-        <li>
-          <button @click="checkRoleStudent" class="dropdown-item">
-            Register Student
-          </button>
-        </li>
-        <li>
-          <button @click="logout" class="dropdown-item text-danger">
-            Logout
-          </button>
-        </li>
-      </ul>
+      <!-- Right: User Profile Dropdown -->
+      <div class="profile dropdown">
+        <button
+          class="dropdown-toggle"
+          data-bs-toggle="dropdown"
+          aria-expanded="false"
+          type="button"
+        >
+          <img src="/images/user-avatar.png" alt="User Avatar" class="avatar" />
+          <div class="user-info">
+            <span class="user-name">{{ userName }}</span>
+            <small class="user-role">{{ userRole }}</small>
+          </div>
+        </button>
+        <ul class="dropdown-menu dropdown-menu-end">
+          <li>
+            <Link class="dropdown-item" :href="route('profile.edit')">
+              Profile Settings
+            </Link>
+          </li>
+          <li>
+            <button @click="checkRole" class="dropdown-item">
+              Register New User
+            </button>
+          </li>
+          <li>
+            <button @click="checkRoleStudent" class="dropdown-item">
+              Register Student
+            </button>
+          </li>
+          <li>
+            <button @click="logout" class="dropdown-item text-danger">
+              Logout
+            </button>
+          </li>
+        </ul>
+      </div>
     </div>
   </header>
 </template>
@@ -81,14 +84,20 @@ const logout = () => {
 
 <style scoped>
 .top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 20px;
   background: white;
-  width: 100%;
-  border-radius: 10px;
+  padding: 12px 20px;
   box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
+  border-radius: 10px;
+  margin-bottom: 1rem;
+  width: 100%;
+}
+
+.container {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px;
 }
 
 .brand {
@@ -98,8 +107,14 @@ const logout = () => {
 }
 
 .school-logo {
-  width: 60px;
+  width: 50px;
   height: auto;
+}
+
+.school-name {
+  font-size: 18px;
+  font-weight: bold;
+  white-space: nowrap;
 }
 
 .profile {
@@ -134,6 +149,15 @@ const logout = () => {
   color: gray;
 }
 
+.dropdown-toggle {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: none;
+  border: none;
+  cursor: pointer;
+}
+
 .dropdown-menu {
   background: white;
   border-radius: 8px;
@@ -147,14 +171,5 @@ const logout = () => {
 
 .dropdown-item:hover {
   background: #f1f1f1;
-}
-
-.dropdown-toggle {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  background: none;
-  border: none;
-  cursor: pointer;
 }
 </style>
