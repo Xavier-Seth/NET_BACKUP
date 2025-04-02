@@ -26,7 +26,6 @@
 
     <div class="container mt-4 p-4 form-wrapper rounded shadow">
       <button class="btn btn-link text-decoration-none back-arrow" @click="goBack">← Back to Dashboard</button>
-
       <h4 class="fw-bold text-center mb-4">Student Record</h4>
 
       <form @submit.prevent="submit">
@@ -34,16 +33,7 @@
         <div class="row mb-3">
           <div class="col-md-4">
             <label class="form-label">LRN:</label>
-            <input
-              v-model="form.lrn"
-              type="text"
-              inputmode="numeric"
-              pattern="\d*"
-              class="form-control"
-              :class="{ 'is-invalid': form.errors.lrn }"
-              @input="form.lrn = form.lrn.replace(/\D/g, '')"
-              @paste="e => e.clipboardData.getData('text').match(/^\d+$/) ? null : e.preventDefault()"
-            />
+            <input v-model="form.lrn" type="text" inputmode="numeric" pattern="\d*" class="form-control" :class="{ 'is-invalid': form.errors.lrn }" @input="form.lrn = form.lrn.replace(/\D/g, '')" @paste="e => e.clipboardData.getData('text').match(/^\d+$/) ? null : e.preventDefault()" />
             <div v-if="form.errors.lrn" class="invalid-feedback d-block">{{ form.errors.lrn }}</div>
           </div>
         </div>
@@ -108,16 +98,7 @@
         <div class="row mb-3">
           <div class="col-md-6">
             <label class="form-label">Guardian Phone No:</label>
-            <input
-              v-model="form.guardian_phone"
-              type="text"
-              inputmode="numeric"
-              pattern="\d*"
-              class="form-control"
-              :class="{ 'is-invalid': form.errors.guardian_phone }"
-              @input="form.guardian_phone = form.guardian_phone.replace(/\D/g, '')"
-              @paste="e => e.clipboardData.getData('text').match(/^\d+$/) ? null : e.preventDefault()"
-            />
+            <input v-model="form.guardian_phone" type="text" inputmode="numeric" pattern="\d*" class="form-control" :class="{ 'is-invalid': form.errors.guardian_phone }" @input="form.guardian_phone = form.guardian_phone.replace(/\D/g, '')" @paste="e => e.clipboardData.getData('text').match(/^\d+$/) ? null : e.preventDefault()" />
             <div v-if="form.errors.guardian_phone" class="invalid-feedback d-block">{{ form.errors.guardian_phone }}</div>
           </div>
         </div>
@@ -163,15 +144,15 @@
         <div class="row mb-3">
           <div class="col-md-4">
             <label class="form-label">Form 137:</label>
-            <input type="file" class="form-control" @change="handleFileUpload($event, 'form137')" />
+            <input ref="form137Ref" type="file" class="form-control" @change="handleFileUpload($event, 'form137')" />
           </div>
           <div class="col-md-4">
             <label class="form-label">PSA:</label>
-            <input type="file" class="form-control" @change="handleFileUpload($event, 'psa')" />
+            <input ref="psaRef" type="file" class="form-control" @change="handleFileUpload($event, 'psa')" />
           </div>
           <div class="col-md-4">
             <label class="form-label">ECCRD:</label>
-            <input type="file" class="form-control" @change="handleFileUpload($event, 'eccrd')" />
+            <input ref="eccrdRef" type="file" class="form-control" @change="handleFileUpload($event, 'eccrd')" />
           </div>
         </div>
 
@@ -179,33 +160,38 @@
         <div class="text-end">
           <button class="btn btn-primary" :disabled="form.processing">Submit</button>
         </div>
-
-        <div v-if="$page.props.flash?.success" class="alert alert-success mt-4">
-          {{ $page.props.flash.success }}
-        </div>
       </form>
+
+      <!-- ✅ Success Modal -->
+      <Teleport to="body">
+        <Transition name="fade">
+          <div v-if="showSuccessModal" class="modal-backdrop">
+            <div class="modal-content-box">
+              <h5>Success</h5>
+              <p>{{ successMessage }}</p>
+              <button class="btn btn-success mt-2" @click="showSuccessModal = false">OK</button>
+            </div>
+          </div>
+        </Transition>
+      </Teleport>
     </div>
   </div>
 </template>
 
 <script setup>
+import { ref } from 'vue'
 import { useForm, usePage, router, Link } from '@inertiajs/vue3'
 
 const user = usePage().props.auth.user
 const userName = `${user.last_name}, ${user.first_name}`
 const userRole = user?.role ? `(${user.role})` : ''
 
-const checkRole = () => {
-  const allowed = ['Admin', 'Admin Staff']
-  allowed.includes(user.role) ? router.visit(route('register')) : alert('❌ Only Admin or Admin Staff can register new users.')
-}
+const successMessage = ref(null)
+const showSuccessModal = ref(false)
 
-const checkRoleStudent = () => {
-  const allowed = ['Admin', 'Admin Staff']
-  allowed.includes(user.role) ? router.visit(route('students.register')) : alert('❌ Only Admin or Admin Staff can register students.')
-}
-
-const goBack = () => router.visit(route('dashboard'))
+const form137Ref = ref(null)
+const psaRef = ref(null)
+const eccrdRef = ref(null)
 
 const currentYear = new Date().getFullYear()
 const nextYear = currentYear + 1
@@ -233,21 +219,17 @@ const form = useForm({
 })
 
 const handleFileUpload = (event, field) => {
-  const file = event.target.files[0]
-  form[field] = file
+  form[field] = event.target.files[0]
 }
 
 const submit = () => {
   const formData = new FormData()
-
-  // Append normal fields
   Object.entries(form.data()).forEach(([key, value]) => {
     if (!['form137', 'psa', 'eccrd'].includes(key)) {
       formData.append(key, value)
     }
   })
 
-  // Append uploaded files
   const fileFields = ['form137', 'psa', 'eccrd']
   const categories = ['Form 137', 'PSA', 'ECCRD']
 
@@ -262,11 +244,30 @@ const submit = () => {
 
   router.post(route('students.store'), formData, {
     forceFormData: true,
-    onSuccess: () => form.reset(),
+    onSuccess: () => {
+      form.reset()
+      form137Ref.value.value = ''
+      psaRef.value.value = ''
+      eccrdRef.value.value = ''
+      successMessage.value = '✅ Student and documents uploaded successfully.'
+      showSuccessModal.value = true
+    },
     onError: (errors) => {
-      form.errors = errors // ✅ RESTORE VALIDATION
+      form.errors = errors
     }
   })
+}
+
+const goBack = () => router.visit(route('dashboard'))
+
+const checkRole = () => {
+  const allowed = ['Admin', 'Admin Staff']
+  allowed.includes(user.role) ? router.visit(route('register')) : alert('❌ Only Admin or Admin Staff can register new users.')
+}
+
+const checkRoleStudent = () => {
+  const allowed = ['Admin', 'Admin Staff']
+  allowed.includes(user.role) ? router.visit(route('students.register')) : alert('❌ Only Admin or Admin Staff can register students.')
 }
 </script>
 
@@ -276,7 +277,6 @@ const submit = () => {
   min-height: 100vh;
   padding-bottom: 50px;
 }
-
 .top-bar {
   display: flex;
   align-items: center;
@@ -288,7 +288,6 @@ const submit = () => {
   flex-wrap: wrap;
   gap: 10px;
 }
-
 .brand {
   display: flex;
   align-items: center;
@@ -345,7 +344,6 @@ const submit = () => {
   text-overflow: ellipsis;
   max-width: 200px;
 }
-
 .container {
   max-width: 1000px;
   margin: 0 auto;
@@ -366,7 +364,6 @@ const submit = () => {
   text-decoration: underline;
   color: #0a58ca;
 }
-
 @media (max-width: 768px) {
   .top-bar {
     flex-direction: column;
@@ -374,38 +371,58 @@ const submit = () => {
     padding: 10px 15px;
     gap: 15px;
   }
-
   .brand h1 {
     font-size: 18px;
   }
-
   .dropdown-toggle {
     max-width: 100%;
   }
-
   .form-wrapper {
     padding: 15px;
   }
-
   .row {
     flex-direction: column;
   }
-
-  .col-md-4,
-  .col-md-6,
-  .col-md-2,
-  .col-md-8 {
+  .col-md-4, .col-md-6, .col-md-2, .col-md-8 {
     width: 100% !important;
     max-width: 100%;
   }
-
   .text-end {
     text-align: center !important;
     margin-top: 20px;
   }
-
   .btn {
     width: 100%;
   }
 }
+
+.modal-backdrop {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(0,0,0,0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 9999;
+}
+
+.modal-content-box {
+  background: white;
+  padding: 20px;
+  border-radius: 8px;
+  text-align: center;
+  width: 320px;
+}
+
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.4s ease;
+}
+
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
+
 </style>

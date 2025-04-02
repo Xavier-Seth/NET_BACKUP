@@ -50,9 +50,7 @@
             <tr v-for="user in sortedUsers" :key="user.id">
               <td>{{ user.last_name }}, {{ user.first_name }} {{ user.middle_name }}</td>
               <td>
-                <span :class="['badge', user.role === 'Admin' ? 'bg-primary' : 'bg-info']">
-                  {{ user.role }}
-                </span>
+                   {{ user.role }}
               </td>
               <td>{{ user.email }}</td>
               <td>

@@ -11,7 +11,6 @@
             <button class="change-photo" @click="changePhoto">Change Photo</button>
           </div>
 
-          <!-- ✅ Success message -->
           <div v-if="successMessage" class="success-message">
             {{ successMessage }}
           </div>
@@ -20,66 +19,105 @@
             <div class="form-row">
               <div class="form-group">
                 <label>Last Name</label>
-                <input type="text" v-model="form.last_name" :disabled="!isEditing" />
+                <input type="text" v-model="form.last_name" :disabled="!isEditing" :class="{ 'input-error': form.errors.last_name }" />
+                <span class="error" v-if="form.errors.last_name">{{ form.errors.last_name }}</span>
               </div>
               <div class="form-group">
                 <label>First Name</label>
-                <input type="text" v-model="form.first_name" :disabled="!isEditing" />
+                <input type="text" v-model="form.first_name" :disabled="!isEditing" :class="{ 'input-error': form.errors.first_name }" />
+                <span class="error" v-if="form.errors.first_name">{{ form.errors.first_name }}</span>
               </div>
               <div class="form-group">
                 <label>Middle Name</label>
-                <input type="text" v-model="form.middle_name" :disabled="!isEditing" />
+                <input type="text" v-model="form.middle_name" :disabled="!isEditing" :class="{ 'input-error': form.errors.middle_name }" />
+                <span class="error" v-if="form.errors.middle_name">{{ form.errors.middle_name }}</span>
               </div>
             </div>
 
             <div class="form-row">
               <div class="form-group">
                 <label>Sex</label>
-                <select v-model="form.sex" :disabled="!isEditing">
+                <select v-model="form.sex" :disabled="!isEditing" :class="{ 'input-error': form.errors.sex }">
                   <option>Male</option>
                   <option>Female</option>
                 </select>
+                <span class="error" v-if="form.errors.sex">{{ form.errors.sex }}</span>
               </div>
               <div class="form-group">
                 <label>Civil Status</label>
-                <select v-model="form.civil_status" :disabled="!isEditing">
+                <select v-model="form.civil_status" :disabled="!isEditing" :class="{ 'input-error': form.errors.civil_status }">
                   <option>Single</option>
                   <option>Married</option>
                 </select>
+                <span class="error" v-if="form.errors.civil_status">{{ form.errors.civil_status }}</span>
               </div>
               <div class="form-group">
                 <label>Date of Birth</label>
-                <input type="date" v-model="form.date_of_birth" :disabled="!isEditing" />
+                <input type="date" v-model="form.date_of_birth" :disabled="!isEditing" :class="{ 'input-error': form.errors.date_of_birth }" />
+                <span class="error" v-if="form.errors.date_of_birth">{{ form.errors.date_of_birth }}</span>
               </div>
             </div>
 
             <div class="form-row">
               <div class="form-group">
                 <label>Religion</label>
-                <input type="text" v-model="form.religion" :disabled="!isEditing" />
+                <input type="text" v-model="form.religion" :disabled="!isEditing" :class="{ 'input-error': form.errors.religion }" />
+                <span class="error" v-if="form.errors.religion">{{ form.errors.religion }}</span>
               </div>
               <div class="form-group">
                 <label>Phone Number</label>
-                <input type="text" v-model="form.phone_number" :disabled="!isEditing" />
+                <input
+                  type="text"
+                  inputmode="numeric"
+                  maxlength="11"
+                  pattern="[0-9]*"
+                  v-model="form.phone_number"
+                  @input="form.phone_number = form.phone_number.replace(/\D/g, '')"
+                  :disabled="!isEditing"
+                  :class="{ 'input-error': form.errors.phone_number }"
+                />
+                <span class="error" v-if="form.errors.phone_number">{{ form.errors.phone_number }}</span>
               </div>
               <div class="form-group">
                 <label>Email Address</label>
-                <input type="email" v-model="form.email" :disabled="!isEditing" />
+                <input type="email" v-model="form.email" :disabled="!isEditing" :class="{ 'input-error': form.errors.email }" />
+                <span class="error" v-if="form.errors.email">{{ form.errors.email }}</span>
               </div>
             </div>
 
             <div class="form-row">
               <div class="form-group">
                 <label>Password</label>
-                <input type="password" v-model="form.password" :disabled="!isEditing" placeholder="Leave blank if unchanged" />
+                <input
+                  type="password"
+                  v-model="form.password"
+                  :disabled="!isEditing"
+                  placeholder="Leave blank if unchanged"
+                  :class="{ 'input-error': form.errors.password }"
+                />
+                <span class="error" v-if="form.errors.password">{{ form.errors.password }}</span>
               </div>
               <div class="form-group">
-                <label>Role</label>
-                <input type="text" v-model="user.role" disabled />
+                <label>Confirm Password</label>
+                <input
+                  type="password"
+                  v-model="form.password_confirmation"
+                  :disabled="!isEditing"
+                  placeholder="Re-type new password"
+                  :class="{ 'input-error': form.errors.password_confirmation }"
+                />
+                <span class="error" v-if="form.errors.password_confirmation">{{ form.errors.password_confirmation }}</span>
               </div>
               <div class="form-group">
                 <label>Status</label>
-                <input type="text" v-model="user.status" disabled />
+                <input type="text" :value="capitalize(user.status)" disabled />
+              </div>
+            </div>
+
+            <div class="form-row">
+              <div class="form-group role-field">
+                <label>Role</label>
+                <input type="text" v-model="user.role" disabled />
               </div>
             </div>
 
@@ -87,9 +125,7 @@
               <button type="button" class="edit-btn" @click="toggleEdit">
                 {{ isEditing ? 'Cancel' : 'Edit' }}
               </button>
-              <button type="submit" class="update-btn" v-if="isEditing">
-                Update
-              </button>
+              <button type="submit" class="update-btn" v-if="isEditing">Update</button>
             </div>
           </form>
         </div>
@@ -99,18 +135,15 @@
 </template>
 
 <script setup>
-import { ref } from 'vue';
+import { ref, nextTick } from 'vue';
 import { useForm, usePage } from '@inertiajs/vue3';
 import Sidebar from '@/Components/Sidebar.vue';
 import Header from '@/Components/Header.vue';
 
 const props = usePage().props;
-
-// ✅ Ensure `user` is reactive
 const user = ref(props.user || {});
-const successMessage = ref(""); // ✅ Success message state
+const successMessage = ref("");
 
-// ✅ Initialize form with existing user data
 const form = useForm({
   first_name: user.value.first_name || "",
   last_name: user.value.last_name || "",
@@ -125,10 +158,8 @@ const form = useForm({
   password_confirmation: "",
 });
 
-// ✅ State for edit mode
 const isEditing = ref(false);
 
-// ✅ Toggle edit mode & reset form when canceled
 const toggleEdit = () => {
   isEditing.value = !isEditing.value;
   if (!isEditing.value) {
@@ -137,24 +168,40 @@ const toggleEdit = () => {
   }
 };
 
-// ✅ Update user profile with Inertia
+const capitalize = (val) => {
+  if (!val) return '';
+  return val.charAt(0).toUpperCase() + val.slice(1);
+};
+
 const updateProfile = () => {
+  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+  if (!emailPattern.test(form.email)) {
+    form.setError('email', 'Please enter a valid email address.');
+    return;
+  }
+
+  if (form.password && form.password !== form.password_confirmation) {
+    form.setError('password_confirmation', 'Passwords do not match.');
+    return;
+  }
+
   form.patch(route('profile.update'), {
     preserveScroll: true,
     onSuccess: () => {
       isEditing.value = false;
       form.reset("password", "password_confirmation");
-      successMessage.value = "Profile updated successfully! ✅"; // ✅ Show success message
-      setTimeout(() => successMessage.value = "", 3000); // ✅ Remove message after 3s
+      successMessage.value = "Profile updated successfully! ✅";
+      setTimeout(() => successMessage.value = "", 3000);
     },
-    onError: (errors) => {
-      console.error("Update failed:", errors);
-      alert("Profile update failed. Please check your input.");
+    onError: () => {
+      nextTick(() => {
+        const errorField = document.querySelector('.input-error');
+        if (errorField) errorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      });
     },
   });
 };
 
-// ✅ Upload photo placeholder
 const changePhoto = () => {
   console.log('Change photo clicked');
 };
@@ -218,7 +265,6 @@ const changePhoto = () => {
   margin: 15px 0;
 }
 
-/* 👇 Responsive form layout */
 .form-row {
   display: flex;
   gap: 30px;
@@ -236,6 +282,18 @@ const changePhoto = () => {
   padding: 10px;
   border: 1px solid #ccc;
   border-radius: 6px;
+}
+
+.input-error {
+  border-color: #dc3545 !important;
+  background-color: #fff0f0;
+}
+
+.error {
+  color: #dc3545;
+  font-size: 13px;
+  margin-top: 5px;
+  display: block;
 }
 
 .button-group {
@@ -259,7 +317,6 @@ const changePhoto = () => {
   background: #28a745;
 }
 
-/* 📱 Mobile view tweaks */
 @media (max-width: 768px) {
   .main-content {
     margin-left: 0;
@@ -295,5 +352,9 @@ const changePhoto = () => {
     padding: 10px;
   }
 }
-</style>
 
+.role-field input {
+  max-width: 200px;
+  margin-left: 5px;
+}
+</style>

@@ -65,9 +65,10 @@ const checkRole = () => {
   }
 }
 
+// ✅ Allow Admin and Admin Staff to register students
 const checkRoleStudent = () => {
-  if (user.role !== 'Admin') {
-    alert('❌ Access Denied: Only Admin users can register students.')
+  if (user.role !== 'Admin' && user.role !== 'Admin Staff') {
+    alert('❌ Access Denied: Only Admin and Admin Staff can register students.')
   } else {
     router.visit(route('students.register'))
   }

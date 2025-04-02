@@ -43,7 +43,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
 });
 
-// ✅ Admin-Only Routes (User + Student Management)
+// ✅ Admin-Only Routes (User Management)
 Route::middleware(['auth', 'role:Admin'])->group(function () {
     // User Management
     Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
@@ -54,7 +54,10 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
 
     Route::get('/admin/edit-user/{id}', [ProfileController::class, 'editAdmin'])->name('admin.edit-user');
     Route::patch('/admin/edit-user/{id}', [ProfileController::class, 'updateAdmin'])->name('admin.update-user');
+});
 
+// ✅ Admin + Admin Staff Routes (Student Management)
+Route::middleware(['auth', 'role:Admin,Admin Staff'])->group(function () {
     // ✅ Student Management
     Route::get('/students/register', fn() => Inertia::render('RegisterStudent'))->name('students.register');
     Route::post('/students/register', [StudentController::class, 'store'])->name('students.store');
@@ -63,9 +66,6 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
     // ✅ Update Grades
     Route::post('/students/{lrn}/update-grades', [StudentController::class, 'updateGrades'])->name('students.update-grades');
     Route::get('/students/{lrn}', [StudentController::class, 'show']);
-
-    // (Optional: Add this if you want to fetch a single student's details with grades in future)
-    // Route::get('/students/{lrn}', [StudentController::class, 'show'])->name('students.show');
 });
 
 // ✅ Logout
