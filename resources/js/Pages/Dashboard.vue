@@ -1,12 +1,11 @@
 <template>
   <MainLayout activeMenu="dashboard">
-    <!-- Search Bar -->
-    <div class="search-container">
-      <input type="text" placeholder="Search..." class="search-bar" />
-      <i class="bi bi-search search-icon"></i>
+    <!-- ✅ Success Notification -->
+    <div v-if="success" class="notification-bar">
+      {{ success }}
     </div>
 
-    <!-- Stat Cards -->
+    <!-- ✅ Stat Cards -->
     <section class="stats">
       <div class="stat-card navy">
         <i class="bi bi-file-earmark-text stat-icon"></i>
@@ -25,7 +24,7 @@
       </div>
     </section>
 
-    <!-- Table of Recently Uploaded -->
+    <!-- ✅ Recently Uploaded -->
     <section class="files-table-section">
       <div class="table-heading">
         <h2>Recently Uploaded</h2>
@@ -34,22 +33,27 @@
         <table class="dashboard-table">
           <thead>
             <tr>
-              <th>Name</th>
-              <th>Uploaded File</th>
+              <th>Filename</th>
+              <th>Type</th>
+              <th>Uploaded By</th>
+              <th>Uploaded At</th>
               <th>Action</th>
             </tr>
           </thead>
           <tbody>
-            <tr v-for="(file, index) in recentUploads" :key="index">
-              <td>{{ file.name }}</td>
-              <td>{{ file.uploadedFile }}</td>
+            <tr v-for="file in recentUploads.slice(0, 5)" :key="file.id">
+              <td>{{ file.filename }}</td>
+              <td class="text-capitalize">{{ file.type || 'N/A' }}</td>
+              <td>{{ file.user ? file.user.name : 'N/A' }}</td>
+              <td>{{ new Date(file.created_at).toLocaleString() }}</td>
               <td>
-                <button class="btn-action edit">
-                  <i class="bi bi-pencil-square"></i>
-                </button>
-                <button class="btn-action delete">
-                  <i class="bi bi-trash"></i>
-                </button>
+                <a
+                  :href="`/storage/${file.pdf_preview_path || file.file_path}`"
+                  target="_blank"
+                  class="btn-action view"
+                >
+                  <i class="bi bi-eye"></i>
+                </a>
               </td>
             </tr>
           </tbody>
@@ -67,41 +71,22 @@ const page = usePage()
 const totalDocuments = page.props.totalDocuments
 const totalUsers = page.props.totalUsers
 const totalStorage = page.props.totalStorage
-
-const recentUploads = [
-  { name: 'Document 1', uploadedFile: 'file1.pdf' },
-  { name: 'Document 2', uploadedFile: 'file2.docx' },
-]
+const recentUploads = page.props.recentUploads || []
+const success = page.props.success
 </script>
 
 <style scoped>
-/* Search Bar */
-.search-container {
-  display: flex;
-  position: relative;
-  margin-top: 10px;
-  margin-left: 4%;
-  width: 400px;
-  max-width: 90%;
-}
-.search-bar {
-  width: 100%;
-  padding: 8px 30px 8px 12px;
-  border-radius: 20px;
-  border: 2px solid #3d3b3b;
-  outline: none;
-  color: black;
-}
-.search-icon {
-  position: absolute;
-  top: 50%;
-  right: 10px;
-  transform: translateY(-50%);
-  color: gray;
-  cursor: pointer;
+.notification-bar {
+  background-color: #d1e7dd;
+  color: #0f5132;
+  padding: 12px;
+  text-align: center;
+  border-radius: 6px;
+  margin: 10px 80px;
+  font-weight: bold;
+  border: 1px solid #badbcc;
 }
 
-/* Stat Cards */
 .stats {
   margin-top: 30px;
   margin-left: 80px;
@@ -138,7 +123,6 @@ const recentUploads = [
   background: #7b0828;
 }
 
-/* Recent Upload Table */
 .files-table-section {
   margin-top: 20px;
   margin-left: 80px;
@@ -170,42 +154,33 @@ const recentUploads = [
   white-space: nowrap;
 }
 
-/* Action Buttons */
 .btn-action {
   border: none;
   background: none;
   cursor: pointer;
-  margin-right: 10px;
   font-size: 18px;
   color: #333;
+}
+.btn-action.view i {
+  color: #0d6efd;
 }
 .btn-action:hover {
   color: #007bff;
 }
-.edit i {
-  color: #ffa500;
-}
-.delete i {
-  color: #dc3545;
-}
 
-/* Responsive Fixes */
 @media (max-width: 768px) {
   .stats {
     margin-left: 20px;
     justify-content: center;
     gap: 20px;
   }
-
   .files-table-section {
     margin-left: 20px;
     margin-right: 20px;
   }
-
   .stat-card {
     max-width: 100%;
   }
-
   .dashboard-table th,
   .dashboard-table td {
     font-size: 14px;

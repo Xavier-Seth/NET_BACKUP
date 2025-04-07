@@ -8,7 +8,7 @@ return new class extends Migration {
     public function up()
     {
         Schema::table('documents', function (Blueprint $table) {
-            $table->enum('category', ['Form 137', 'PSA', 'ECCRPD'])->after('name')->nullable();
+            $table->enum('category', ['Form 137', 'PSA', 'ECCRD'])->after('name')->nullable();
             $table->string('lrn')->after('category')->nullable();
         });
     }

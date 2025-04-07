@@ -92,7 +92,7 @@
           <option disabled value="">Select Document Type</option>
           <option>Form 137</option>
           <option>PSA</option>
-          <option>ECCRPD</option>
+          <option>ECCRD</option> <!-- ✅ corrected here -->
         </select>
         <input type="text" v-model="lrn" class="border rounded p-2 w-full mb-4" placeholder="Enter LRN">
 
@@ -135,9 +135,7 @@ export default {
     },
     handleFileUpload(event) {
       this.selectedFiles = Array.from(event.target.files);
-      this.uploadSuccess = false;
-      this.isUploading = false;
-      this.uploadMessage = "";
+      this.clearMessages();
     },
     removeFile(index) {
       this.selectedFiles.splice(index, 1);
@@ -153,9 +151,7 @@ export default {
       e.preventDefault();
       this.selectedFiles = Array.from(e.dataTransfer.files);
       this.isDragging = false;
-      this.uploadSuccess = false;
-      this.isUploading = false;
-      this.uploadMessage = "";
+      this.clearMessages();
     },
     formatFileSize(size) {
       return `${(size / 1024).toFixed(2)} KB`;
@@ -170,7 +166,11 @@ export default {
     uploadFiles() {
       this.isUploading = true;
       const formData = new FormData();
-      this.selectedFiles.forEach(file => formData.append('files[]', file));
+
+      this.selectedFiles.forEach(file => {
+        formData.append('files[]', file);
+      });
+
       formData.append('type', this.documentType);
 
       if (this.documentType === 'student') {
@@ -181,29 +181,33 @@ export default {
       router.post('/upload', formData, {
         forceFormData: true,
         onSuccess: () => {
-          this.selectedFiles = [];
-          this.uploadMessage = "Uploaded successfully!";
-          this.uploadSuccess = true;
-          this.showModal = false;
-          this.category = "";
-          this.lrn = "";
-          this.documentType = "";
-          this.isUploading = false;
-          this.fileInputKey++;
-
-          setTimeout(() => {
-            this.uploadMessage = "";
-            this.uploadSuccess = false;
-          }, 2000);
-
-          document.getElementById("fileInput").value = null;
+          this.uploadMessage = `${this.selectedFiles.length} file(s) uploaded successfully!`;
+          this.resetUploadState();
         },
         onError: () => {
-          this.uploadMessage = "Upload error.";
+          this.uploadMessage = "Upload failed.";
           this.isUploading = false;
-          this.uploadSuccess = false;
         }
       });
+    },
+    resetUploadState() {
+      this.selectedFiles = [];
+      this.isUploading = false;
+      this.uploadSuccess = true;
+      this.showModal = false;
+      this.category = "";
+      this.lrn = "";
+      this.documentType = "";
+      this.fileInputKey++; // resets input file
+      document.getElementById("fileInput").value = null;
+
+      setTimeout(() => {
+        this.uploadMessage = "";
+      }, 3000);
+    },
+    clearMessages() {
+      this.uploadSuccess = false;
+      this.uploadMessage = "";
     }
   }
 };

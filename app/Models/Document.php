@@ -21,9 +21,14 @@ class Document extends Model
         'pdf_preview_path',
     ];
 
-    // Optional: define relationship to student
     public function student()
     {
         return $this->belongsTo(Student::class, 'lrn', 'lrn');
+    }
+
+    // ✅ Add this relationship to get uploader info
+    public function user()
+    {
+        return $this->belongsTo(User::class);
     }
 }

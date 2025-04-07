@@ -40,7 +40,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ✅ User Profile (Self)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::delete('/profile', [ProfileController::class, 'destroy'])->name('profile.destroy');
+    Route::middleware(['auth', 'role:Admin'])->delete('/api/users/{id}', [UserController::class, 'destroy']);
 });
 
 // ✅ Admin-Only Routes (User Management)
@@ -51,6 +51,7 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
 
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::get('/api/users', [UserController::class, 'getUsers'])->name('api.users');
+    Route::middleware(['auth:sanctum', 'role:Admin'])->delete('/users/{id}', [UserController::class, 'destroy']);
 
     Route::get('/admin/edit-user/{id}', [ProfileController::class, 'editAdmin'])->name('admin.edit-user');
     Route::patch('/admin/edit-user/{id}', [ProfileController::class, 'updateAdmin'])->name('admin.update-user');

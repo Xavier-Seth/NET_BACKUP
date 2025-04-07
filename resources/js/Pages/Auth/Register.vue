@@ -70,7 +70,6 @@
               class="input-field"
               required
               autocomplete="off"
-              pattern="[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}$"
               title="Please enter a valid email address (e.g., user@example.com)"
             />
             <span v-if="form.errors.email" class="text-red-600 text-sm">{{ form.errors.email }}</span>

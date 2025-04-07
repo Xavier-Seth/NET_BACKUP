@@ -9,6 +9,7 @@ use App\Services\DocumentUploadService;
 
 class DocumentController extends Controller
 {
+    // ✅ Show documents page
     public function index()
     {
         $documents = Document::orderBy('created_at', 'desc')->get();
@@ -18,6 +19,7 @@ class DocumentController extends Controller
         ]);
     }
 
+    // ✅ Serve file for viewing
     public function show(Document $document)
     {
         $path = storage_path("app/public/{$document->filepath}");
@@ -29,31 +31,33 @@ class DocumentController extends Controller
         return response()->file($path);
     }
 
+    // ✅ Handle file uploads
     public function upload(Request $request, DocumentUploadService $uploadService)
     {
-        /** @var string|null $type */
-        $type = $request->input('type', 'school'); // default to 'school' if not set
+        $type = $request->input('type', 'school'); // default to 'school'
 
-        // Validation
+        // ✅ Validation
         if ($type === 'student') {
             $request->validate([
+                'files' => 'required|array',
                 'files.*' => 'required|file|mimes:pdf,docx,xlsx,xls,png,jpg|max:20480',
                 'lrn' => 'required|string|max:20',
                 'category' => 'required|string|max:50',
             ]);
         } else {
             $request->validate([
+                'files' => 'required|array',
                 'files.*' => 'required|file|mimes:pdf,docx,xlsx,xls,png,jpg|max:20480',
             ]);
         }
 
-        // Upload each file
+        // ✅ Handle each file using the upload service
         foreach ($request->file('files') as $file) {
             $uploadService->handle(
                 $file,
-                $request->input('category'),
-                $request->input('lrn'),
-                $type // ✅ passed here
+                $request->input('category'),  // may be null for school
+                $request->input('lrn'),       // may be null for school
+                $type
             );
         }
 

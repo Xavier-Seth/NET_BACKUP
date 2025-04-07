@@ -8,17 +8,39 @@ use Inertia\Inertia;
 
 class UserController extends Controller
 {
-    // ✅ Render Users Page
+    /**
+     * ✅ Render the Users page (Inertia)
+     */
     public function index()
     {
         return Inertia::render('Users');
     }
 
-    // ✅ API: Return User List as JSON
+    /**
+     * ✅ API: Return user list as JSON
+     * Used for Vue frontend via axios
+     */
     public function getUsers()
     {
-        return response()->json(User::select('id', 'first_name', 'last_name', 'role', 'email', 'status')->get());
+        $users = User::select('id', 'first_name', 'last_name', 'middle_name', 'role', 'email', 'status')->get();
+
+        return response()->json($users);
+    }
+
+    /**
+     * ✅ API: Delete a user
+     * Called from Vue via axios.delete(`/api/users/${id}`)
+     */
+    public function destroy($id)
+    {
+        $user = User::find($id);
+
+        if (!$user) {
+            return response()->json(['message' => 'User not found.'], 404);
+        }
+
+        $user->delete();
+
+        return response()->json(['message' => 'User deleted successfully.']);
     }
 }
-
-
