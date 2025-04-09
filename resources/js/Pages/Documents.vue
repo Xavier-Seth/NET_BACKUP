@@ -23,6 +23,13 @@ onMounted(() => {
   if (!typeFilter.value) typeFilter.value = "student";
 });
 
+// ✅ Auto-reset category filter when switching to "school" type
+watch(typeFilter, (val) => {
+  if (val === 'school') {
+    categoryFilter.value = "";
+  }
+});
+
 function toggleSidebar() {
   isSidebarVisible.value = !isSidebarVisible.value;
 }
@@ -55,19 +62,24 @@ watch([searchQuery, categoryFilter, typeFilter], () => {
   currentPage.value = 1;
 });
 
+// ✅ Updated to search by LRN OR Document Name
 const filteredDocuments = computed(() => {
   if (!typeFilter.value) return [];
 
   return documents.value.filter((doc) => {
     const lrn = doc.lrn ?? "";
+    const name = doc.name ?? "";
     const category = doc.category ?? "";
     const type = doc.type ?? "";
 
-    const matchesLRN = lrn.toLowerCase().includes(searchQuery.value.toLowerCase());
+    const matchesSearch =
+      lrn.toLowerCase().includes(searchQuery.value.toLowerCase()) ||
+      name.toLowerCase().includes(searchQuery.value.toLowerCase());
+
     const matchesCategory = categoryFilter.value === '' || category === categoryFilter.value;
     const matchesType = type === typeFilter.value;
 
-    return matchesLRN && matchesCategory && matchesType;
+    return matchesSearch && matchesCategory && matchesType;
   });
 });
 
@@ -114,16 +126,23 @@ const goToUpload = () => router.get("/upload");
         <div class="controls d-flex align-items-center">
           <button class="btn upload-btn" @click="goToUpload">Upload</button>
 
+          <!-- ✅ CATEGORY FILTER -->
           <div class="category-filter ms-3">
             <label for="category">Category</label>
-            <select id="category" v-model="categoryFilter" class="form-select">
+            <select
+              id="category"
+              v-model="categoryFilter"
+              class="form-select"
+              :disabled="typeFilter === 'school'"
+            >
               <option value="">All</option>
               <option value="Form 137">Form 137</option>
               <option value="PSA">PSA</option>
-              <option value="ECCRPD">ECCRPD</option>
+              <option value="ECCRD">ECCRD</option>
             </select>
           </div>
 
+          <!-- ✅ TYPE FILTER -->
           <div class="type-filter ms-3">
             <label for="type">Type</label>
             <select id="type" v-model="typeFilter" class="form-select">
@@ -133,6 +152,7 @@ const goToUpload = () => router.get("/upload");
             </select>
           </div>
 
+          <!-- ✅ SEARCH -->
           <input
             type="text"
             v-model="searchQuery"
@@ -199,6 +219,7 @@ const goToUpload = () => router.get("/upload");
       </div>
     </div>
 
+    <!-- ✅ Preview Modal -->
     <div v-if="previewUrl" class="preview-modal">
       <div class="preview-content">
         <button class="close-preview" @click="closePreview">&times;</button>

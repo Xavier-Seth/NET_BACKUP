@@ -22,7 +22,7 @@ class DocumentController extends Controller
     // ✅ Serve file for viewing
     public function show(Document $document)
     {
-        $path = storage_path("app/public/{$document->filepath}");
+        $path = storage_path("app/public/{$document->path}");
 
         if (!file_exists($path)) {
             abort(404, 'File not found.');
