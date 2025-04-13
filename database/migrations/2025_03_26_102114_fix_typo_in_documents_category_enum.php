@@ -10,7 +10,7 @@ return new class extends Migration {
     public function up(): void
     {
         // Fix typo: ECCRPD → ECCRD
-        DB::statement("ALTER TABLE documents MODIFY category ENUM('Form 137', 'PSA', 'ECCRD') NOT NULL");
+        DB::statement("ALTER TABLE documents MODIFY category ENUM('PSA', 'ECCRD') NOT NULL");
     }
 
     /**
@@ -19,6 +19,6 @@ return new class extends Migration {
     public function down(): void
     {
         // Revert back if needed
-        DB::statement("ALTER TABLE documents MODIFY category ENUM('Form 137', 'PSA', 'ECCRD') NOT NULL");
+        DB::statement("ALTER TABLE documents MODIFY category ENUM('PSA', 'ECCRD') NOT NULL");
     }
 };

@@ -93,9 +93,7 @@
           <div>
             <label class="block text-gray-700">Role</label>
             <select v-model="form.role" class="input-field" autocomplete="off" required>
-              <option value="">Select</option>
               <option value="Admin Staff">Admin Staff</option>
-              <option value="Admin">Admin</option>
             </select>
             <span v-if="form.errors.role" class="text-red-600 text-sm">{{ form.errors.role }}</span>
           </div>
@@ -157,7 +155,7 @@ export default {
       phone_number: '',
       password: '',
       password_confirmation: '',
-      role: '',
+      role: 'Admin Staff', // ✅ Default role is now Admin Staff only
       status: 'active'
     });
 

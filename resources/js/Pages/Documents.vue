@@ -197,8 +197,8 @@ const goToUpload = () => router.get("/upload");
                     <button @click="previewDocument(document)" class="action-btn preview-btn">
                       <Eye size="14" /> Preview
                     </button>
-                    <a :href="`/storage/${document.path}`" :download="document.name" target="_blank" class="action-btn download-btn">
-                      ⬇ Download
+                    <a :href="`/documents/${document.id}/download`" class="action-btn download-btn" target="_blank">
+                     ⬇ Download
                     </a>
                   </td>
                 </tr>

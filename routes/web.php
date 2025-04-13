@@ -36,36 +36,38 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // ✅ Documents Listing & Viewing
     Route::get('/documents', [DocumentController::class, 'index'])->name('documents');
     Route::get('/documents/{document}', [DocumentController::class, 'show'])->name('documents.show');
+    Route::get('/documents/{document}/download', [DocumentController::class, 'download'])->name('documents.download');
 
     // ✅ User Profile (Self)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
-    Route::middleware(['auth', 'role:Admin'])->delete('/api/users/{id}', [UserController::class, 'destroy']);
+
+    // ✅ Delete own account (Admin only)
+    Route::middleware(['role:Admin'])->delete('/api/users/{id}', [UserController::class, 'destroy']);
 });
 
 // ✅ Admin-Only Routes (User Management)
 Route::middleware(['auth', 'role:Admin'])->group(function () {
-    // User Management
     Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
     Route::post('/register', [RegisteredUserController::class, 'store']);
 
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::get('/api/users', [UserController::class, 'getUsers'])->name('api.users');
-    Route::middleware(['auth:sanctum', 'role:Admin'])->delete('/users/{id}', [UserController::class, 'destroy']);
 
     Route::get('/admin/edit-user/{id}', [ProfileController::class, 'editAdmin'])->name('admin.edit-user');
     Route::patch('/admin/edit-user/{id}', [ProfileController::class, 'updateAdmin'])->name('admin.update-user');
+    Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware(['auth:sanctum', 'role:Admin']);
 });
 
 // ✅ Admin + Admin Staff Routes (Student Management)
 Route::middleware(['auth', 'role:Admin,Admin Staff'])->group(function () {
-    // ✅ Student Management
     Route::get('/students/register', fn() => Inertia::render('RegisterStudent'))->name('students.register');
     Route::post('/students/register', [StudentController::class, 'store'])->name('students.store');
     Route::get('/students/records', [StudentController::class, 'index'])->name('students.records');
 
-    // ✅ Update Grades
-    Route::post('/students/{lrn}/update-grades', [StudentController::class, 'updateGrades'])->name('students.update-grades');
+    // Removed: Grade update route
+    // Route::post('/students/{lrn}/update-grades', [StudentController::class, 'updateGrades'])->name('students.update-grades');
+
     Route::get('/students/{lrn}', [StudentController::class, 'show']);
 });
 

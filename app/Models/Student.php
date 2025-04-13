@@ -38,12 +38,4 @@ class Student extends Model
     {
         return trim("{$this->first_name} {$this->middle_name} {$this->last_name}");
     }
-
-    /**
-     * Relationship to grades table (linked by LRN)
-     */
-    public function grades()
-    {
-        return $this->hasMany(Grade::class, 'lrn', 'lrn');
-    }
 }

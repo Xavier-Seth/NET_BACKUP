@@ -5,21 +5,18 @@
       <div class="documents-container">
         <!-- Filters -->
         <div class="controls d-flex align-items-center">
-          <div class="grade-filter">
-            <label for="grade">Grade Level</label>
-            <select id="grade" v-model="gradeFilter" class="form-select">
+          <!-- School Year Filter -->
+          <div class="schoolyear-filter">
+            <label for="schoolYear">School Year</label>
+            <select id="schoolYear" v-model="schoolYearFilter" class="form-select">
               <option value="">All</option>
-              <option value="Grade 1">Grade 1</option>
-              <option value="Grade 2">Grade 2</option>
-              <option value="Grade 3">Grade 3</option>
-              <option value="Grade 4">Grade 4</option>
-              <option value="Grade 5">Grade 5</option>
-              <option value="Grade 6">Grade 6</option>
-              <option value="Graduated">Graduated</option>
+              <option v-for="year in uniqueSchoolYears" :key="year" :value="year">
+                {{ year }}
+              </option>
             </select>
           </div>
 
-          <!-- 🔍 Search input with suggestion dropdown -->
+          <!-- 🔍 LRN Search with Suggestions -->
           <div class="ms-auto" style="position: relative;">
             <input
               type="text"
@@ -48,7 +45,6 @@
               <tr>
                 <th>LRN</th>
                 <th>Full Name</th>
-                <th>Grade Level</th>
                 <th>School Year</th>
                 <th>Actions</th>
               </tr>
@@ -57,16 +53,8 @@
               <tr v-for="student in paginatedStudents" :key="student.id">
                 <td data-label="LRN">{{ student.lrn }}</td>
                 <td data-label="Full Name">{{ student.full_name }}</td>
-                <td data-label="Grade Level">{{ student.grade_level }}</td>
                 <td data-label="School Year">{{ student.school_year }}</td>
                 <td data-label="Actions" class="action-buttons">
-                  <button
-                    @click="openGradeModal(student)"
-                    class="btn btn-xs btn-primary"
-                    title="View Grade"
-                  >
-                    <span class="icon-btn"><FileText /></span>
-                  </button>
                   <button
                     @click="goToRecord(student.id)"
                     class="btn btn-xs btn-warning"
@@ -93,15 +81,6 @@
           <span class="pagination-text">Page {{ currentPage }} of {{ totalPages }}</span>
           <button @click="currentPage++" :disabled="currentPage === totalPages" class="pagination-btn">Next</button>
         </div>
-
-        <!-- Grade Modal -->
-        <ViewGradeModal
-          :key="selectedStudent?.lrn + showGradeModal"
-          :show="showGradeModal"
-          :student="selectedStudent"
-          @close="showGradeModal = false"
-          @updated="handleGradeUpdate"
-        />
       </div>
     </div>
   </div>
@@ -109,34 +88,24 @@
 
 <script setup>
 import Sidebar from "@/Components/Sidebar.vue";
-import ViewGradeModal from "@/Components/ViewGradeModal.vue";
 import { ref, computed, watch } from "vue";
 import { usePage, router } from "@inertiajs/vue3";
-import { FileText, FileSearch, FilePlus } from "lucide-vue-next";
+import { FileSearch, FilePlus } from "lucide-vue-next";
 
 const { props } = usePage();
 const students = ref(props.students);
 
 const currentPage = ref(1);
 const searchQuery = ref("");
-const gradeFilter = ref("");
+const schoolYearFilter = ref("");
 const showSuggestions = ref(false);
 
-const selectedStudent = ref(null);
-const showGradeModal = ref(false);
-
-// Open grade modal
-const openGradeModal = (student) => {
-  selectedStudent.value = student;
-  showGradeModal.value = true;
-};
-
-// Direct to student record
+// Go to student record
 const goToRecord = (id) => {
   router.get(`/students/${id}/record`);
 };
 
-// Route to documents with LRN-based filtering
+// Go to documents
 const goToDocuments = (lrn) => {
   router.visit('/documents', {
     method: 'get',
@@ -149,7 +118,13 @@ const goToDocuments = (lrn) => {
   });
 };
 
-// Autocomplete LRN suggestions
+// Unique School Years for filter dropdown
+const uniqueSchoolYears = computed(() => {
+  const years = students.value.map(s => s.school_year).filter(Boolean);
+  return [...new Set(years)].sort().reverse();
+});
+
+// LRN Autocomplete Suggestions
 const lrnSuggestions = computed(() => {
   if (!searchQuery.value) return [];
   return students.value
@@ -163,22 +138,21 @@ const selectSuggestion = (lrn) => {
   showSuggestions.value = false;
 };
 
-watch([searchQuery, gradeFilter], () => {
-  currentPage.value = 1;
-});
-
-// Filter and sort students
+// Filter students by LRN and school year
 const filteredStudents = computed(() => {
   return students.value
     .filter((student) => {
       const matchesLRN = String(student.lrn).toLowerCase().includes(searchQuery.value.toLowerCase());
-      const matchesGrade = gradeFilter.value === "" || student.grade_level === gradeFilter.value;
-      return matchesLRN && matchesGrade;
+      const matchesYear = schoolYearFilter.value === "" || student.school_year === schoolYearFilter.value;
+      return matchesLRN && matchesYear;
     })
     .sort((a, b) => a.full_name.localeCompare(b.full_name));
 });
 
-// Pagination logic
+watch([searchQuery, schoolYearFilter], () => {
+  currentPage.value = 1;
+});
+
 const entriesPerPage = 20;
 const paginatedStudents = computed(() => {
   const start = (currentPage.value - 1) * entriesPerPage;
@@ -189,18 +163,10 @@ const paginatedStudents = computed(() => {
 const totalPages = computed(() =>
   Math.ceil(filteredStudents.value.length / entriesPerPage)
 );
-
-// Update grade modal state
-const handleGradeUpdate = (updatedStudent) => {
-  const index = students.value.findIndex(s => s.lrn === updatedStudent.lrn);
-  if (index !== -1) {
-    students.value[index] = updatedStudent;
-  }
-};
 </script>
 
 <style scoped>
-/* Sticky header */
+/* Same styles from your original code */
 .documents-table thead th {
   position: sticky;
   top: 0;
@@ -208,7 +174,6 @@ const handleGradeUpdate = (updatedStudent) => {
   z-index: 2;
 }
 
-/* LRN Suggestions */
 .suggestions-dropdown {
   position: absolute;
   top: 100%;
@@ -272,7 +237,7 @@ html, body {
   flex-wrap: wrap;
 }
 
-.grade-filter {
+.schoolyear-filter {
   display: flex;
   flex-direction: column;
   gap: 4px;
@@ -391,10 +356,6 @@ html, body {
   border-radius: 4px;
 }
 
-.btn-primary {
-  background-color: #007bff;
-  color: white;
-}
 .btn-warning {
   background-color: #ffc107;
   color: white;

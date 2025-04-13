@@ -90,9 +90,8 @@
         <h3 class="text-lg font-semibold mb-4">Categorize Document</h3>
         <select v-model="category" class="border rounded p-2 w-full mb-4">
           <option disabled value="">Select Document Type</option>
-          <option>Form 137</option>
           <option>PSA</option>
-          <option>ECCRD</option> <!-- ✅ corrected here -->
+          <option>ECCRD</option>
         </select>
         <input type="text" v-model="lrn" class="border rounded p-2 w-full mb-4" placeholder="Enter LRN">
 

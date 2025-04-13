@@ -3,10 +3,8 @@
     <div class="modal-content">
       <h5 class="modal-title mb-3 text-center">{{ student.full_name }}</h5>
       <p class="mb-2 text-center">LRN: {{ student.lrn }}</p>
-      <p class="mb-3 text-center">Grade Level: {{ student.grade_level }}</p>
 
       <div class="btn-group">
-        <button class="btn btn-primary" @click="emit('open-grade', student)">View Grade</button>
         <button class="btn btn-warning" @click="go('record')">Student Record</button>
         <button class="btn btn-success" @click="goToDocuments">Documents</button>
       </div>
@@ -21,7 +19,7 @@ import { watch } from 'vue'
 import { router } from '@inertiajs/vue3'
 
 const props = defineProps({ show: Boolean, student: Object })
-const emit = defineEmits(['close', 'open-grade'])
+const emit = defineEmits(['close'])
 
 const go = (page) => {
   router.get(`/students/${props.student.id}/${page}`)

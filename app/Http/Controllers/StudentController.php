@@ -3,7 +3,6 @@
 namespace App\Http\Controllers;
 
 use App\Models\Student;
-use App\Models\Grade;
 use Illuminate\Http\Request;
 use Inertia\Inertia;
 use App\Services\DocumentUploadService;
@@ -13,7 +12,7 @@ class StudentController extends Controller
     // ✅ Student Records Listing
     public function index()
     {
-        $students = Student::with('grades')->select(
+        $students = Student::select(
             'id',
             'lrn',
             'first_name',
@@ -28,10 +27,10 @@ class StudentController extends Controller
         ]);
     }
 
-    // ✅ Fetch One Student with Grades
+    // ✅ Fetch One Student (no grades)
     public function show($lrn)
     {
-        $student = Student::with('grades')->where('lrn', $lrn)->firstOrFail();
+        $student = Student::where('lrn', $lrn)->firstOrFail();
         return response()->json($student);
     }
 
@@ -73,51 +72,5 @@ class StudentController extends Controller
         return redirect()
             ->route('students.register')
             ->with('success', 'Student and documents uploaded successfully.');
-    }
-
-    // ✅ Update Grades and Promote
-    public function updateGrades(Request $request, $lrn)
-    {
-        $data = $request->validate([
-            'grades' => 'required|array',
-            'grades.*' => 'nullable|numeric|min:0|max:100',
-        ]);
-
-        $student = Student::where('lrn', $lrn)->firstOrFail();
-
-        foreach ($data['grades'] as $gradeLevel => $gwa) {
-            if (!is_null($gwa)) {
-                Grade::updateOrCreate(
-                    ['lrn' => $lrn, 'grade_level' => $gradeLevel],
-                    ['gwa' => $gwa]
-                );
-            }
-        }
-
-        // ✅ Promote if the highest grade with >= 75 is higher than current
-        $levels = ['Grade 1', 'Grade 2', 'Grade 3', 'Grade 4', 'Grade 5', 'Grade 6', 'Graduated'];
-        $highestPassed = null;
-
-        foreach ($levels as $level) {
-            if (isset($data['grades'][$level]) && $data['grades'][$level] >= 75) {
-                $highestPassed = $level;
-            }
-        }
-
-        if ($highestPassed) {
-            $currentIndex = array_search($student->grade_level, $levels);
-            $passedIndex = array_search($highestPassed, $levels);
-
-            if ($passedIndex > $currentIndex && $passedIndex < count($levels) - 1) {
-                $student->grade_level = $levels[$passedIndex + 1];
-                $student->save();
-            }
-        }
-
-        return response()->json([
-            'success' => true,
-            'message' => 'Grades updated and student promoted if applicable.',
-            'student' => Student::with('grades')->where('lrn', $lrn)->first()
-        ]);
     }
 }

@@ -6,10 +6,10 @@ use Illuminate\Http\Request;
 use App\Models\Document;
 use Inertia\Inertia;
 use App\Services\DocumentUploadService;
+use App\Services\OcrService;
 
 class DocumentController extends Controller
 {
-    // ✅ Show documents page
     public function index()
     {
         $documents = Document::orderBy('created_at', 'desc')->get();
@@ -19,7 +19,6 @@ class DocumentController extends Controller
         ]);
     }
 
-    // ✅ Serve file for viewing
     public function show(Document $document)
     {
         $path = storage_path("app/public/{$document->path}");
@@ -28,21 +27,41 @@ class DocumentController extends Controller
             abort(404, 'File not found.');
         }
 
-        return response()->file($path);
+        $encrypted = file_get_contents($path);
+        $decrypted = (new DocumentUploadService)->decryptFileContents($encrypted);
+
+        return response($decrypted)
+            ->header('Content-Type', $document->mime_type)
+            ->header('Content-Disposition', 'inline; filename="' . $document->name . '"');
     }
 
-    // ✅ Handle file uploads
-    public function upload(Request $request, DocumentUploadService $uploadService)
+    public function download(Document $document)
     {
-        $type = $request->input('type', 'school'); // default to 'school'
+        $path = storage_path("app/public/{$document->path}");
 
-        // ✅ Validation
+        if (!file_exists($path)) {
+            abort(404, 'File not found.');
+        }
+
+        $encrypted = file_get_contents($path);
+        $decrypted = (new DocumentUploadService)->decryptFileContents($encrypted);
+
+        return response($decrypted)
+            ->header('Content-Type', $document->mime_type)
+            ->header('Content-Disposition', 'attachment; filename="' . $document->name . '"');
+    }
+
+    public function upload(Request $request, DocumentUploadService $uploadService, OcrService $ocrService)
+    {
+        $type = $request->input('type', 'school');
+
         if ($type === 'student') {
             $request->validate([
                 'files' => 'required|array',
                 'files.*' => 'required|file|mimes:pdf,docx,xlsx,xls,png,jpg|max:20480',
-                'lrn' => 'required|string|max:20',
-                'category' => 'required|string|max:50',
+                'categories' => 'required|array',
+                'lrns' => 'required|array',
+                'types' => 'required|array',
             ]);
         } else {
             $request->validate([
@@ -51,16 +70,14 @@ class DocumentController extends Controller
             ]);
         }
 
-        // ✅ Handle each file using the upload service
-        foreach ($request->file('files') as $file) {
-            $uploadService->handle(
-                $file,
-                $request->input('category'),  // may be null for school
-                $request->input('lrn'),       // may be null for school
-                $type
-            );
+        foreach ($request->file('files') as $index => $file) {
+            $category = $request->input('categories')[$index] ?? 'Uncategorized';
+            $lrn = $request->input('lrns')[$index] ?? null;
+            $docType = $request->input('types')[$index] ?? 'school';
+
+            $uploadService->handle($file, $category, $lrn, $docType, $ocrService);
         }
 
-        return back()->with('message', 'Files uploaded successfully!');
+        return back()->with('message', 'Files uploaded successfully with OCR!');
     }
 }

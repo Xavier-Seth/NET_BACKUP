@@ -140,17 +140,13 @@
           </div>
         </div>
 
-        <!-- ✅ File Uploads -->
+        <!-- ✅ File Uploads (No Form 137) -->
         <div class="row mb-3">
-          <div class="col-md-4">
-            <label class="form-label">Form 137:</label>
-            <input ref="form137Ref" type="file" class="form-control" @change="handleFileUpload($event, 'form137')" />
-          </div>
-          <div class="col-md-4">
+          <div class="col-md-6">
             <label class="form-label">PSA:</label>
             <input ref="psaRef" type="file" class="form-control" @change="handleFileUpload($event, 'psa')" />
           </div>
-          <div class="col-md-4">
+          <div class="col-md-6">
             <label class="form-label">ECCRD:</label>
             <input ref="eccrdRef" type="file" class="form-control" @change="handleFileUpload($event, 'eccrd')" />
           </div>
@@ -189,7 +185,6 @@ const userRole = user?.role ? `(${user.role})` : ''
 const successMessage = ref(null)
 const showSuccessModal = ref(false)
 
-const form137Ref = ref(null)
 const psaRef = ref(null)
 const eccrdRef = ref(null)
 
@@ -213,7 +208,6 @@ const form = useForm({
   father_name: '',
   mother_name: '',
   guardian_name: '',
-  form137: null,
   psa: null,
   eccrd: null,
 })
@@ -225,13 +219,13 @@ const handleFileUpload = (event, field) => {
 const submit = () => {
   const formData = new FormData()
   Object.entries(form.data()).forEach(([key, value]) => {
-    if (!['form137', 'psa', 'eccrd'].includes(key)) {
+    if (!['psa', 'eccrd'].includes(key)) {
       formData.append(key, value)
     }
   })
 
-  const fileFields = ['form137', 'psa', 'eccrd']
-  const categories = ['Form 137', 'PSA', 'ECCRD']
+  const fileFields = ['psa', 'eccrd']
+  const categories = ['PSA', 'ECCRD']
 
   fileFields.forEach((field, index) => {
     if (form[field]) {
@@ -246,7 +240,6 @@ const submit = () => {
     forceFormData: true,
     onSuccess: () => {
       form.reset()
-      form137Ref.value.value = ''
       psaRef.value.value = ''
       eccrdRef.value.value = ''
       successMessage.value = '✅ Student and documents uploaded successfully.'
