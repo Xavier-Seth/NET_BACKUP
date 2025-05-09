@@ -2,7 +2,6 @@
   <div class="flex bg-gray-100 min-h-screen">
     <Sidebar />
 
-    <!-- MAIN CONTENT AREA -->
     <div class="flex-1 bg-gray-100 overflow-y-auto ml-[200px]">
       <div class="flex justify-center items-center min-h-screen px-4 py-10">
         <div
@@ -17,18 +16,56 @@
           <p class="text-gray-500 text-sm mt-2">Supports: PDF, DOCX, XLSX, XLS, PNG, JPG</p>
           <p class="text-gray-500 text-sm mt-2">Or</p>
 
-          <!-- Document Type -->
-          <div class="mb-4 mt-4 w-full max-w-xs mx-auto">
-            <label class="block mb-1 font-semibold text-gray-700">Document Type</label>
-            <select v-model="documentType" class="border rounded p-2 w-full">
-              <option disabled value="">Select Type</option>
-              <option value="student">Student Document</option>
-              <option value="school">School Document</option>
-            </select>
+          <!-- 🧠 Detected Info Section (only after scanning a file) -->
+          <div
+            v-if="selectedFiles.length && !isScanning"
+            class="mt-4 w-full max-w-xs mx-auto text-left text-sm text-gray-800"
+          >
+            <!-- ❌ No detection -->
+            <div
+              v-if="!detectedCategory && !detectedTeacher && showCategorySelection"
+              class="mb-2 text-red-600 font-semibold flex items-center gap-1"
+            >
+              <i class="bi bi-x-circle-fill"></i>
+              No category or teacher detected. Please select the category manually:
+            </div>
+
+            <!-- 🟢 Manual or fallback category selection -->
+            <div v-if="showCategorySelection" class="mb-4">
+              <select v-model="category_id" class="border rounded p-2 w-full">
+                <option disabled value="">Select Category</option>
+                <option v-for="category in categories" :key="category.id" :value="category.id">
+                  {{ category.name }}
+                </option>
+              </select>
+            </div>
+
+            <!-- ✅ Always show detected category if found -->
+            <div v-if="detectedCategory" class="text-green-700 font-semibold mb-2">
+              Detected Category: {{ detectedCategory }}
+            </div>
+
+            <!-- 👨‍🏫 Teacher section for teacher-related documents -->
+            <div v-if="showTeacherSelection">
+              <p v-if="detectedCategory && !detectedTeacher" class="text-red-600">
+                This document "{{ detectedCategory }}" belongs to a teacher. Please select the teacher:
+              </p>
+              <div v-if="!detectedTeacher" class="mt-2">
+                <select v-model="teacher_id" class="border rounded p-2 w-full">
+                  <option disabled value="">Select Teacher</option>
+                  <option v-for="teacher in teachers" :key="teacher.id" :value="teacher.id">
+                    {{ teacher.full_name }}
+                  </option>
+                </select>
+              </div>
+              <p v-if="detectedTeacher" class="mt-2 text-green-700">
+                <strong>Detected Teacher:</strong> {{ detectedTeacher }}
+              </p>
+            </div>
           </div>
 
-          <!-- File Input & Browse -->
-          <div class="flex gap-2 justify-center mt-2">
+          <!-- 📂 File Input + Browse -->
+          <div class="flex gap-2 justify-center mt-4">
             <input
               type="file"
               :key="fileInputKey"
@@ -36,7 +73,7 @@
               class="hidden"
               multiple
               @change="handleFileUpload"
-              accept=".pdf,.docx,.xlsx,.xls,.png,.jpg"
+              accept=".pdf,.docx,.xlsx,.xls,.png,.jpg,.doc"
             >
             <button
               @click="browseFile"
@@ -46,8 +83,14 @@
             </button>
           </div>
 
-          <!-- Selected Files -->
-          <div v-if="selectedFiles.length" class="selected-files mt-6 w-full text-left">
+          <!-- ⏳ Spinner -->
+          <div v-if="isScanning || isUploading" class="spinner mt-6"></div>
+
+          <!-- 📑 Selected Files -->
+          <div
+            v-if="selectedFiles.length && !isScanning && !isUploading"
+            class="selected-files mt-6 w-full text-left"
+          >
             <p class="text-gray-700 font-bold mb-2">Selected Files:</p>
             <ul class="file-list">
               <li
@@ -63,44 +106,14 @@
             </ul>
           </div>
 
-          <!-- Upload Button -->
+          <!-- 📤 Upload Button -->
           <button
-            v-if="selectedFiles.length && documentType"
-            @click="handleUpload"
+            v-if="selectedFiles.length && !isScanning"
+            @click="uploadFiles"
             class="upload-btn"
             :disabled="isUploading"
           >
             {{ isUploading ? 'Uploading...' : 'Upload Document' }}
-          </button>
-
-          <!-- Upload Message -->
-          <p
-            v-if="uploadMessage"
-            class="message mt-4 p-2 text-green-700 bg-green-100 border border-green-400 rounded-lg shadow-md text-center"
-          >
-            {{ uploadMessage }}
-          </p>
-        </div>
-      </div>
-    </div>
-
-    <!-- Student Modal -->
-    <div v-if="showModal" class="fixed inset-0 bg-black bg-opacity-50 flex justify-center items-center z-50">
-      <div class="bg-white rounded-lg shadow-lg p-6 w-80">
-        <h3 class="text-lg font-semibold mb-4">Categorize Document</h3>
-        <select v-model="category" class="border rounded p-2 w-full mb-4">
-          <option disabled value="">Select Document Type</option>
-          <option>PSA</option>
-          <option>ECCRD</option>
-        </select>
-        <input type="text" v-model="lrn" class="border rounded p-2 w-full mb-4" placeholder="Enter LRN">
-
-        <div class="flex justify-end gap-2">
-          <button @click="showModal = false" class="px-4 py-2 bg-gray-400 rounded text-white hover:bg-gray-500">
-            Cancel
-          </button>
-          <button @click="uploadFiles" class="px-4 py-2 bg-indigo-600 rounded text-white hover:bg-indigo-700">
-            Upload
           </button>
         </div>
       </div>
@@ -111,22 +124,54 @@
 <script>
 import Sidebar from "@/Components/Sidebar.vue";
 import { router } from '@inertiajs/vue3';
+import axios from 'axios';
 
 export default {
+  props: {
+    teachers: Array,
+    categories: Array,
+  },
   components: { Sidebar },
   data() {
     return {
       selectedFiles: [],
       isDragging: false,
       isUploading: false,
+      isScanning: false,
       uploadMessage: "",
       uploadSuccess: false,
-      showModal: false,
-      category: "",
-      lrn: "",
-      documentType: "",
+      teacher_id: "",
+      category_id: "",
       fileInputKey: 0,
+      detectedTeacher: null,
+      detectedCategory: null,
+      showTeacherSelection: false,
+      showCategorySelection: false,
+
+      teacherDocumentTypes: [
+        'Work Experience Sheet',
+        'Personal Data Sheet',
+        'Oath of Office',
+        'Certification of Assumption to Duty',
+      ],
     };
+  },
+  computed: {
+    selectedCategoryName() {
+      const selected = this.categories.find(c => c.id === this.category_id);
+      return selected ? selected.name : null;
+    }
+  },
+  watch: {
+    category_id(newVal) {
+      const selected = this.categories.find(c => c.id === newVal);
+      if (selected && this.teacherDocumentTypes.includes(selected.name)) {
+        this.showTeacherSelection = true;
+      } else {
+        this.showTeacherSelection = false;
+        this.teacher_id = "";
+      }
+    }
   },
   methods: {
     browseFile() {
@@ -135,9 +180,43 @@ export default {
     handleFileUpload(event) {
       this.selectedFiles = Array.from(event.target.files);
       this.clearMessages();
+      if (this.selectedFiles.length > 0) {
+        this.scanFile(this.selectedFiles[0]);
+      }
+    },
+    async scanFile(file) {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      this.isScanning = true;
+
+      try {
+        const response = await axios.post('/upload/scan', formData, {
+          headers: { 'Content-Type': 'multipart/form-data' }
+        });
+
+        this.detectedTeacher = response.data.teacher || null;
+        this.detectedCategory = response.data.category || null;
+
+        this.showTeacherSelection = response.data.belongs_to_teacher;
+        this.showCategorySelection = this.detectedCategory === null;
+
+        if (this.detectedTeacher) {
+          const matchedTeacher = this.teachers.find(t => t.full_name === this.detectedTeacher);
+          if (matchedTeacher) {
+            this.teacher_id = matchedTeacher.id;
+          }
+        }
+
+      } catch (error) {
+        console.error('Error scanning document', error);
+      } finally {
+        this.isScanning = false;
+      }
     },
     removeFile(index) {
       this.selectedFiles.splice(index, 1);
+      this.clearMessages();
     },
     handleDragOver(e) {
       e.preventDefault();
@@ -151,18 +230,24 @@ export default {
       this.selectedFiles = Array.from(e.dataTransfer.files);
       this.isDragging = false;
       this.clearMessages();
+      if (this.selectedFiles.length > 0) {
+        this.scanFile(this.selectedFiles[0]);
+      }
     },
     formatFileSize(size) {
       return `${(size / 1024).toFixed(2)} KB`;
     },
-    handleUpload() {
-      if (this.documentType === 'student') {
-        this.showModal = true;
-      } else {
-        this.uploadFiles();
-      }
-    },
     uploadFiles() {
+      if (this.showTeacherSelection && !this.detectedTeacher && !this.teacher_id) {
+        alert('❌ Please select a teacher before uploading.');
+        return;
+      }
+
+      if (this.showCategorySelection && !this.detectedCategory && !this.category_id) {
+        alert('❌ Please select a category before uploading.');
+        return;
+      }
+
       this.isUploading = true;
       const formData = new FormData();
 
@@ -170,21 +255,20 @@ export default {
         formData.append('files[]', file);
       });
 
-      formData.append('type', this.documentType);
-
-      if (this.documentType === 'student') {
-        formData.append('category', this.category);
-        formData.append('lrn', this.lrn);
-      }
+      formData.append('teacher_id', this.teacher_id);
+      formData.append('category_id', this.category_id);
 
       router.post('/upload', formData, {
         forceFormData: true,
-        onSuccess: () => {
-          this.uploadMessage = `${this.selectedFiles.length} file(s) uploaded successfully!`;
+        onSuccess: (page) => {
+          const uploadedDocuments = page.props.uploadedDocuments || [];
+          this.uploadMessage = uploadedDocuments.map(doc => {
+            return `${doc.file_name} → Teacher: ${doc.teacher}, Category: ${doc.category}`;
+          }).join('\n');
           this.resetUploadState();
         },
         onError: () => {
-          this.uploadMessage = "Upload failed.";
+          alert("❌ Upload failed. Please try again.");
           this.isUploading = false;
         }
       });
@@ -192,21 +276,26 @@ export default {
     resetUploadState() {
       this.selectedFiles = [];
       this.isUploading = false;
+      this.isScanning = false;
       this.uploadSuccess = true;
-      this.showModal = false;
-      this.category = "";
-      this.lrn = "";
-      this.documentType = "";
-      this.fileInputKey++; // resets input file
+      this.teacher_id = "";
+      this.category_id = "";
+      this.detectedTeacher = null;
+      this.detectedCategory = null;
+      this.showTeacherSelection = false;
+      this.showCategorySelection = false;
+      this.fileInputKey++;
       document.getElementById("fileInput").value = null;
-
-      setTimeout(() => {
-        this.uploadMessage = "";
-      }, 3000);
     },
     clearMessages() {
       this.uploadSuccess = false;
       this.uploadMessage = "";
+      this.detectedTeacher = null;
+      this.detectedCategory = null;
+      this.showTeacherSelection = false;
+      this.showCategorySelection = false;
+      this.teacher_id = "";
+      this.category_id = "";
     }
   }
 };
@@ -224,11 +313,9 @@ export default {
   align-items: center;
   text-align: center;
 }
-
 .upload-container.dragging {
   border-color: #2563eb;
 }
-
 .upload-btn {
   margin-top: 1.5rem;
   padding: 12px 24px;
@@ -240,28 +327,22 @@ export default {
   cursor: pointer;
   transition: background-color 0.3s ease;
 }
-
-.upload-btn:hover {
-  background-color: #1e40af;
-}
-
-.upload-btn:disabled {
-  background-color: #a0aec0;
-  cursor: not-allowed;
-}
-
-.selected-files {
-  width: 100%;
-  margin-top: 1.5rem;
-}
-
+.upload-btn:hover { background-color: #1e40af; }
+.upload-btn:disabled { background-color: #a0aec0; cursor: not-allowed; }
+.selected-files { width: 100%; margin-top: 1.5rem; }
 .file-list li {
   display: flex;
   justify-content: space-between;
   align-items: center;
 }
-
-.message {
-  text-align: center;
+.spinner {
+  margin-top: 1rem;
+  width: 40px;
+  height: 40px;
+  border: 4px solid #ccc;
+  border-top: 4px solid #2563eb;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
 }
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>

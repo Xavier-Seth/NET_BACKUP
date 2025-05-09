@@ -1,37 +1,89 @@
 <template>
   <div>
-    <!-- Sidebar -->
     <aside :class="['sidebar', { open: isOpen }]">
-      <!-- Toggle button (Mobile only) -->
-      <button class="toggle-btn" @click="toggleSidebar">
-        <i class="bi bi-list"></i>
-      </button>
+      <!-- Logo -->
+      <div class="logo">
+        <img src="/images/school_logo.png" alt="School Logo" class="school-logo" />
+      </div>
 
-      <!-- Menu -->
+      <!-- Navigation Menu -->
       <nav class="menu">
         <ul>
-          <li v-for="item in menuItems" :key="item.label" class="menu-parent">
-            <a
-              href="javascript:void(0);"
-              @click="handleMenuClick(item)"
-              :class="{ active: isActive(item.path) }"
-              class="menu-item"
-            >
-              <div class="icon-box" :class="{ 'active-icon': isActive(item.path) }">
-                <i :class="item.icon"></i>
-              </div>
-              <span>{{ item.label }}</span>
+          <li>
+            <a @click="go('dashboard')" :class="['nav-link', { active: isActive('dashboard') }]">
+              <i class="bi bi-grid"></i> Dashboard
+            </a>
+          </li>
+
+          <li v-if="user.role === 'Admin'">
+            <a @click="go('users.index')" :class="['nav-link', { active: isActive('users.index') }]">
+              <i class="bi bi-people"></i> Users
+            </a>
+          </li>
+
+          <!-- Documents dropdown -->
+          <li>
+            <a class="nav-link" @click="toggle('Documents')" :class="{ active: isActive('/documents') }">
+              <i class="bi bi-folder2-open"></i> Documents
+              <i class="bi bi-caret-left-fill caret-icon" :class="{ rotated: openDocs }"></i>
+            </a>
+
+            <ul v-if="openDocs" class="dropdown">
+              <li>
+                <a @click="go('documents.teachers-profile')" :class="['dropdown-link', { active: isActive('documents.teachers-profile') }]">
+                  <i class="bi bi-folder"></i> Teachers Profile
+                </a>
+              </li>
+
+              <li class="section-title">DTR's</li>
+              <li>
+                <a @click="go('/documents/attendance')" :class="['dropdown-link', { active: isActive('/documents/attendance') }]">
+                  <i class="bi bi-file-earmark-text"></i> Attendance Log's
+                </a>
+              </li>
+              <li>
+                <a @click="go('/documents/dtr')" :class="['dropdown-link', { active: isActive('/documents/dtr') }]">
+                  <i class="bi bi-file-earmark-text"></i> DTR's
+                </a>
+              </li>
+
+              <li class="section-title">School Properties</li>
+              <li>
+                <a @click="go('/documents/school-properties?category=ICS')" :class="['dropdown-link', { active: isActive('/documents/school-properties?category=ICS') }]">
+                  <i class="bi bi-file-earmark-text"></i> ICS
+                </a>
+              </li>
+              <li>
+                <a @click="go('/documents/school-properties?category=RIS')" :class="['dropdown-link', { active: isActive('/documents/school-properties?category=RIS') }]">
+                  <i class="bi bi-file-earmark-text"></i> RIS
+                </a>
+              </li>
+            </ul>
+          </li>
+
+          <li>
+            <a @click="go('teachers.register')" :class="['nav-link', { active: isActive('teachers.register') }]">
+              <i class="bi bi-person-badge"></i> Register Teachers
+            </a>
+          </li>
+
+          <li>
+            <a @click="go('upload')" :class="['nav-link', { active: isActive('upload') }]">
+              <i class="bi bi-upload"></i> Upload Files
+            </a>
+          </li>
+
+          <li>
+            <a @click="go('logs.index')" :class="['nav-link', { active: isActive('logs.index') }]">
+              <i class="bi bi-clock-history"></i> Logs
             </a>
           </li>
         </ul>
       </nav>
 
-      <!-- Exit -->
-      <div class="exit" @click="logout">
-        <div class="icon-box exit-icon">
-          <i class="bi bi-box-arrow-right"></i>
-        </div>
-        <span>Exit</span>
+      <!-- Logout -->
+      <div class="logout" @click="logout">
+        <i class="bi bi-box-arrow-right"></i> Logout
       </div>
     </aside>
 
@@ -41,49 +93,46 @@
 </template>
 
 <script setup>
-import { computed, ref, onMounted } from 'vue'
+import { ref, onMounted, computed } from 'vue'
 import { usePage, router } from '@inertiajs/vue3'
 
 const user = usePage().props.auth.user
 const isOpen = ref(true)
-
 const isMobile = window.innerWidth < 768
+const openDocs = ref(false)
+const currentPath = computed(() => usePage().url)
 
-const toggleSidebar = () => {
-  isOpen.value = !isOpen.value
+const toggle = (section) => {
+  if (section === 'Documents') openDocs.value = !openDocs.value
 }
 
-const menuItems = computed(() => [
-  { path: route('dashboard'), label: 'Dashboard', icon: 'bi bi-grid' },
-  { path: route('users.index'), label: 'Users', icon: 'bi bi-people' },
-  { path: route('documents'), label: 'Documents', icon: 'bi bi-file-earmark-text' },
-  { path: route('students.records'), label: 'Student Records', icon: 'bi bi-folder2-open' },
-  { path: route('upload'), label: 'Upload Files', icon: 'bi bi-upload' },
-])
-
-const handleMenuClick = (item) => {
-  if (item.label === 'Users' && user.role !== 'Admin') {
-    alert('❌ Access Denied: Only Admin users can access this page.')
+const go = (pathOrRoute) => {
+  if (typeof pathOrRoute === 'string' && pathOrRoute.startsWith('/')) {
+    router.visit(pathOrRoute)
   } else {
-    router.visit(item.path)
-    if (isMobile) isOpen.value = false
+    router.visit(route(pathOrRoute))
   }
+  if (isMobile) isOpen.value = false
 }
 
 const isActive = (path) => {
-  return window.location.pathname === new URL(path, window.location.origin).pathname
+  const url = currentPath.value
+
+  if (path.startsWith('/')) {
+    return url.startsWith(path)
+  }
+
+  const routeUrl = route(path)
+  return url.startsWith(new URL(routeUrl).pathname)
 }
 
 const logout = () => {
   if (confirm('Are you sure you want to log out?')) {
-    router.post(route('logout'), {
-      preserveScroll: true,
-    })
+    router.post(route('logout'), { preserveScroll: true })
   }
 }
 
 onMounted(() => {
-  // Keyboard shortcut: Alt + S to toggle sidebar
   window.addEventListener('keydown', (e) => {
     if (e.altKey && e.key.toLowerCase() === 's') {
       isOpen.value = !isOpen.value
@@ -94,129 +143,142 @@ onMounted(() => {
 
 <style scoped>
 .sidebar {
-  width: 200px;
+  width: 210px;
   height: 100vh;
-  position: fixed;
-  left: 0;
-  top: 0;
-  background: linear-gradient(to bottom, #12172B, #1a1f3a);
+  background: linear-gradient(to bottom, #12172b, #1a1f3a);
   color: white;
-  padding: 10px 0;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  position: fixed;
+  top: 0;
+  left: 0;
   z-index: 1000;
+  padding: 20px 0;
   overflow-y: auto;
-  scroll-behavior: smooth;
-  transition: transform 0.3s ease-in-out;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
 }
 
-/* Mobile Hidden State */
-@media (max-width: 768px) {
-  .sidebar {
-    transform: translateX(-100%);
-  }
-  .sidebar.open {
-    transform: translateX(0);
-  }
-}
-
-/* Toggle Button */
-.toggle-btn {
+.sidebar::-webkit-scrollbar {
   display: none;
 }
 
-@media (max-width: 768px) {
-  .toggle-btn {
-    display: block;
-    position: fixed;
-    top: 10px;
-    left: 10px;
-    z-index: 1100;
-    background: #12172b;
-    color: white;
-    border: none;
-    font-size: 24px;
-    padding: 6px 12px;
-    border-radius: 6px;
-    cursor: pointer;
-  }
+.logo {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  padding: 10px 0;
+  margin-bottom: 10px;
 }
 
-/* Menu Layout */
-.menu {
-  margin-top: 15px;
+.logo img {
+  width: 100px;
+  height: auto;
+  object-fit: contain;
 }
+
+.menu {
+  flex-grow: 1;
+}
+
 .menu ul {
   list-style: none;
-  padding: 0;
+  padding: 0 0 0 10px;
   margin: 0;
-  width: 100%;
+}
+
+.nav-link {
   display: flex;
-  flex-direction: column;
   align-items: center;
-}
-.menu-parent {
-  position: relative;
-  width: 100%;
-}
-.menu-item {
-  text-decoration: none;
+  padding: 10px 16px;
+  gap: 10px;
+  font-size: 15px;
   color: white;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  width: 100%;
-  padding: 10px;
-  transition: 0.3s ease-in-out;
-  cursor: pointer;
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s;
+  border-radius: 12px;
 }
-.menu-item.active {
-  font-weight: bold;
+
+.nav-link:hover {
+  background: rgba(255, 255, 255, 0.1);
 }
-.icon-box {
-  width: 40px;
-  height: 40px;
-  background: #2c2f48;
-  border-radius: 8px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  font-size: 1.3rem;
-  margin-bottom: 4px;
-  transition: 0.3s ease-in-out;
-}
-.active-icon {
-  background: white !important;
-  color: #1a1f3a !important;
-}
-.menu-item:hover .icon-box {
+
+.nav-link.active {
   background: white;
-  color: #1a1f3a;
+  color: #12172b;
+  font-weight: bold;
+  border-radius: 12px;
 }
 
-/* Exit Button */
-.exit {
-  margin-right: 12px;
-  margin-bottom: 20px;
-  text-align: center;
+.caret-icon {
+  margin-left: auto;
+  transition: transform 0.3s ease;
+}
+
+.caret-icon.rotated {
+  transform: rotate(-90deg);
+}
+
+.dropdown {
+  padding-left: 10px;
+  margin-top: 5px;
+}
+
+.dropdown-link {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 16px;
+  font-size: 14px;
+  color: #ccc;
+  text-decoration: none;
+  transition: background 0.2s, color 0.2s;
+  border-radius: 12px;
+}
+
+.dropdown-link:hover {
+  background: rgba(255, 255, 255, 0.1);
+  color: white;
+}
+
+.dropdown-link.active {
+  background: white;
+  color: #12172b;
+  font-weight: bold;
+  border-radius: 12px;
+}
+
+.section-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: #a1a1a1;
+  margin-top: 10px;
+  padding-left: 16px;
+  text-transform: uppercase;
+}
+
+.logout {
+  margin-top: 20px;
+  padding: 12px 16px;
+  font-size: 14px;
+  color: white;
   cursor: pointer;
-}
-.exit-icon {
-  margin-left: 80px;
-  background: #d9534f;
-}
-.exit:hover {
-  opacity: 0.8;
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
 
-/* Overlay for mobile */
+.logout:hover {
+  background: rgba(255, 255, 255, 0.1);
+}
+
 .overlay {
   position: fixed;
   top: 0;
   left: 0;
-  height: 100vh;
   width: 100vw;
+  height: 100vh;
   background: rgba(0, 0, 0, 0.3);
   z-index: 900;
 }

@@ -5,6 +5,7 @@ namespace App\Http\Middleware;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Illuminate\Support\Facades\Session;
+use App\Services\CategorizationService;
 
 class HandleInertiaRequests extends Middleware
 {
@@ -19,15 +20,22 @@ class HandleInertiaRequests extends Middleware
     {
         return [
             ...parent::share($request),
+
+            // ✅ Auth user details
             'auth' => [
                 'user' => $request->user() ? [
                     'id' => $request->user()->id,
                     'first_name' => $request->user()->first_name,
                     'last_name' => $request->user()->last_name,
-                    'role' => $request->user()->role, // ✅ Ensures role is explicitly passed
+                    'role' => $request->user()->role, // ✅ Include user role
                 ] : null,
             ],
-            'error' => Session::pull('error'), // ✅ Retrieves and clears session error
+
+            // ✅ Flash error messages
+            'error' => Session::pull('error'),
+
+            // ✅ Teacher Document Types (this will now be global available)
+            'teacherDocumentTypes' => (new CategorizationService)->getTeacherDocumentTypes(),
         ];
     }
 }

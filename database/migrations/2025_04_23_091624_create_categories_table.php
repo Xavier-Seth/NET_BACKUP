@@ -10,8 +10,11 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::table('documents', function (Blueprint $table) {
-            $table->string('pdf_preview_path')->nullable();
+        Schema::create('categories', function (Blueprint $table) {
+            $table->id();
+            $table->string('name');              // e.g., "Personal Data Sheet"
+            $table->string('slug')->unique();    // e.g., "personal-data-sheet"
+            $table->timestamps();
         });
     }
 
@@ -20,8 +23,6 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        Schema::table('documents', function (Blueprint $table) {
-            //
-        });
+        Schema::dropIfExists('categories');
     }
 };

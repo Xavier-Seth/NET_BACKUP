@@ -3,94 +3,152 @@
 namespace App\Services;
 
 use App\Models\Document;
+use App\Models\Category;
+use App\Models\Teacher;
+use App\Models\User;
+use App\Models\SchoolPropertyDocument;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
-use PhpOffice\PhpWord\IOFactory as WordIOFactory;
-use PhpOffice\PhpSpreadsheet\IOFactory as ExcelIOFactory;
-use Dompdf\Dompdf;
 use Illuminate\Http\UploadedFile;
+use App\Services\CategorizationService;
 
 class DocumentUploadService
 {
+    protected $schoolPropertyCategories = ['ICS', 'RIS'];
+
     public function handle(
         UploadedFile $file,
-        ?string $category = null,
-        ?string $lrn = null,
-        string $type = 'school',
-        ?\App\Services\OcrService $ocrService = null
-    ): ?Document {
+        ?int $teacherId,
+        ?int $categoryId,
+        ?\App\Services\OcrService $ocrService = null,
+        User $user
+    ) {
         $originalName = $file->getClientOriginalName();
-        $extension = $file->getClientOriginalExtension();
+        $extension = strtolower($file->getClientOriginalExtension());
         $mime = $file->getMimeType();
         $size = $file->getSize();
 
+        // Encrypt and store
         $encryptedContents = $this->encryptFileContents($file->getRealPath());
-
         $filename = $file->hashName();
         $path = "documents/{$filename}";
-        Storage::disk('public')->put($path, $encryptedContents);
+        Storage::disk('public')->put($path, $encryptedContents, 'public');
 
+        // Decrypt temporarily
         $decryptedPath = storage_path("app/public/temp-decrypted-{$filename}");
         file_put_contents($decryptedPath, $this->decryptFileContents($encryptedContents));
 
-        $pdfPreviewPath = null;
         $ocrText = null;
+        $pdfPreviewPath = null;
 
         try {
-            $htmlPath = null;
+            // ✅ Convert to PDF for preview if it's Word/Excel
+            if (in_array($extension, ['doc', 'docx', 'xls', 'xlsx'])) {
+                $outputDir = storage_path('app/public/converted');
+                if (!is_dir($outputDir)) {
+                    mkdir($outputDir, 0755, true);
+                }
 
-            if ($extension === 'docx') {
-                $phpWord = WordIOFactory::load($decryptedPath);
-                $htmlPath = storage_path('app/public/temp-docx.html');
-                WordIOFactory::createWriter($phpWord, 'HTML')->save($htmlPath);
-            }
+                $convertTo = in_array($extension, ['xls', 'xlsx']) ? 'pdf:calc_pdf_Export' : 'pdf:writer_pdf_Export';
+                $command = "soffice --headless --invisible --convert-to {$convertTo} --outdir " . escapeshellarg($outputDir) . " " . escapeshellarg($decryptedPath);
+                exec($command);
 
-            if (in_array($extension, ['xls', 'xlsx'])) {
-                $spreadsheet = ExcelIOFactory::load($decryptedPath);
-                $htmlPath = storage_path('app/public/temp-excel.html');
-                ExcelIOFactory::createWriter($spreadsheet, 'Html')->save($htmlPath);
-            }
+                $convertedPdf = $outputDir . '/' . pathinfo($decryptedPath, PATHINFO_FILENAME) . '.pdf';
 
-            if ($htmlPath && file_exists($htmlPath)) {
-                $dompdf = new Dompdf();
-                $dompdf->loadHtml(file_get_contents($htmlPath));
-                $dompdf->setPaper('A4', 'portrait');
-                $dompdf->render();
-
-                $pdfFileName = 'converted/' . pathinfo($filename, PATHINFO_FILENAME) . '.pdf';
-                Storage::disk('public')->put($pdfFileName, $dompdf->output());
-
-                if (Storage::disk('public')->exists($pdfFileName)) {
-                    $pdfPreviewPath = $pdfFileName;
+                if (file_exists($convertedPdf)) {
+                    $relativePath = 'converted/' . basename($convertedPdf);
+                    Storage::disk('public')->put($relativePath, file_get_contents($convertedPdf));
+                    $pdfPreviewPath = $relativePath;
                 }
             }
 
-            // ✅ Run OCR if needed
-            if ($ocrService && in_array($extension, ['png', 'jpg', 'jpeg'])) {
+            // ✅ If PDF uploaded directly, use it for preview
+            if ($extension === 'pdf') {
+                $pdfPreviewPath = $path;
+            }
+
+            // ✅ OCR text extraction
+            if ($ocrService) {
                 $ocrText = $ocrService->extractText($decryptedPath);
-                \Log::info("📄 OCR Text for '{$originalName}': " . $ocrText);
+            }
+
+            // ✅ Categorization based on OCR text + filename
+            $categorizationService = new CategorizationService();
+            $autoCategoryName = $categorizationService->categorize($ocrText ?? '', $originalName);
+
+            if ($autoCategoryName) {
+                $category = Category::where('name', $autoCategoryName)->first();
+                if ($category) {
+                    $categoryId = $category->id;
+                }
+            }
+
+            // ✅ Auto-assign teacher if detected in text and category is teacher-related
+            if (!empty($autoCategoryName) && is_null($teacherId) && !$this->isSchoolProperty($autoCategoryName)) {
+                $teachers = Teacher::all();
+                foreach ($teachers as $teacher) {
+                    if (stripos(strtolower($ocrText), strtolower($teacher->full_name)) !== false) {
+                        $teacherId = $teacher->id;
+                        Log::info("👨‍🏫 Auto-detected Teacher: '{$teacher->full_name}' (ID: {$teacher->id})");
+                        break;
+                    }
+                }
             }
 
         } catch (\Exception $e) {
-            Log::error("❌ Conversion/OCR failed for {$originalName}: " . $e->getMessage());
+            Log::error('❌ Upload failed: ' . $e->getMessage());
+            throw $e;
         } finally {
             if (file_exists($decryptedPath)) {
                 unlink($decryptedPath);
             }
         }
 
+        // ✅ Determine document type
+        $categoryName = Category::where('id', $categoryId)->value('name');
+        $isSchoolProperty = $this->isSchoolProperty($categoryName);
+
+        // ✅ Save as School Property Document
+        if ($isSchoolProperty) {
+            return SchoolPropertyDocument::create([
+                'user_id' => $user->id,
+                'category_id' => $categoryId,
+                'property_type' => $categoryName,
+                'document_no' => null,
+                'issued_date' => null,
+                'received_by' => null,
+                'received_date' => null,
+                'description' => null,
+                'name' => $originalName,
+                'path' => $path,
+                'mime_type' => $mime,
+                'size' => $size,
+                'pdf_preview_path' => $pdfPreviewPath,
+                'extracted_text' => $ocrText,
+            ]);
+        }
+
+        // ✅ Save as Teacher Document
+        if (is_null($teacherId)) {
+            throw new \Exception('❌ No teacher detected. Please manually select a teacher before uploading.');
+        }
+
         return Document::create([
-            'user_id' => auth()->id(),
+            'user_id' => $user->id,
+            'teacher_id' => $teacherId,
+            'category_id' => $categoryId,
             'name' => $originalName,
             'path' => $path,
             'mime_type' => $mime,
             'size' => $size,
-            'type' => $type,
-            'category' => $type === 'student' ? $category : null,
-            'lrn' => $type === 'student' ? $lrn : null,
             'pdf_preview_path' => $pdfPreviewPath,
             'extracted_text' => $ocrText,
         ]);
+    }
+
+    protected function isSchoolProperty($categoryName): bool
+    {
+        return in_array($categoryName, $this->schoolPropertyCategories);
     }
 
     public function encryptFileContents(string $filePath): string

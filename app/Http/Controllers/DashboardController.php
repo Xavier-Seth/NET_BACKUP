@@ -14,15 +14,15 @@ class DashboardController extends Controller
         $totalDocuments = Document::count();
         $totalUsers = User::count();
 
-        // Calculate total storage used
+        // Total storage
         $totalStorageUsed = Document::all()->sum(function ($doc) {
             return Storage::disk('public')->exists($doc->path)
                 ? Storage::disk('public')->size($doc->path)
                 : 0;
         });
 
-        // Get recent uploads with uploader name
-        $recentUploads = Document::with('user') // Eager load user
+        // Recent documents with category and user
+        $recentUploads = Document::with(['user', 'category'])
             ->latest()
             ->take(5)
             ->get()
@@ -30,18 +30,18 @@ class DashboardController extends Controller
                 return [
                     'id' => $doc->id,
                     'filename' => $doc->name,
-                    'type' => $doc->type,
+                    'category' => $doc->category ? $doc->category->name : 'N/A',
+                    'uploaded_by' => $doc->user ? "{$doc->user->first_name} {$doc->user->last_name}" : 'N/A',
+                    'created_at' => $doc->created_at,
                     'file_path' => $doc->path,
                     'pdf_preview_path' => $doc->pdf_preview_path,
-                    'uploaded_by' => $doc->user ? $doc->user->name : 'N/A',
-                    'created_at' => $doc->created_at,
                 ];
             });
 
         return Inertia::render('Dashboard', [
             'totalDocuments' => $totalDocuments,
             'totalUsers' => $totalUsers,
-            'totalStorage' => number_format($totalStorageUsed / (1024 * 1024), 2) . ' MB',
+            'totalStorage' => number_format($totalStorageUsed / 1024 / 1024, 2) . ' MB',
             'recentUploads' => $recentUploads,
             'success' => session('message'),
         ]);

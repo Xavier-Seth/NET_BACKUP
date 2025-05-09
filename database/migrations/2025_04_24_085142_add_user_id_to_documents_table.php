@@ -5,19 +5,18 @@ use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Support\Facades\Schema;
 
 return new class extends Migration {
-    public function up()
+    public function up(): void
     {
         Schema::table('documents', function (Blueprint $table) {
-            $table->enum('category', ['Form 137', 'PSA', 'ECCRD'])->after('name')->nullable();
-            $table->string('lrn')->after('category')->nullable();
+            $table->foreignId('user_id')->constrained()->onDelete('cascade');
         });
     }
 
-    public function down()
+    public function down(): void
     {
         Schema::table('documents', function (Blueprint $table) {
-            $table->dropColumn(['category', 'lrn']);
+            $table->dropForeign(['user_id']);
+            $table->dropColumn('user_id');
         });
     }
 };
-

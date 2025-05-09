@@ -1,14 +1,13 @@
 <template>
   <header class="top-bar">
     <div class="container">
-      <!-- Left: Brand -->
+      <!-- Left: School Name -->
       <div class="brand">
-        <img src="/images/school_logo.png" alt="School Logo" class="school-logo" />
-        <h1 class="school-name">Rizal Central School</h1>
+        <span class="school-name">Rizal Central School</span>
       </div>
 
       <!-- Right: User Profile Dropdown -->
-      <div class="profile dropdown">
+      <div class="profile dropdown ms-auto">
         <button
           class="dropdown-toggle"
           data-bs-toggle="dropdown"
@@ -30,11 +29,6 @@
           <li>
             <button @click="checkRole" class="dropdown-item">
               Register New User
-            </button>
-          </li>
-          <li>
-            <button @click="checkRoleStudent" class="dropdown-item">
-              Register Student
             </button>
           </li>
           <li>
@@ -62,15 +56,6 @@ const checkRole = () => {
     alert('❌ Access Denied: Only Admin users can register new users.')
   } else {
     router.visit(route('register'))
-  }
-}
-
-// ✅ Allow Admin and Admin Staff to register students
-const checkRoleStudent = () => {
-  if (user.role !== 'Admin' && user.role !== 'Admin Staff') {
-    alert('❌ Access Denied: Only Admin and Admin Staff can register students.')
-  } else {
-    router.visit(route('students.register'))
   }
 }
 
@@ -104,12 +89,6 @@ const logout = () => {
 .brand {
   display: flex;
   align-items: center;
-  gap: 10px;
-}
-
-.school-logo {
-  width: 50px;
-  height: auto;
 }
 
 .school-name {
@@ -172,5 +151,9 @@ const logout = () => {
 
 .dropdown-item:hover {
   background: #f1f1f1;
+}
+
+.ms-auto {
+  margin-left: auto;
 }
 </style>
