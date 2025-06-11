@@ -16,12 +16,23 @@
           <p class="text-gray-500 text-sm mt-2">Supports: PDF, DOCX, XLSX, XLS, PNG, JPG</p>
           <p class="text-gray-500 text-sm mt-2">Or</p>
 
-          <!-- 🧠 Detected Info Section (only after scanning a file) -->
+          <p v-if="flaskOffline" class="text-red-600 font-bold mt-2">
+            ⚠️ Flask app is offline. Using fallback mode (no OCR).
+          </p>
+
+          <!-- ✅ Success Confirmation -->
+          <p
+            v-if="successMessage"
+            class="text-green-700 font-semibold bg-green-100 border border-green-300 rounded p-3 mt-4 w-full text-center transition-all duration-500"
+          >
+            {{ successMessage }}
+          </p>
+
+          <!-- 🧠 Detected Info Section -->
           <div
             v-if="selectedFiles.length && !isScanning"
             class="mt-4 w-full max-w-xs mx-auto text-left text-sm text-gray-800"
           >
-            <!-- ❌ No detection -->
             <div
               v-if="!detectedCategory && !detectedTeacher && showCategorySelection"
               class="mb-2 text-red-600 font-semibold flex items-center gap-1"
@@ -30,7 +41,6 @@
               No category or teacher detected. Please select the category manually:
             </div>
 
-            <!-- 🟢 Manual or fallback category selection -->
             <div v-if="showCategorySelection" class="mb-4">
               <select v-model="category_id" class="border rounded p-2 w-full">
                 <option disabled value="">Select Category</option>
@@ -40,12 +50,10 @@
               </select>
             </div>
 
-            <!-- ✅ Always show detected category if found -->
             <div v-if="detectedCategory" class="text-green-700 font-semibold mb-2">
               Detected Category: {{ detectedCategory }}
             </div>
 
-            <!-- 👨‍🏫 Teacher section for teacher-related documents -->
             <div v-if="showTeacherSelection">
               <p v-if="detectedCategory && !detectedTeacher" class="text-red-600">
                 This document "{{ detectedCategory }}" belongs to a teacher. Please select the teacher:
@@ -83,7 +91,6 @@
             </button>
           </div>
 
-          <!-- ⏳ Spinner -->
           <div v-if="isScanning || isUploading" class="spinner mt-6"></div>
 
           <!-- 📑 Selected Files -->
@@ -147,12 +154,16 @@ export default {
       detectedCategory: null,
       showTeacherSelection: false,
       showCategorySelection: false,
+      flaskOffline: false,
+      successMessage: "",
 
       teacherDocumentTypes: [
         'Work Experience Sheet',
         'Personal Data Sheet',
         'Oath of Office',
         'Certification of Assumption to Duty',
+        'Transcript of Records',
+        'Appointment Form'
       ],
     };
   },
@@ -187,7 +198,6 @@ export default {
     async scanFile(file) {
       const formData = new FormData();
       formData.append('file', file);
-
       this.isScanning = true;
 
       try {
@@ -197,7 +207,7 @@ export default {
 
         this.detectedTeacher = response.data.teacher || null;
         this.detectedCategory = response.data.category || null;
-
+        this.flaskOffline = !!response.data.fallback_used;
         this.showTeacherSelection = response.data.belongs_to_teacher;
         this.showCategorySelection = this.detectedCategory === null;
 
@@ -207,7 +217,6 @@ export default {
             this.teacher_id = matchedTeacher.id;
           }
         }
-
       } catch (error) {
         console.error('Error scanning document', error);
       } finally {
@@ -242,7 +251,6 @@ export default {
         alert('❌ Please select a teacher before uploading.');
         return;
       }
-
       if (this.showCategorySelection && !this.detectedCategory && !this.category_id) {
         alert('❌ Please select a category before uploading.');
         return;
@@ -250,22 +258,20 @@ export default {
 
       this.isUploading = true;
       const formData = new FormData();
-
       this.selectedFiles.forEach(file => {
         formData.append('files[]', file);
       });
-
       formData.append('teacher_id', this.teacher_id);
       formData.append('category_id', this.category_id);
 
       router.post('/upload', formData, {
         forceFormData: true,
         onSuccess: (page) => {
-          const uploadedDocuments = page.props.uploadedDocuments || [];
-          this.uploadMessage = uploadedDocuments.map(doc => {
-            return `${doc.file_name} → Teacher: ${doc.teacher}, Category: ${doc.category}`;
-          }).join('\n');
           this.resetUploadState();
+          this.successMessage = "✅ Document has been successfully uploaded and categorized!";
+          setTimeout(() => {
+            this.successMessage = "";
+          }, 4000);
         },
         onError: () => {
           alert("❌ Upload failed. Please try again.");
@@ -284,6 +290,7 @@ export default {
       this.detectedCategory = null;
       this.showTeacherSelection = false;
       this.showCategorySelection = false;
+      this.flaskOffline = false;
       this.fileInputKey++;
       document.getElementById("fileInput").value = null;
     },
@@ -296,6 +303,8 @@ export default {
       this.showCategorySelection = false;
       this.teacher_id = "";
       this.category_id = "";
+      this.flaskOffline = false;
+      this.successMessage = "";
     }
   }
 };
@@ -313,9 +322,7 @@ export default {
   align-items: center;
   text-align: center;
 }
-.upload-container.dragging {
-  border-color: #2563eb;
-}
+.upload-container.dragging { border-color: #2563eb; }
 .upload-btn {
   margin-top: 1.5rem;
   padding: 12px 24px;

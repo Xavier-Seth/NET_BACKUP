@@ -9,9 +9,11 @@ use App\Models\Category;
 use App\Models\User;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log as LaravelLog;
 use App\Services\DocumentUploadService;
-use App\Services\OcrService;
 use App\Services\CategorizationService;
+use App\Services\LogService;
 use Illuminate\Support\Str;
 
 class DocumentController extends Controller
@@ -74,7 +76,7 @@ class DocumentController extends Controller
             ->header('Content-Disposition', 'attachment; filename="' . $document->name . '"');
     }
 
-    public function upload(Request $request, DocumentUploadService $uploadService, OcrService $ocrService)
+    public function upload(Request $request, DocumentUploadService $uploadService)
     {
         $request->validate([
             'files' => 'required|array',
@@ -90,7 +92,6 @@ class DocumentController extends Controller
                 $file,
                 $request->teacher_id,
                 null,
-                $ocrService,
                 $user
             );
 
@@ -99,12 +100,18 @@ class DocumentController extends Controller
                 'teacher' => optional($document->teacher)->full_name ?? 'N/A',
                 'category' => optional($document->category)->name ?? 'N/A',
             ];
+
+            // ✅ Log upload activity
+            LogService::record(
+                "Uploaded document '{$document->name}'" .
+                ($document->teacher ? " for teacher {$document->teacher->full_name}" : "")
+            );
         }
 
         return back()->with('uploadedDocuments', $uploadedDocuments);
     }
 
-    public function scan(Request $request, OcrService $ocrService)
+    public function scan(Request $request)
     {
         $request->validate([
             'file' => 'required|file|mimes:pdf,doc,docx,xlsx,xls,png,jpg,jpeg|max:20480',
@@ -113,31 +120,44 @@ class DocumentController extends Controller
         $file = $request->file('file');
         $tempPath = $file->store('temp-scan', 'public');
         $fullPath = storage_path('app/public/' . $tempPath);
-
-        $ocrText = $ocrService->extractText($fullPath);
+        $ocrText = '';
         $matchedTeacher = null;
+        $matchedCategory = null;
+        $belongsToTeacher = false;
 
-        if (!empty($ocrText)) {
-            $teachers = Teacher::all();
-            foreach ($teachers as $teacher) {
-                if (Str::contains(strtolower($ocrText), strtolower($teacher->full_name))) {
-                    $matchedTeacher = $teacher->full_name;
-                    break;
+        try {
+            $response = Http::attach('file', file_get_contents($fullPath), $file->getClientOriginalName())
+                ->post('http://127.0.0.1:5000/extract-and-classify');
+
+            if ($response->successful()) {
+                $data = $response->json();
+                $ocrText = $data['text'] ?? '';
+                $matchedCategory = $data['subcategory'] ?? null;
+            } else {
+                LaravelLog::error("❌ Flask scan OCR failed: " . $response->body());
+            }
+
+            if (!empty($ocrText)) {
+                $teachers = Teacher::all();
+                foreach ($teachers as $teacher) {
+                    if (Str::contains(strtolower($ocrText), strtolower($teacher->full_name))) {
+                        $matchedTeacher = $teacher->full_name;
+                        break;
+                    }
                 }
             }
-        }
 
-        $categorizationService = new CategorizationService();
-        $matchedCategory = $categorizationService->categorize($ocrText ?? '', $file->getClientOriginalName());
+            if ($matchedCategory) {
+                $teacherDocumentTypes = (new CategorizationService())->getTeacherDocumentTypes();
+                $belongsToTeacher = in_array($matchedCategory, $teacherDocumentTypes);
+            }
 
-        $belongsToTeacher = false;
-        if ($matchedCategory) {
-            $teacherDocumentTypes = $categorizationService->getTeacherDocumentTypes();
-            $belongsToTeacher = in_array($matchedCategory, $teacherDocumentTypes);
-        }
-
-        if (Storage::disk('public')->exists($tempPath)) {
-            Storage::disk('public')->delete($tempPath);
+        } catch (\Exception $e) {
+            LaravelLog::error("❌ Exception during scan: " . $e->getMessage());
+        } finally {
+            if (Storage::disk('public')->exists($tempPath)) {
+                Storage::disk('public')->delete($tempPath);
+            }
         }
 
         return response()->json([
@@ -145,5 +165,29 @@ class DocumentController extends Controller
             'category' => $matchedCategory,
             'belongs_to_teacher' => $belongsToTeacher,
         ]);
+    }
+
+    public function destroy(Document $document)
+    {
+        if ($document->path && Storage::disk('public')->exists($document->path)) {
+            Storage::disk('public')->delete($document->path);
+        }
+
+        if ($document->pdf_preview_path && Storage::disk('public')->exists($document->pdf_preview_path)) {
+            Storage::disk('public')->delete($document->pdf_preview_path);
+        }
+
+        $teacherName = optional($document->teacher)->full_name ?? 'N/A';
+        $docName = $document->name;
+
+        $document->delete();
+
+        // ✅ Log deletion
+        LogService::record(
+            "Deleted document '{$docName}'" .
+            ($teacherName !== 'N/A' ? " belonging to teacher {$teacherName}" : "")
+        );
+
+        return back()->with('success', 'Document deleted successfully.');
     }
 }

@@ -9,8 +9,8 @@ use App\Models\User;
 use App\Models\SchoolPropertyDocument;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Http\UploadedFile;
-use App\Services\CategorizationService;
 
 class DocumentUploadService
 {
@@ -20,7 +20,6 @@ class DocumentUploadService
         UploadedFile $file,
         ?int $teacherId,
         ?int $categoryId,
-        ?\App\Services\OcrService $ocrService = null,
         User $user
     ) {
         $originalName = $file->getClientOriginalName();
@@ -28,17 +27,18 @@ class DocumentUploadService
         $mime = $file->getMimeType();
         $size = $file->getSize();
 
-        // Encrypt and store
+        // 🔐 Encrypt and store
         $encryptedContents = $this->encryptFileContents($file->getRealPath());
         $filename = $file->hashName();
         $path = "documents/{$filename}";
         Storage::disk('public')->put($path, $encryptedContents, 'public');
 
-        // Decrypt temporarily
+        // 🔓 Decrypt temporarily
         $decryptedPath = storage_path("app/public/temp-decrypted-{$filename}");
         file_put_contents($decryptedPath, $this->decryptFileContents($encryptedContents));
 
         $ocrText = null;
+        $autoCategoryName = null;
         $pdfPreviewPath = null;
 
         try {
@@ -67,15 +67,27 @@ class DocumentUploadService
                 $pdfPreviewPath = $path;
             }
 
-            // ✅ OCR text extraction
-            if ($ocrService) {
-                $ocrText = $ocrService->extractText($decryptedPath);
+            // ✅ Try to OCR + classify via Python Flask
+            try {
+                $response = Http::timeout(5)->attach(
+                    'file',
+                    file_get_contents($decryptedPath),
+                    $originalName
+                )->post('http://127.0.0.1:5000/extract-and-classify');
+
+                if ($response->successful()) {
+                    $data = $response->json();
+                    $ocrText = $data['text'] ?? '';
+                    $autoCategoryName = $data['subcategory'] ?? null;
+                    Log::info("✅ OCR + Classification success via Flask: {$autoCategoryName}");
+                } else {
+                    Log::warning("⚠️ Flask responded but failed to classify: " . $response->body());
+                }
+            } catch (\Exception $e) {
+                Log::warning("⚠️ Flask server not reachable: " . $e->getMessage());
             }
 
-            // ✅ Categorization based on OCR text + filename
-            $categorizationService = new CategorizationService();
-            $autoCategoryName = $categorizationService->categorize($ocrText ?? '', $originalName);
-
+            // ✅ Auto-assign category if matched
             if ($autoCategoryName) {
                 $category = Category::where('name', $autoCategoryName)->first();
                 if ($category) {
@@ -83,7 +95,7 @@ class DocumentUploadService
                 }
             }
 
-            // ✅ Auto-assign teacher if detected in text and category is teacher-related
+            // ✅ Auto-assign teacher if detected in OCR text
             if (!empty($autoCategoryName) && is_null($teacherId) && !$this->isSchoolProperty($autoCategoryName)) {
                 $teachers = Teacher::all();
                 foreach ($teachers as $teacher) {

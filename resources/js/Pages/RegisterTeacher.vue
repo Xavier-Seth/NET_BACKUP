@@ -1,17 +1,13 @@
 <template>
   <div class="flex min-h-screen bg-gray-100">
-    <!-- ✅ Sidebar -->
     <Sidebar />
 
-    <!-- ✅ Page Content -->
     <div class="flex-1">
-      <!-- ✅ Header -->
-
-      <!-- ✅ Form Container -->
       <div class="container mt-4 p-4 form-wrapper rounded shadow">
         <h4 class="fw-bold text-center mb-4">Register New Teacher</h4>
 
         <form @submit.prevent="submit">
+          <!-- Name Fields -->
           <div class="row mb-3">
             <div class="col-md-4">
               <label class="form-label">First Name:</label>
@@ -27,6 +23,7 @@
             </div>
           </div>
 
+          <!-- Employment Details -->
           <div class="row mb-3">
             <div class="col-md-4">
               <label class="form-label">Name Extension:</label>
@@ -42,6 +39,7 @@
             </div>
           </div>
 
+          <!-- Dates & Department -->
           <div class="row mb-3">
             <div class="col-md-4">
               <label class="form-label">Birthdate:</label>
@@ -57,6 +55,7 @@
             </div>
           </div>
 
+          <!-- Contact Info -->
           <div class="row mb-3">
             <div class="col-md-6">
               <label class="form-label">Contact Number:</label>
@@ -68,6 +67,7 @@
             </div>
           </div>
 
+          <!-- Address -->
           <div class="row mb-3">
             <div class="col-md-12">
               <label class="form-label">Permanent Address:</label>
@@ -75,6 +75,7 @@
             </div>
           </div>
 
+          <!-- Remarks -->
           <div class="row mb-3">
             <div class="col-md-12">
               <label class="form-label">Remarks:</label>
@@ -82,18 +83,28 @@
             </div>
           </div>
 
+          <!-- ✅ PDS Upload -->
           <div class="row mb-3">
             <div class="col-md-6">
-              <label class="form-label">Upload PDS File (.pdf):</label>
-              <input ref="pdsRef" type="file" accept="application/pdf" class="form-control" @change="handleFileUpload($event)" />
+              <label class="form-label">Upload PDS File:</label>
+              <input
+                ref="pdsRef"
+                type="file"
+                accept=".pdf,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                class="form-control"
+                @change="handleFileUpload($event)"
+              />
+              <p v-if="form.pds" class="text-success mt-1">Selected file: {{ form.pds.name }}</p>
             </div>
           </div>
 
+          <!-- Submit Button -->
           <div class="text-end">
             <button class="btn btn-primary">Register Teacher</button>
           </div>
         </form>
 
+        <!-- ✅ Success Modal -->
         <Teleport to="body">
           <Transition name="fade">
             <div v-if="showSuccessModal" class="modal-backdrop">
@@ -113,11 +124,7 @@
 <script setup>
 import Sidebar from "@/Components/Sidebar.vue";
 import { ref } from "vue";
-import { useForm, usePage, router } from "@inertiajs/vue3";
-
-const user = usePage().props.auth.user;
-const userName = `${user.last_name}, ${user.first_name}`;
-const userRole = user?.role ? `(${user.role})` : '';
+import { useForm, usePage } from "@inertiajs/vue3";
 
 const showSuccessModal = ref(false);
 const successMessage = ref('');
@@ -162,68 +169,12 @@ const submit = () => {
     }
   });
 };
-
-const goBack = () => window.history.back();
 </script>
 
 <style scoped>
 .flex-1 {
-  margin-left: 200px; /* ✅ This is the fix */
+  margin-left: 200px;
   padding: 20px;
-}
-
-.top-bar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  padding: 12px 20px;
-  background: white;
-  width: 100%;
-  border-radius: 0 0 10px 10px;
-  flex-wrap: wrap;
-  gap: 10px;
-}
-
-.brand {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.school-logo {
-  width: 60px;
-  height: auto;
-}
-
-.profile {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  cursor: pointer;
-  justify-content: flex-end;
-}
-
-.avatar {
-  width: 40px;
-  height: 40px;
-  border-radius: 50%;
-  border: 2px solid #ccc;
-  object-fit: cover;
-}
-
-.user-info {
-  display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-}
-
-.user-name {
-  font-weight: bold;
-}
-
-.user-role {
-  font-size: 12px;
-  color: gray;
 }
 
 .container {
@@ -244,7 +195,7 @@ const goBack = () => window.history.back();
   left: 0;
   width: 100%;
   height: 100%;
-  background-color: rgba(0,0,0,0.5);
+  background-color: rgba(0, 0, 0, 0.5);
   display: flex;
   align-items: center;
   justify-content: center;
@@ -262,7 +213,6 @@ const goBack = () => window.history.back();
 .fade-enter-active, .fade-leave-active {
   transition: opacity 0.4s ease;
 }
-
 .fade-enter-from, .fade-leave-to {
   opacity: 0;
 }

@@ -3,15 +3,19 @@
 namespace App\Http\Controllers;
 
 use App\Models\Teacher;
+use App\Models\Category;
+use App\Models\User;
+use App\Services\DocumentUploadService;
+use App\Services\LogService;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Storage;
+use Illuminate\Support\Facades\Auth;
 
 class TeacherController extends Controller
 {
     /**
-     * Store a newly registered teacher.
+     * Store a newly registered teacher and upload their PDS via DocumentUploadService.
      */
-    public function store(Request $request)
+    public function store(Request $request, DocumentUploadService $uploadService)
     {
         $request->validate([
             'first_name' => 'required|string|max:255',
@@ -28,21 +32,17 @@ class TeacherController extends Controller
             'email' => 'nullable|email|unique:teachers,email',
             'address' => 'nullable|string|max:255',
             'remarks' => 'nullable|string|max:1000',
-            'pds' => 'nullable|file|mimes:pdf|max:20480',
+            'pds' => 'nullable|file|mimes:pdf,doc,docx,xlsx,xls,png,jpg,jpeg|max:20480',
         ]);
 
-        // Save uploaded PDS file if provided
-        $path = null;
-        if ($request->hasFile('pds')) {
-            $path = $request->file('pds')->store('teacher-pds', 'public');
-        }
+        $user = Auth::user();
 
-        // Create the teacher record
-        Teacher::create([
+        // Step 1: Create teacher record first
+        $teacher = Teacher::create([
             'first_name' => $request->first_name,
             'middle_name' => $request->middle_name,
             'last_name' => $request->last_name,
-            'full_name' => $request->full_name, // ✅ still saving full_name separately
+            'full_name' => $request->full_name,
             'name_extension' => $request->name_extension,
             'employee_id' => $request->employee_id,
             'position' => $request->position,
@@ -53,8 +53,30 @@ class TeacherController extends Controller
             'email' => $request->email,
             'address' => $request->address,
             'remarks' => $request->remarks,
-            'pds_file_path' => $path,
+            'pds_file_path' => null,
         ]);
+
+        // Step 2: Upload PDS if file exists
+        if ($request->hasFile('pds')) {
+            $pdsFile = $request->file('pds');
+            $category = Category::where('name', 'Personal Data Sheet')->first();
+
+            if ($category) {
+                $document = $uploadService->handle(
+                    $pdsFile,
+                    $teacher->id,
+                    $category->id,
+                    $user
+                );
+
+                $teacher->update([
+                    'pds_file_path' => $document->path
+                ]);
+            }
+        }
+
+        // ✅ Log the activity
+        LogService::record("Added new teacher '{$teacher->full_name}' (Employee ID: {$teacher->employee_id})");
 
         return back()->with('success', '✅ Teacher registered successfully.');
     }

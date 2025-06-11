@@ -5,13 +5,14 @@ namespace App\Services;
 class CategorizationService
 {
     /**
-     * Priority-ordered rules: more specific categories come first
+     * Priority-ordered rules: more specific categories first
      */
     protected array $rules = [
-        'Personal Data Sheet' => ['cs form no. 212', 'personal data sheet'],
+        'Personal Data Sheet' => ['personal data sheet'],
         'Work Experience Sheet' => ['work experience sheet'],
         'Oath of Office' => ['oath of office'],
         'Certification of Assumption to Duty' => ['assumption to duty'],
+        // moved below to avoid early match
 
         // School Property
         'ICS' => ['inventory custodian slip', 'ics'],
@@ -26,7 +27,7 @@ class CategorizationService
         $text = strtolower($text ?? '');
         $filename = strtolower($filename ?? '');
 
-        // ✅ First: strict text matching with priority
+        // 🔍 Priority: OCR text
         foreach ($this->rules as $category => $keywords) {
             foreach ($keywords as $keyword) {
                 if ($this->matchStrict($text, $keyword)) {
@@ -35,7 +36,7 @@ class CategorizationService
             }
         }
 
-        // ✅ Fallback: use filename if text is unclear
+        // 🗂️ Fallback: filename
         foreach ($this->rules as $category => $keywords) {
             foreach ($keywords as $keyword) {
                 if ($this->matchLoose($filename, $keyword)) {
@@ -73,6 +74,8 @@ class CategorizationService
             'Work Experience Sheet',
             'Oath of Office',
             'Certification of Assumption to Duty',
+            'Transcript of Records',
+            'Appointment Form',
         ];
     }
 }

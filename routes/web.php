@@ -13,12 +13,14 @@ use App\Http\Controllers\Auth\RegisteredUserController;
 use App\Http\Controllers\Auth\PasswordResetLinkController;
 use App\Http\Controllers\DashboardController;
 use App\Http\Controllers\TeacherController;
+use App\Http\Controllers\LogController;
 
 use App\Models\Teacher;
 use App\Models\Category;
 use App\Models\Document;
+use App\Services\LogService;
 
-// ✅ Guest Routes (Login, Forgot Password)
+// Guest Routes (Login, Forgot Password)
 Route::middleware('guest')->group(function () {
     Route::get('/', fn() => Inertia::render('Auth/Login'))->name('login');
 
@@ -26,16 +28,16 @@ Route::middleware('guest')->group(function () {
     Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
 });
 
-// ✅ Laravel Breeze Authentication Routes
+// Laravel Breeze Authentication Routes
 require __DIR__ . '/auth.php';
 
-// ✅ Authenticated User Routes
+// Authenticated User Routes
 Route::middleware(['auth', 'verified'])->group(function () {
 
-    // ✅ Dashboard
+    // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    // ✅ Upload documents (Upload Page)
+    // Upload documents (Upload Page)
     Route::get('/upload', function () {
         return Inertia::render('Upload', [
             'teachers' => Teacher::orderBy('full_name')->get(),
@@ -43,21 +45,28 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     })->name('upload');
 
-    // ✅ Upload documents (Post)
+    // Upload documents (Post)
     Route::post('/upload', [DocumentController::class, 'upload'])->name('documents.upload');
 
-    // ✅ Scan documents (OCR auto-detect Teacher + Category)
+    // Scan documents (OCR auto-detect Teacher + Category)
     Route::post('/upload/scan', [DocumentController::class, 'scan'])->name('documents.scan');
 
-    // ✅ Documents Listing, Preview, Download
+    // Documents Listing, Preview, Download
     Route::get('/documents', [DocumentController::class, 'index'])->name('documents.index');
     Route::get('/documents/{document}/preview', [DocumentController::class, 'preview'])->name('documents.preview');
     Route::get('/documents/{document}/download', [DocumentController::class, 'download'])->name('documents.download');
 
-    // ✅ School Properties Documents (ICS / RIS)
-    Route::get('/documents/school-properties', [SchoolPropertyDocumentController::class, 'index'])->name('school_properties.index');
+    // ✅ Delete Document (Teacher-related)
+    Route::delete('/documents/{document}', [DocumentController::class, 'destroy'])->name('documents.destroy');
 
-    // ✅ Teacher Profile Documents Page
+    // ✅ Delete School Property Document
+    Route::delete('/documents/school-properties/{schoolDocument}', [SchoolPropertyDocumentController::class, 'destroy'])->name('school_properties.destroy');
+
+    // School Properties Documents (ICS / RIS)
+    Route::get('/documents/school-properties', [SchoolPropertyDocumentController::class, 'index'])->name('school_properties.index');
+    Route::get('/documents/school-properties/{schoolDocument}/download', [SchoolPropertyDocumentController::class, 'download'])->name('school_properties.download');
+
+    // Teacher Profile Documents Page
     Route::get('/documents/teachers-profile', function () {
         return Inertia::render('TeacherProfile', [
             'documents' => Document::with('teacher', 'category')->get(),
@@ -65,7 +74,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         ]);
     })->name('documents.teachers-profile');
 
-    // ✅ User Profile (Self)
+    // User Profile (Self)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::patch('/profile', [ProfileController::class, 'update'])->name('profile.update');
 
@@ -81,17 +90,18 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware(['role:Admin'])->delete('/api/users/{id}', [UserController::class, 'destroy']);
 
     // ✅ Logs Page
-    Route::get('/logs', fn() => Inertia::render('Logs'))->name('logs.index');
+    Route::get('/logs', [LogController::class, 'index'])->name('logs.index');
+
 });
 
-// ✅ Admin-Only Routes (User Management)
+// Admin-Only Routes (User Management)
 Route::middleware(['auth', 'role:Admin'])->group(function () {
 
-    // ✅ User Registration (Admin)
+    // User Registration (Admin)
     Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
     Route::post('/register', [RegisteredUserController::class, 'store']);
 
-    // ✅ User Management
+    // User Management
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::get('/api/users', [UserController::class, 'getUsers'])->name('api.users');
 
@@ -101,7 +111,7 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
     Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware(['auth:sanctum', 'role:Admin']);
 });
 
-// ✅ Logout
+// Logout
 Route::post('/logout', function (Request $request) {
     Auth::logout();
     $request->session()->invalidate();

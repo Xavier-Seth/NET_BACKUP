@@ -5,11 +5,10 @@
       <button class="toggle-sidebar-btn d-md-none" @click="toggleSidebar">Toggle Sidebar</button>
 
       <div class="documents-container">
-        <!-- Filters -->
+        <!-- Controls -->
         <div class="controls d-flex align-items-center">
           <button class="btn upload-btn" @click="goToUpload">Upload</button>
 
-          <!-- Teacher Filter -->
           <div class="teacher-filter ms-3">
             <label for="teacher">Teacher</label>
             <select id="teacher" v-model="teacherFilter" class="form-select">
@@ -20,7 +19,6 @@
             </select>
           </div>
 
-          <!-- Search -->
           <input
             type="text"
             v-model="searchQuery"
@@ -52,24 +50,30 @@
             <table class="documents-table">
               <tbody>
                 <tr v-for="document in paginatedDocuments" :key="document.id">
-                  <td :title="document.name" class="truncate-cell">{{ document.name }}</td>
+                  <td class="truncate-cell" :title="document.name">
+                    {{ document.name }}
+                  </td>
                   <td>{{ document.teacher?.full_name ?? 'N/A' }}</td>
-                  <td>{{ document.category?.name ?? 'N/A' }}</td>
+                  <td class="truncate-cell" :title="document.category?.name ?? 'N/A'">
+                    {{ document.category?.name ?? 'N/A' }}
+                  </td>
                   <td>{{ formatDate(document.created_at) }}</td>
                   <td class="action-buttons">
-  <button @click="previewDocument(document)" class="icon-btn" title="Preview">
-    <i class="bi bi-eye"></i>
-  </button>
-  <a
-    :href="`/documents/${document.id}/download`"
-    class="icon-btn"
-    target="_blank"
-    title="Download"
-  >
-    <i class="bi bi-download"></i>
-  </a>
-</td>
-
+                    <button @click="previewDocument(document)" class="icon-btn" title="Preview">
+                      <i class="bi bi-eye"></i>
+                    </button>
+                    <a
+                      :href="`/documents/${document.id}/download`"
+                      class="icon-btn"
+                      target="_blank"
+                      title="Download"
+                    >
+                      <i class="bi bi-download"></i>
+                    </a>
+                    <button @click="confirmDelete(document)" class="icon-btn text-danger" title="Delete">
+                      <i class="bi bi-trash"></i>
+                    </button>
+                  </td>
                 </tr>
               </tbody>
             </table>
@@ -99,10 +103,10 @@
   </div>
 </template>
 
+
 <script setup>
 import Sidebar from "@/Components/Sidebar.vue";
 import { ref, computed, watch } from "vue";
-import { Eye } from "lucide-vue-next";
 import { router, usePage } from "@inertiajs/vue3";
 
 const { props } = usePage();
@@ -117,12 +121,13 @@ const previewType = ref("pdf");
 const ENTRIES_PER_PAGE = 20;
 const isSidebarVisible = ref(true);
 
-// Categories for Teachers Profile
 const teacherCategories = [
   "Work Experience Sheet",
   "Personal Data Sheet",
   "Oath of Office",
   "Certification of Assumption to Duty",
+  "Transcript of Records",
+  "Appointment Form"
 ];
 
 function toggleSidebar() {
@@ -150,6 +155,19 @@ function previewDocument(document) {
 function closePreview() {
   previewUrl.value = null;
   previewType.value = null;
+}
+
+function confirmDelete(document) {
+  if (confirm(`Are you sure you want to delete "${document.name}"?`)) {
+    router.delete(`/documents/${document.id}`, {
+      onSuccess: () => {
+        documents.value = documents.value.filter(d => d.id !== document.id);
+      },
+      onError: () => {
+        alert("❗ Failed to delete the document.");
+      }
+    });
+  }
 }
 
 watch(previewUrl, (val) => {
@@ -180,9 +198,7 @@ const paginatedDocuments = computed(() => {
   return filteredDocuments.value.slice(start, end);
 });
 
-const totalPages = computed(() =>
-  Math.ceil(filteredDocuments.value.length / ENTRIES_PER_PAGE)
-);
+const totalPages = computed(() => Math.ceil(filteredDocuments.value.length / ENTRIES_PER_PAGE));
 
 const paginationRange = computed(() => {
   const total = filteredDocuments.value.length;
@@ -194,12 +210,6 @@ const paginationRange = computed(() => {
 
 function formatDate(date) {
   return new Date(date).toLocaleDateString();
-}
-
-function formatSize(bytes) {
-  if (bytes < 1024) return bytes + " B";
-  else if (bytes < 1048576) return (bytes / 1024).toFixed(2) + " KB";
-  else return (bytes / 1048576).toFixed(2) + " MB";
 }
 
 const goToUpload = () => router.get("/upload");

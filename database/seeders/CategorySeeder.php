@@ -47,6 +47,18 @@ class CategorySeeder extends Seeder
                 'created_at' => Carbon::now(),
                 'updated_at' => Carbon::now(),
             ],
+            [
+                'name' => 'Transcript of Records',
+                'slug' => 'transcript-of-records',
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
+            ],
+            [
+                'name' => 'Appointment Form',
+                'slug' => 'appointment-form',
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
+            ],
         ]);
     }
 }
