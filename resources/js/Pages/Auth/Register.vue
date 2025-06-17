@@ -1,133 +1,158 @@
 <template>
   <div class="flex min-h-screen bg-gray-100">
-    <!-- Sidebar -->
     <Sidebar />
 
-    <!-- Main Content -->
-    <div class="flex-1 flex flex-col items-center justify-center p-6">
-      <h1 class="header text-2xl font-bold text-gray-700 mb-6">Register New User</h1>
-
-      <form @submit.prevent="showModal = true" autocomplete="off" class="all-field bg-white p-6 rounded-lg shadow-md w-full max-w-5xl">
-        <!-- Chrome autofill prevention hack -->
-        <input type="text" name="username" autocomplete="username" class="hidden-offscreen" />
-        <input type="password" name="password" autocomplete="new-password" class="hidden-offscreen" />
-
-        <div class="grid grid-cols-3 gap-4">
-          <!-- Name Fields -->
-          <div>
-            <label class="block text-gray-700">Last Name</label>
-            <input type="text" v-model="form.last_name" class="input-field" autocomplete="off" required />
-            <span v-if="form.errors.last_name" class="text-red-600 text-sm">{{ form.errors.last_name }}</span>
-          </div>
-          <div>
-            <label class="block text-gray-700">First Name</label>
-            <input type="text" v-model="form.first_name" class="input-field" autocomplete="off" required />
-            <span v-if="form.errors.first_name" class="text-red-600 text-sm">{{ form.errors.first_name }}</span>
-          </div>
-          <div>
-            <label class="block text-gray-700">Middle Name</label>
-            <input type="text" v-model="form.middle_name" class="input-field" autocomplete="off" />
-            <span v-if="form.errors.middle_name" class="text-red-600 text-sm">{{ form.errors.middle_name }}</span>
-          </div>
-
-          <!-- Personal Info -->
-          <div>
-            <label class="block text-gray-700">Sex</label>
-            <select v-model="form.sex" class="input-field" autocomplete="off" required>
-              <option value="">Select</option>
-              <option value="Male">Male</option>
-              <option value="Female">Female</option>
-            </select>
-            <span v-if="form.errors.sex" class="text-red-600 text-sm">{{ form.errors.sex }}</span>
-          </div>
-          <div>
-            <label class="block text-gray-700">Civil Status</label>
-            <select v-model="form.civil_status" class="input-field" autocomplete="off" required>
-              <option value="">Select</option>
-              <option value="Single">Single</option>
-              <option value="Married">Married</option>
-              <option value="Widowed">Widowed</option>
-            </select>
-            <span v-if="form.errors.civil_status" class="text-red-600 text-sm">{{ form.errors.civil_status }}</span>
-          </div>
-          <div>
-            <label class="block text-gray-700">Date of Birth</label>
-            <input type="date" v-model="form.date_of_birth" class="input-field" autocomplete="off" required />
-            <span v-if="form.errors.date_of_birth" class="text-red-600 text-sm">{{ form.errors.date_of_birth }}</span>
-          </div>
-
-          <!-- Religion & Contact -->
-          <div>
-            <label class="block text-gray-700">Religion</label>
-            <input type="text" v-model="form.religion" class="input-field" autocomplete="off" />
-            <span v-if="form.errors.religion" class="text-red-600 text-sm">{{ form.errors.religion }}</span>
-          </div>
-          <div>
-            <label class="block text-gray-700">Email Address</label>
-            <input
-              type="email"
-              v-model="form.email"
-              class="input-field"
-              required
-              autocomplete="off"
-              title="Please enter a valid email address (e.g., user@example.com)"
-            />
-            <span v-if="form.errors.email" class="text-red-600 text-sm">{{ form.errors.email }}</span>
-          </div>
-          <div>
-            <label class="block text-gray-700">Phone Number</label>
-            <input type="text" v-model="form.phone_number" class="input-field" autocomplete="off" required />
-            <span v-if="form.errors.phone_number" class="text-red-600 text-sm">{{ form.errors.phone_number }}</span>
-          </div>
-
-          <!-- Password Fields -->
-          <div>
-            <label class="block text-gray-700">Password</label>
-            <input type="password" v-model="form.password" class="input-field" autocomplete="new-password" required />
-            <span v-if="form.errors.password" class="text-red-600 text-sm">{{ form.errors.password }}</span>
-          </div>
-          <div>
-            <label class="block text-gray-700">Confirm Password</label>
-            <input type="password" v-model="form.password_confirmation" class="input-field" autocomplete="new-password" required />
-          </div>
-          <div>
-            <label class="block text-gray-700">Role</label>
-            <select v-model="form.role" class="input-field" autocomplete="off" required>
-              <option value="Admin Staff">Admin Staff</option>
-            </select>
-            <span v-if="form.errors.role" class="text-red-600 text-sm">{{ form.errors.role }}</span>
-          </div>
-
-          <!-- Status Field -->
-          <div>
-            <label class="block text-gray-700">Status</label>
-            <select v-model="form.status" class="input-field" autocomplete="off" required>
-              <option value="active">Active</option>
-              <option value="inactive">Inactive</option>
-            </select>
-            <span v-if="form.errors.status" class="text-red-600 text-sm">{{ form.errors.status }}</span>
+    <div class="flex-1 ml-[200px]">
+      <!-- Banner -->
+      <div class="container d-flex justify-content-center mt-3">
+        <div class="position-relative w-100" style="max-width: 1000px;">
+          <img
+            src="/images/rizal.jpg"
+            class="w-100 rounded-top"
+            style="height: 200px; object-fit: cover;"
+          />
+          <div class="position-absolute top-100 start-50 translate-middle text-center">
+            <label style="cursor: pointer;">
+              <img
+                v-if="photoPreview"
+                :src="photoPreview"
+                class="rounded-circle border border-white shadow"
+                style="width: 160px; height: 160px; object-fit: cover;"
+                alt="Preview"
+              />
+              <img
+                v-else
+                src="/images/user-avatar.png"
+                class="rounded-circle border border-white shadow"
+                style="width: 160px; height: 160px; object-fit: cover;"
+                alt="Default"
+              />
+              <input
+                ref="photoRef"
+                type="file"
+                accept="image/*"
+                class="d-none"
+                @change="handlePhotoUpload($event)"
+              />
+            </label>
+            <h5 class="mt-2 fw-bold">Register User</h5>
           </div>
         </div>
+      </div>
 
-        <!-- Submit Button -->
-        <button type="submit" class="mt-4 w-full bg-indigo-600 text-white py-2 rounded-lg hover:bg-indigo-700">
-          Register
-        </button>
-      </form>
-    </div>
+      <!-- Form Section -->
+      <div class="container d-flex justify-content-center mt-1">
+        <div class="form-wrapper bg-white shadow p-4 w-100" style="max-width: 1000px; border-radius: 0 0 10px 10px;">
+          <form @submit.prevent="handleSubmit" ref="formRef" autocomplete="off">
+            <div class="row mb-3" style="margin-top: 6rem;">
+              <div class="col-md-4">
+                <label class="form-label">Last Name</label>
+                <input type="text" v-model="form.last_name" @input="filterText(form, 'last_name')" class="form-control" required />
+                <div v-if="inputWarnings.last_name" class="text-warning mt-1">{{ inputWarnings.last_name }}</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">First Name</label>
+                <input type="text" v-model="form.first_name" @input="filterText(form, 'first_name')" class="form-control" required />
+                <div v-if="inputWarnings.first_name" class="text-warning mt-1">{{ inputWarnings.first_name }}</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Middle Name</label>
+                <input type="text" v-model="form.middle_name" @input="filterText(form, 'middle_name')" class="form-control" />
+                <div v-if="inputWarnings.middle_name" class="text-warning mt-1">{{ inputWarnings.middle_name }}</div>
+              </div>
+            </div>
 
-    <!-- Confirmation Modal -->
-    <div v-if="showModal" class="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-50">
-      <div class="bg-white p-6 rounded-lg shadow-lg w-96">
-        <h2 class="text-lg font-semibold text-gray-700 mb-4">Confirm Registration</h2>
-        <p class="text-gray-600">Are you sure you want to register this user?</p>
-        <div class="mt-4 flex justify-end space-x-4">
-          <button @click="registerUser" class="bg-green-600 text-white px-4 py-2 rounded hover:bg-green-700">
-            Yes
-          </button>
-          <button @click="showModal = false" class="bg-red-600 text-white px-4 py-2 rounded hover:bg-red-700">
-            Cancel
-          </button>
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label class="form-label">Sex</label>
+                <select v-model="form.sex" class="form-control" required>
+                  <option value="">Select</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Civil Status</label>
+                <select v-model="form.civil_status" class="form-control" required>
+                  <option value="">Select</option>
+                  <option value="Single">Single</option>
+                  <option value="Married">Married</option>
+                  <option value="Widowed">Widowed</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Date of Birth</label>
+                <input type="date" v-model="form.date_of_birth" class="form-control" required />
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label class="form-label">Religion</label>
+                <input type="text" v-model="form.religion" @input="filterText(form, 'religion')" class="form-control" />
+                <div v-if="inputWarnings.religion" class="text-warning mt-1">{{ inputWarnings.religion }}</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Email</label>
+                <input
+                  type="email"
+                  v-model="form.email"
+                  class="form-control"
+                  :class="{'is-invalid': localErrors.email}"
+                  required
+                />
+                <div v-if="localErrors.email" class="text-danger mt-1">{{ localErrors.email }}</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Phone Number</label>
+                <input type="text" v-model="form.phone_number" @input="filterPhone(form, 'phone_number')" class="form-control" required />
+                <div v-if="inputWarnings.phone_number" class="text-warning mt-1">{{ inputWarnings.phone_number }}</div>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label class="form-label">Password</label>
+                <input type="password" v-model="form.password" class="form-control" required />
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Confirm Password</label>
+                <input type="password" v-model="form.password_confirmation" class="form-control" required />
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Role</label>
+                <select v-model="form.role" class="form-control" required>
+                  <option value="Admin Staff">Admin Staff</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label class="form-label">Status</label>
+                <select v-model="form.status" class="form-control" required>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="text-end">
+              <button type="submit" class="btn btn-primary">Register</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <!-- Confirmation Modal -->
+      <div v-if="showModal" class="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-50 z-50">
+        <div class="bg-white p-6 rounded-lg shadow-lg w-96">
+          <h2 class="text-lg font-semibold text-gray-700 mb-4">Confirm Registration</h2>
+          <p class="text-gray-600">Are you sure you want to register this user?</p>
+          <div class="mt-4 flex justify-end space-x-4">
+            <button @click="registerUser" class="btn btn-success">Yes</button>
+            <button @click="showModal = false" class="btn btn-danger">Cancel</button>
+          </div>
         </div>
       </div>
     </div>
@@ -135,7 +160,7 @@
 </template>
 
 <script>
-import { ref, onMounted } from 'vue';
+import { ref, watch } from 'vue';
 import { useForm } from '@inertiajs/vue3';
 import Sidebar from '@/Components/Sidebar.vue';
 
@@ -143,6 +168,30 @@ export default {
   name: 'RegisterUser',
   components: { Sidebar },
   setup() {
+    const showModal = ref(false);
+    const photoRef = ref(null);
+    const photoPreview = ref(null);
+    const formRef = ref(null);
+
+    const inputWarnings = ref({
+      first_name: '',
+      last_name: '',
+      middle_name: '',
+      religion: '',
+      phone_number: '',
+    });
+
+    const localErrors = ref({
+      email: '',
+    });
+
+    const showTemporaryWarning = (field, message, duration = 2500) => {
+      inputWarnings.value[field] = message;
+      setTimeout(() => {
+        inputWarnings.value[field] = '';
+      }, duration);
+    };
+
     const form = useForm({
       last_name: '',
       first_name: '',
@@ -155,101 +204,127 @@ export default {
       phone_number: '',
       password: '',
       password_confirmation: '',
-      role: 'Admin Staff', // ✅ Default role is now Admin Staff only
-      status: 'active'
+      role: 'Admin Staff',
+      status: 'active',
+      photo: null,
     });
 
-    const showModal = ref(false);
+    watch(() => form.email, (val) => {
+      if (val.trim() === '') {
+        localErrors.value.email = 'Email is required.';
+      } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+        localErrors.value.email = 'Invalid email format.';
+      } else {
+        localErrors.value.email = '';
+      }
+    });
+
+    const handlePhotoUpload = (event) => {
+      const file = event.target.files[0];
+      form.photo = file;
+      if (file && file.type.startsWith("image/")) {
+        photoPreview.value = URL.createObjectURL(file);
+      } else {
+        photoPreview.value = null;
+      }
+    };
+
+    const handleSubmit = () => {
+      const el = formRef.value;
+      if (el && el.checkValidity()) {
+        showModal.value = true;
+      } else {
+        el.reportValidity();
+      }
+    };
 
     const registerUser = () => {
+      showModal.value = false;
+
       if (form.password !== form.password_confirmation) {
         alert('Passwords do not match!');
         return;
       }
 
+      if (localErrors.value.email) {
+        alert(localErrors.value.email);
+        return;
+      }
+
       form.post(route('register'), {
+        forceFormData: true,
         onSuccess: () => {
           alert('User registered successfully!');
-          showModal.value = false;
+          form.reset();
+          form.clearErrors();
+          if (photoRef.value) photoRef.value.value = '';
+          photoPreview.value = null;
         },
-        onError: () => {
-          showModal.value = false;
-        },
+        onError: (errors) => {
+          const firstErrorKey = Object.keys(errors)[0];
+          if (firstErrorKey) {
+            alert(errors[firstErrorKey]);
+          } else {
+            alert('An error occurred during registration.');
+          }
+        }
       });
     };
 
-    onMounted(() => {
-      document.querySelectorAll('input, select').forEach(el => {
-        el.setAttribute('autocomplete', 'off');
-        el.setAttribute('autocorrect', 'off');
-        el.setAttribute('autocapitalize', 'off');
-        el.setAttribute('spellcheck', 'false');
-      });
-    });
+    const allowedNameChars = /[^a-zA-ZñÑ\s-]/g;
+    const allowedPhoneChars = /[^0-9]/g;
 
-    return { form, showModal, registerUser };
+    const filterText = (obj, field) => {
+      const original = obj[field];
+      const filtered = original.replace(allowedNameChars, '');
+      if (original !== filtered) {
+        showTemporaryWarning(field, 'Only letters, spaces, and hyphens allowed.');
+      }
+      obj[field] = filtered;
+    };
+
+    const filterPhone = (obj, field) => {
+      const original = obj[field];
+      const filtered = original.replace(allowedPhoneChars, '');
+      if (original !== filtered) {
+        showTemporaryWarning(field, 'Only numbers are allowed.');
+      }
+      obj[field] = filtered;
+    };
+
+    return {
+      form,
+      formRef,
+      showModal,
+      registerUser,
+      photoRef,
+      photoPreview,
+      handlePhotoUpload,
+      handleSubmit,
+      filterText,
+      filterPhone,
+      inputWarnings,
+      localErrors,
+    };
   },
 };
 </script>
 
 <style scoped>
-.all-field {
-  margin-left: 200px;
-  width: 90%;
-  margin-top: -10px;
+.form-wrapper {
+  background-color: #ffffff;
+  padding: 25px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
 }
-
-.header {
-  margin-top: 50px;
-  margin-left: 250px;
-}
-
-.input-field {
-  width: 100%;
-  padding: 8px;
-  margin-top: 1px;
-  border: 1px solid #ccc;
-  border-radius: 4px;
-}
-
-.text-red-600 {
-  color: #dc2626;
-}
-.text-sm {
+.text-warning {
   font-size: 0.875rem;
+  color: #d39e00;
 }
-
-.hidden-offscreen {
-  position: absolute;
-  left: -9999px;
-  opacity: 0;
-  pointer-events: none;
+.text-danger {
+  font-size: 0.875rem;
+  color: #dc3545;
 }
-
-@media (max-width: 1024px) {
-  .grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-@media (max-width: 768px) {
-  .grid {
-    grid-template-columns: repeat(1, minmax(0, 1fr));
-  }
-  .header {
-    margin-left: 0;
-    text-align: center;
-  }
-  .all-field {
-    margin-left: 0;
-    margin-top: 0;
-    width: 100%;
-    padding: 10px;
-  }
-}
-
-@media (max-width: 450px) {
-  .fixed > .w-96 {
-    width: 90% !important;
-  }
+.is-invalid {
+  border-color: #dc3545;
 }
 </style>

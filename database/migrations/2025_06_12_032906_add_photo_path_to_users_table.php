@@ -10,8 +10,8 @@ return new class extends Migration {
      */
     public function up(): void
     {
-        Schema::table('teachers', function (Blueprint $table) {
-            $table->string('photo_path')->nullable()->after('pds_file_path');
+        Schema::table('users', function (Blueprint $table) {
+            $table->string('photo_path')->nullable()->after('status');
         });
     }
 
@@ -20,7 +20,7 @@ return new class extends Migration {
      */
     public function down(): void
     {
-        Schema::table('teachers', function (Blueprint $table) {
+        Schema::table('users', function (Blueprint $table) {
             $table->dropColumn('photo_path');
         });
     }

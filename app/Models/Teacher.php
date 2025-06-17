@@ -4,7 +4,6 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
-use App\Models\Document;
 
 class Teacher extends Model
 {
@@ -26,6 +25,8 @@ class Teacher extends Model
         'address',
         'remarks',
         'pds_file_path',
+        'photo_path',
+        'status',        // ✅ newly fillable
     ];
 
     /**
@@ -34,5 +35,21 @@ class Teacher extends Model
     public function documents()
     {
         return $this->hasMany(Document::class);
+    }
+
+    /**
+     * Scope only Active teachers.
+     */
+    public function scopeActive($query)
+    {
+        return $query->where('status', 'Active');
+    }
+
+    /**
+     * Scope only Inactive teachers.
+     */
+    public function scopeInactive($query)
+    {
+        return $query->where('status', 'Inactive');
     }
 }

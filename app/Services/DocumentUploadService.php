@@ -42,18 +42,27 @@ class DocumentUploadService
         $pdfPreviewPath = null;
 
         try {
-            // ✅ Convert to PDF for preview if it's Word/Excel
+            // ✅ Convert to PDF for preview (Word/Excel)
             if (in_array($extension, ['doc', 'docx', 'xls', 'xlsx'])) {
                 $outputDir = storage_path('app/public/converted');
                 if (!is_dir($outputDir)) {
                     mkdir($outputDir, 0755, true);
                 }
 
-                $convertTo = in_array($extension, ['xls', 'xlsx']) ? 'pdf:calc_pdf_Export' : 'pdf:writer_pdf_Export';
-                $command = "soffice --headless --invisible --convert-to {$convertTo} --outdir " . escapeshellarg($outputDir) . " " . escapeshellarg($decryptedPath);
+                // Use default LibreOffice detection
+                $command = "soffice --headless --convert-to pdf --outdir " . escapeshellarg($outputDir) . " " . escapeshellarg($decryptedPath);
                 exec($command);
 
-                $convertedPdf = $outputDir . '/' . pathinfo($decryptedPath, PATHINFO_FILENAME) . '.pdf';
+                $baseName = pathinfo($decryptedPath, PATHINFO_FILENAME);
+                $convertedPdf = $outputDir . '/' . $baseName . '.pdf';
+
+                // Fallback: check for any matching PDF
+                if (!file_exists($convertedPdf)) {
+                    $matches = glob($outputDir . '/' . $baseName . '*.pdf');
+                    if (count($matches)) {
+                        $convertedPdf = $matches[0];
+                    }
+                }
 
                 if (file_exists($convertedPdf)) {
                     $relativePath = 'converted/' . basename($convertedPdf);
@@ -62,12 +71,12 @@ class DocumentUploadService
                 }
             }
 
-            // ✅ If PDF uploaded directly, use it for preview
+            // ✅ If already a PDF
             if ($extension === 'pdf') {
                 $pdfPreviewPath = $path;
             }
 
-            // ✅ Try to OCR + classify via Python Flask
+            // ✅ OCR + Classification via Python microservice
             try {
                 $response = Http::timeout(5)->attach(
                     'file',
@@ -87,7 +96,7 @@ class DocumentUploadService
                 Log::warning("⚠️ Flask server not reachable: " . $e->getMessage());
             }
 
-            // ✅ Auto-assign category if matched
+            // ✅ Auto-assign category
             if ($autoCategoryName) {
                 $category = Category::where('name', $autoCategoryName)->first();
                 if ($category) {
@@ -95,7 +104,7 @@ class DocumentUploadService
                 }
             }
 
-            // ✅ Auto-assign teacher if detected in OCR text
+            // ✅ Auto-assign teacher if OCR matches
             if (!empty($autoCategoryName) && is_null($teacherId) && !$this->isSchoolProperty($autoCategoryName)) {
                 $teachers = Teacher::all();
                 foreach ($teachers as $teacher) {
@@ -116,11 +125,10 @@ class DocumentUploadService
             }
         }
 
-        // ✅ Determine document type
+        // ✅ Determine if School Property
         $categoryName = Category::where('id', $categoryId)->value('name');
         $isSchoolProperty = $this->isSchoolProperty($categoryName);
 
-        // ✅ Save as School Property Document
         if ($isSchoolProperty) {
             return SchoolPropertyDocument::create([
                 'user_id' => $user->id,
@@ -140,7 +148,6 @@ class DocumentUploadService
             ]);
         }
 
-        // ✅ Save as Teacher Document
         if (is_null($teacherId)) {
             throw new \Exception('❌ No teacher detected. Please manually select a teacher before uploading.');
         }
@@ -157,6 +164,7 @@ class DocumentUploadService
             'extracted_text' => $ocrText,
         ]);
     }
+
 
     protected function isSchoolProperty($categoryName): bool
     {

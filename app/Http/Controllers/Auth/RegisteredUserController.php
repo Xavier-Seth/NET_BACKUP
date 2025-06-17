@@ -5,43 +5,26 @@ namespace App\Http\Controllers\Auth;
 use App\Http\Controllers\Controller;
 use App\Models\User;
 use Illuminate\Auth\Events\Registered;
-use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Validation\Rules;
-use Illuminate\Support\Facades\Gate;
-use Inertia\Inertia;
-use Inertia\Response;
+use Illuminate\Http\RedirectResponse; // ✅ Correct return type
 
 class RegisteredUserController extends Controller
 {
     /**
-     * Display the registration view.
+     * Show the user registration form.
      */
-    public function create(): Response
+    public function create()
     {
-        return Inertia::render('Auth/Register');
+        return \Inertia\Inertia::render('Auth/Register');
     }
 
     /**
-     * Handle an incoming registration request.
-     *
-     * @throws \Illuminate\Validation\ValidationException
+     * Handle the registration request and store the user.
      */
-    /**
-     * Handle an incoming registration request.
-     *
-     * @throws \Illuminate\Validation\ValidationException
-     */
-    // Import Gate
-
-    public function store(Request $request): RedirectResponse
+    public function store(Request $request): RedirectResponse // ✅ Fixed return type
     {
-        if (Auth::user()->role !== 'Admin') {
-            return redirect()->route('dashboard')->with('error', 'Unauthorized action.');
-        }
-
         $request->validate([
             'last_name' => 'required|string|max:255',
             'first_name' => 'required|string|max:255',
@@ -55,7 +38,12 @@ class RegisteredUserController extends Controller
             'password' => ['required', 'confirmed', Rules\Password::defaults()],
             'role' => 'required|in:Admin,Admin Staff',
             'status' => 'required|in:active,inactive',
+            'photo' => 'nullable|image|max:20480',
         ]);
+
+        $photoPath = $request->hasFile('photo')
+            ? $request->file('photo')->store('user_photos', 'public')
+            : null;
 
         $user = User::create([
             'last_name' => $request->last_name,
@@ -70,12 +58,12 @@ class RegisteredUserController extends Controller
             'password' => Hash::make($request->password),
             'role' => $request->role,
             'status' => $request->status,
+            'photo_path' => $photoPath,
         ]);
 
         event(new Registered($user));
 
-        return redirect()->route('users.index')->with('success', 'User registered successfully!');
+        // ✅ Redirect instead of returning no content to avoid Inertia blank screen
+        return redirect()->route('register');
     }
-
-
 }

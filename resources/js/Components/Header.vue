@@ -14,12 +14,20 @@
           aria-expanded="false"
           type="button"
         >
-          <img src="/images/user-avatar.png" alt="User Avatar" class="avatar" />
+          <!-- avatarUrl will be either the stored photo or the default -->
+          <img
+            :src="avatarUrl"
+            alt="User Avatar"
+            class="avatar"
+            @error="handleImgError"
+          />
+
           <div class="user-info">
             <span class="user-name">{{ userName }}</span>
             <small class="user-role">{{ userRole }}</small>
           </div>
         </button>
+
         <ul class="dropdown-menu dropdown-menu-end">
           <li>
             <Link class="dropdown-item" :href="route('profile.edit')">
@@ -44,14 +52,33 @@
 
 <script setup>
 import { Link, router, usePage } from '@inertiajs/vue3'
+import { computed } from 'vue'
 
+// Grab the authenticated user from shared Inertia props
 const page = usePage()
-const user = page.props.auth.user
+const user = page.props.auth.user || {}
 
-const userName = user ? `${user.last_name}, ${user.first_name}` : 'User'
-const userRole = user?.role ? `(${user.role})` : ''
+// Compute the avatar URL, appending a timestamp to bust cache
+const avatarUrl = computed(() => {
+  return user.photo_path
+    ? `/storage/${user.photo_path}?t=${Date.now()}`
+    : '/images/user-avatar.png'
+})
 
-const checkRole = () => {
+// Format "Last, First"
+const userName = computed(() => {
+  return user.last_name && user.first_name
+    ? `${user.last_name}, ${user.first_name}`
+    : 'User'
+})
+
+// Show role in parentheses, e.g. "(Admin)"
+const userRole = computed(() => {
+  return user.role ? `(${user.role})` : ''
+})
+
+// Only Admins may hit the register-user page
+function checkRole() {
   if (user.role !== 'Admin') {
     alert('❌ Access Denied: Only Admin users can register new users.')
   } else {
@@ -59,12 +86,16 @@ const checkRole = () => {
   }
 }
 
-const logout = () => {
+// Simple logout flow
+function logout() {
   if (confirm('Are you sure you want to log out?')) {
-    router.post(route('logout'), {
-      preserveScroll: true,
-    })
+    router.post(route('logout'), { preserveScroll: true })
   }
+}
+
+// Fallback in case the image path is broken
+function handleImgError(e) {
+  e.target.src = '/images/user-avatar.png'
 }
 </script>
 

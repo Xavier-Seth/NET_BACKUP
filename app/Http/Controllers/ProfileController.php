@@ -16,8 +16,11 @@ class ProfileController extends Controller
      */
     public function edit()
     {
-        // Only shows the current user's profile (for normal users)
         $user = Auth::user();
+
+        $user->profilePicture = $user->photo_path
+            ? asset('storage/' . $user->photo_path)
+            : null;
 
         return Inertia::render('Profile/UserProfile', [
             'user' => $user,
@@ -32,28 +35,57 @@ class ProfileController extends Controller
         $user = Auth::user();
 
         $validated = $request->validate([
-            'first_name' => 'required|string|max:255',
-            'last_name' => 'required|string|max:255',
+            'first_name' => 'nullable|string|max:255',
+            'last_name' => 'nullable|string|max:255',
             'middle_name' => 'nullable|string|max:255',
-            'sex' => 'required|in:Male,Female',
-            'civil_status' => 'required|in:Single,Married',
-            'date_of_birth' => 'required|date',
+            'sex' => 'nullable|in:Male,Female',
+            'civil_status' => 'nullable|in:Single,Married,Widowed',
+            'date_of_birth' => 'nullable|date',
             'religion' => 'nullable|string|max:255',
-            'phone_number' => 'required|string|max:20',
-            'email' => ['required', 'email', 'max:255', Rule::unique('users')->ignore($user->id)],
+            'phone_number' => 'nullable|string|max:20',
+            'email' => [
+                'nullable',
+                'email',
+                'max:255',
+                Rule::unique('users')->ignore($user->id),
+            ],
             'password' => ['nullable', 'confirmed'],
+            'photo' => 'nullable|image|max:20480', // 20MB
         ]);
 
+        // ✅ Handle photo upload
+        if ($request->hasFile('photo')) {
+            $validated['photo_path'] = $request->file('photo')->store('user_photos', 'public');
+        }
+
+        // ✅ Handle password
         if (!empty($validated['password'])) {
             $validated['password'] = Hash::make($validated['password']);
         } else {
             unset($validated['password']);
         }
 
+        // ✅ Update user
         $user->update($validated);
 
-        return redirect()->back()->with('success', 'Profile updated successfully.');
+        // ✅ Refresh to get latest DB values
+        $user->refresh();
+
+        // ✅ Include full image URL for Vue
+        $user->profilePicture = $user->photo_path
+            ? asset('storage/' . $user->photo_path)
+            : null;
+
+        // ✅ Return with updated props
+        return Inertia::render('Profile/UserProfile', [
+            'user' => $user,
+        ])->with('success', 'Profile updated successfully.');
     }
+
+
+
+
+
 
     /**
      * Admin Edit Another User
@@ -65,13 +97,10 @@ class ProfileController extends Controller
             return redirect()->route('users.index')->with('error', 'Unauthorized access.');
         }
 
-        // If you want to block Admin from editing themselves with the Admin UI,
-        // uncomment the lines below:
-        // if ($currentUser->id == $id) {
-        //     return redirect()->route('profile.edit')->with('error', 'You cannot edit your own profile here.');
-        // }
-
         $user = User::findOrFail($id);
+        $user->profilePicture = $user->photo_path
+            ? asset('storage/' . $user->photo_path)
+            : null;
 
         return Inertia::render('Profile/AdminEditUser', [
             'user' => $user,
@@ -95,7 +124,7 @@ class ProfileController extends Controller
             'last_name' => ['required', 'string', 'max:255'],
             'middle_name' => ['nullable', 'string', 'max:255'],
             'sex' => ['required', 'in:Male,Female'],
-            'civil_status' => ['required', 'in:Single,Married'],
+            'civil_status' => ['required', 'in:Single,Married,Widowed'],
             'date_of_birth' => ['required', 'date'],
             'religion' => ['nullable', 'string', 'max:255'],
             'phone_number' => ['required', 'string', 'max:20'],
@@ -103,7 +132,12 @@ class ProfileController extends Controller
             'password' => ['nullable', 'confirmed'],
             'role' => ['required', 'in:Admin,Admin Staff,User'],
             'status' => ['required', 'in:active,inactive'],
+            'photo' => 'nullable|image|max:20480',
         ]);
+
+        if ($request->hasFile('photo')) {
+            $validated['photo_path'] = $request->file('photo')->store('user_photos', 'public');
+        }
 
         if (!empty($validated['password'])) {
             $validated['password'] = Hash::make($validated['password']);
@@ -123,14 +157,11 @@ class ProfileController extends Controller
     {
         $currentUser = Auth::user();
         if ($currentUser->role !== 'Admin') {
-            // If normal users can also delete themselves, you can remove this check. 
-            // But in your code, it looks like only Admins can call destroy().
             return redirect()->route('profile.edit')->with('error', 'Unauthorized action.');
         }
 
         $user = User::findOrFail($id);
 
-        // Prevent Admin from deleting themselves
         if ($currentUser->id === $user->id) {
             return redirect()->route('users.index')->with('error', 'Admin cannot delete their own account.');
         }

@@ -8,55 +8,64 @@
       </div>
     </div>
 
-    <!-- Sidebar (Responsive) -->
+    <!-- Sidebar -->
     <Sidebar :activeMenu="activeMenu" @update-active="setActive" />
 
-    <!-- Main Content -->
+    <!-- Main Content Area -->
     <div class="main-content">
-      <Header />
-      <slot></slot>
+      <Header :user="user" />
+      <slot />
     </div>
   </div>
 </template>
 
 <script>
-import Sidebar from "@/Components/Sidebar.vue";
-import Header from "@/Components/Header.vue";
-import { ref, onMounted } from "vue";
-import { router } from "@inertiajs/vue3";
+import Sidebar from "@/Components/Sidebar.vue"
+import Header from "@/Components/Header.vue"
+import { ref, onMounted } from "vue"
+import { usePage, router } from "@inertiajs/vue3"
 
 export default {
+  name: "MainLayout",
   components: {
     Sidebar,
     Header,
   },
   props: {
-    activeMenu: String,
+    activeMenu: {
+      type: String,
+      default: "",
+    },
   },
   setup() {
-    const errorMessage = ref("");
+    const page = usePage()
+    const user = page.props.auth.user
+    const errorMessage = ref("")
 
     const handleUnauthorized = (errors) => {
       if (errors.status === 403) {
-        errorMessage.value = "❌ Unauthorized Access: You do not have permission.";
+        errorMessage.value = "❌ Unauthorized Access: You do not have permission."
         setTimeout(() => {
-          errorMessage.value = "";
-        }, 5000);
+          errorMessage.value = ""
+        }, 5000)
       }
-    };
+    }
 
     onMounted(() => {
-      router.on("error", handleUnauthorized);
-    });
+      router.on("error", handleUnauthorized)
+    })
 
-    return { errorMessage };
+    return {
+      user,
+      errorMessage,
+    }
   },
   methods: {
     setActive(menuItem) {
-      this.activeMenu = menuItem;
+      this.activeMenu = menuItem
     },
   },
-};
+}
 </script>
 
 <style scoped>
@@ -68,7 +77,6 @@ export default {
   overflow: hidden;
 }
 
-/* Main content area */
 .main-content {
   flex: 1;
   padding: 20px;
@@ -76,7 +84,6 @@ export default {
   transition: margin-left 0.3s ease;
 }
 
-/* Alert */
 .alert-box {
   position: fixed;
   top: 15px;
@@ -88,7 +95,6 @@ export default {
   text-align: center;
 }
 
-/* On small screens, remove margin-left for content */
 @media (max-width: 768px) {
   .main-content {
     margin-left: 0;

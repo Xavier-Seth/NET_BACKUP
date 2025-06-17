@@ -21,9 +21,16 @@
             </a>
           </li>
 
+          <!-- ✅ Fixed Teachers Menu -->
+          <li>
+            <a @click="go('teachers.index')" :class="['nav-link', { active: isActive('teachers.index') }]">
+              <i class="bi bi-person-lines-fill"></i> Teachers
+            </a>
+          </li>
+
           <!-- Documents dropdown -->
           <li>
-            <a class="nav-link" @click="toggle('Documents')" :class="{ active: isActive('/documents') }">
+            <a class="nav-link" @click="toggle('Documents')" :class="{ active: isInDocuments }">
               <i class="bi bi-folder2-open"></i> Documents
               <i class="bi bi-caret-left-fill caret-icon" :class="{ rotated: openDocs }"></i>
             </a>
@@ -37,30 +44,31 @@
 
               <li class="section-title">DTR's</li>
               <li>
-                <a @click="go('/documents/attendance')" :class="['dropdown-link', { active: isActive('/documents/attendance') }]">
+                <a @click="go('/documents/attendance')" :class="['dropdown-link', { active: currentPath.startsWith('/documents/attendance') }]">
                   <i class="bi bi-file-earmark-text"></i> Attendance Log's
                 </a>
               </li>
               <li>
-                <a @click="go('/documents/dtr')" :class="['dropdown-link', { active: isActive('/documents/dtr') }]">
+                <a @click="go('/documents/dtr')" :class="['dropdown-link', { active: currentPath.startsWith('/documents/dtr') }]">
                   <i class="bi bi-file-earmark-text"></i> DTR's
                 </a>
               </li>
 
               <li class="section-title">School Properties</li>
               <li>
-                <a @click="go('/documents/school-properties?category=ICS')" :class="['dropdown-link', { active: isActive('/documents/school-properties?category=ICS') }]">
+                <a @click="go('/documents/school-properties?category=ICS')" :class="['dropdown-link', { active: currentPath.includes('ICS') }]">
                   <i class="bi bi-file-earmark-text"></i> ICS
                 </a>
               </li>
               <li>
-                <a @click="go('/documents/school-properties?category=RIS')" :class="['dropdown-link', { active: isActive('/documents/school-properties?category=RIS') }]">
+                <a @click="go('/documents/school-properties?category=RIS')" :class="['dropdown-link', { active: currentPath.includes('RIS') }]">
                   <i class="bi bi-file-earmark-text"></i> RIS
                 </a>
               </li>
             </ul>
           </li>
 
+          <!-- ✅ Register Teacher -->
           <li>
             <a @click="go('teachers.register')" :class="['nav-link', { active: isActive('teachers.register') }]">
               <i class="bi bi-person-badge"></i> Register Teachers
@@ -115,16 +123,19 @@ const go = (pathOrRoute) => {
   if (isMobile) isOpen.value = false
 }
 
-const isActive = (path) => {
+// ✅ Fix: exact route match by route name
+const isActive = (nameOrPath) => {
   const url = currentPath.value
-
-  if (path.startsWith('/')) {
-    return url.startsWith(path)
+  if (!nameOrPath.startsWith('/')) {
+    return route().current(nameOrPath)
   }
-
-  const routeUrl = route(path)
-  return url.startsWith(new URL(routeUrl).pathname)
+  return url === nameOrPath
 }
+
+// ✅ Handle grouped dropdown active state
+const isInDocuments = computed(() => {
+  return currentPath.value.startsWith('/documents')
+})
 
 const logout = () => {
   if (confirm('Are you sure you want to log out?')) {
@@ -159,11 +170,9 @@ onMounted(() => {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
-
 .sidebar::-webkit-scrollbar {
   display: none;
 }
-
 .logo {
   display: flex;
   justify-content: center;
@@ -171,23 +180,19 @@ onMounted(() => {
   padding: 10px 0;
   margin-bottom: 10px;
 }
-
 .logo img {
   width: 100px;
   height: auto;
   object-fit: contain;
 }
-
 .menu {
   flex-grow: 1;
 }
-
 .menu ul {
   list-style: none;
   padding: 0 0 0 10px;
   margin: 0;
 }
-
 .nav-link {
   display: flex;
   align-items: center;
@@ -199,32 +204,26 @@ onMounted(() => {
   transition: background 0.2s, color 0.2s;
   border-radius: 12px;
 }
-
 .nav-link:hover {
   background: rgba(255, 255, 255, 0.1);
 }
-
 .nav-link.active {
   background: white;
   color: #12172b;
   font-weight: bold;
   border-radius: 12px;
 }
-
 .caret-icon {
   margin-left: auto;
   transition: transform 0.3s ease;
 }
-
 .caret-icon.rotated {
   transform: rotate(-90deg);
 }
-
 .dropdown {
   padding-left: 10px;
   margin-top: 5px;
 }
-
 .dropdown-link {
   display: flex;
   align-items: center;
@@ -236,19 +235,16 @@ onMounted(() => {
   transition: background 0.2s, color 0.2s;
   border-radius: 12px;
 }
-
 .dropdown-link:hover {
   background: rgba(255, 255, 255, 0.1);
   color: white;
 }
-
 .dropdown-link.active {
   background: white;
   color: #12172b;
   font-weight: bold;
   border-radius: 12px;
 }
-
 .section-title {
   font-size: 13px;
   font-weight: 600;
@@ -257,7 +253,6 @@ onMounted(() => {
   padding-left: 16px;
   text-transform: uppercase;
 }
-
 .logout {
   margin-top: 20px;
   padding: 12px 16px;
@@ -268,11 +263,9 @@ onMounted(() => {
   align-items: center;
   gap: 10px;
 }
-
 .logout:hover {
   background: rgba(255, 255, 255, 0.1);
 }
-
 .overlay {
   position: fixed;
   top: 0;

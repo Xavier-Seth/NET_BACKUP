@@ -1,131 +1,219 @@
 <template>
-  <div class="app-layout">
+  <div class="flex min-h-screen bg-gray-100">
     <Sidebar />
-    <div class="main-content">
-      <Header />
-      <div class="profile-settings">
-        <h2>Profile Settings</h2>
-        <div class="profile-container">
-          <div class="profile-image">
-            <img :src="user.profilePicture || '/images/user-avatar.png'" alt="Profile Picture" />
-            <button class="change-photo" @click="changePhoto">Change Photo</button>
+
+    <div class="flex-1 ml-[200px]">
+      <!-- Banner -->
+      <div class="container d-flex justify-content-center mt-3">
+        <div class="position-relative w-100" style="max-width: 1000px;">
+          <img src="/images/rizal.jpg" class="w-100 rounded-top" style="height: 200px; object-fit: cover;" />
+          <div class="position-absolute top-100 start-50 translate-middle text-center">
+            <label style="cursor: pointer;">
+              <img
+                :src="photoPreview || (user.profilePicture ? `${user.profilePicture}?t=${Date.now()}` : '/images/user-avatar.png')"
+                class="rounded-circle border border-white shadow"
+                style="width: 160px; height: 160px; object-fit: cover;"
+                alt="Profile"
+              />
+              <input
+                ref="photoRef"
+                type="file"
+                accept="image/*"
+                class="d-none"
+                @change="handlePhotoUpload"
+                :disabled="!isEditing"
+              />
+            </label>
+            <h5 class="mt-2 fw-bold">Profile Settings</h5>
           </div>
+        </div>
+      </div>
 
-          <div v-if="successMessage" class="success-message">
-            {{ successMessage }}
+      <!-- Success Modal -->
+      <transition name="fade">
+        <div v-if="showSuccessModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div class="bg-white p-6 rounded shadow-lg text-center max-w-sm w-full">
+            <h4 class="text-xl font-semibold mb-2">✅ Profile Updated!</h4>
+            <p class="text-gray-700 mb-4">Your changes have been saved successfully.</p>
+            <button @click="showSuccessModal = false" class="btn btn-success px-4">OK</button>
           </div>
+        </div>
+      </transition>
 
-          <form @submit.prevent="updateProfile" class="profile-form">
-            <div class="form-row">
-              <div class="form-group">
-                <label>Last Name</label>
-                <input type="text" v-model="form.last_name" :disabled="!isEditing" :class="{ 'input-error': form.errors.last_name }" />
-                <span class="error" v-if="form.errors.last_name">{{ form.errors.last_name }}</span>
-              </div>
-              <div class="form-group">
-                <label>First Name</label>
-                <input type="text" v-model="form.first_name" :disabled="!isEditing" :class="{ 'input-error': form.errors.first_name }" />
-                <span class="error" v-if="form.errors.first_name">{{ form.errors.first_name }}</span>
-              </div>
-              <div class="form-group">
-                <label>Middle Name</label>
-                <input type="text" v-model="form.middle_name" :disabled="!isEditing" :class="{ 'input-error': form.errors.middle_name }" />
-                <span class="error" v-if="form.errors.middle_name">{{ form.errors.middle_name }}</span>
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label>Sex</label>
-                <select v-model="form.sex" :disabled="!isEditing" :class="{ 'input-error': form.errors.sex }">
-                  <option>Male</option>
-                  <option>Female</option>
-                </select>
-                <span class="error" v-if="form.errors.sex">{{ form.errors.sex }}</span>
-              </div>
-              <div class="form-group">
-                <label>Civil Status</label>
-                <select v-model="form.civil_status" :disabled="!isEditing" :class="{ 'input-error': form.errors.civil_status }">
-                  <option>Single</option>
-                  <option>Married</option>
-                </select>
-                <span class="error" v-if="form.errors.civil_status">{{ form.errors.civil_status }}</span>
-              </div>
-              <div class="form-group">
-                <label>Date of Birth</label>
-                <input type="date" v-model="form.date_of_birth" :disabled="!isEditing" :class="{ 'input-error': form.errors.date_of_birth }" />
-                <span class="error" v-if="form.errors.date_of_birth">{{ form.errors.date_of_birth }}</span>
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group">
-                <label>Religion</label>
-                <input type="text" v-model="form.religion" :disabled="!isEditing" :class="{ 'input-error': form.errors.religion }" />
-                <span class="error" v-if="form.errors.religion">{{ form.errors.religion }}</span>
-              </div>
-              <div class="form-group">
-                <label>Phone Number</label>
+      <!-- Form -->
+      <div class="container d-flex justify-content-center mt-1">
+        <div class="form-wrapper bg-white shadow p-4 w-100" style="max-width: 1000px; border-radius: 0 0 10px 10px;">
+          <form @submit.prevent="updateProfile">
+            <!-- Name -->
+            <div class="row mb-3" style="margin-top: 6rem;">
+              <div class="col-md-4">
+                <label class="form-label">Last Name <span class="text-danger">*</span></label>
                 <input
-                  type="text"
-                  inputmode="numeric"
-                  maxlength="11"
-                  pattern="[0-9]*"
-                  v-model="form.phone_number"
-                  @input="form.phone_number = form.phone_number.replace(/\D/g, '')"
-                  :disabled="!isEditing"
-                  :class="{ 'input-error': form.errors.phone_number }"
+                  v-model="form.last_name"
+                  @input="filterText(form, 'last_name')"
+                  class="form-control"
+                  :class="inputClass"
+                  :readonly="!isEditing"
+                  required
                 />
-                <span class="error" v-if="form.errors.phone_number">{{ form.errors.phone_number }}</span>
+                <div v-if="inputWarnings.last_name" class="text-warning mt-1">{{ inputWarnings.last_name }}</div>
               </div>
-              <div class="form-group">
-                <label>Email Address</label>
-                <input type="email" v-model="form.email" :disabled="!isEditing" :class="{ 'input-error': form.errors.email }" />
-                <span class="error" v-if="form.errors.email">{{ form.errors.email }}</span>
+              <div class="col-md-4">
+                <label class="form-label">First Name <span class="text-danger">*</span></label>
+                <input
+                  v-model="form.first_name"
+                  @input="filterText(form, 'first_name')"
+                  class="form-control"
+                  :class="inputClass"
+                  :readonly="!isEditing"
+                  required
+                />
+                <div v-if="inputWarnings.first_name" class="text-warning mt-1">{{ inputWarnings.first_name }}</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Middle Name</label>
+                <input
+                  v-model="form.middle_name"
+                  @input="filterText(form, 'middle_name')"
+                  class="form-control"
+                  :class="inputClass"
+                />
+                <div v-if="inputWarnings.middle_name" class="text-warning mt-1">{{ inputWarnings.middle_name }}</div>
               </div>
             </div>
 
-            <div class="form-row">
-              <div class="form-group">
-                <label>Password</label>
+            <!-- Sex / Civil Status / DOB -->
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label class="form-label">Sex <span class="text-danger">*</span></label>
+                <select
+                  v-model="form.sex"
+                  class="form-control"
+                  :class="inputClass"
+                  :disabled="!isEditing"
+                  required
+                >
+                  <option value="">Select</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Civil Status <span class="text-danger">*</span></label>
+                <select
+                  v-model="form.civil_status"
+                  class="form-control"
+                  :class="inputClass"
+                  :disabled="!isEditing"
+                  required
+                >
+                  <option value="">Select</option>
+                  <option value="Single">Single</option>
+                  <option value="Married">Married</option>
+                  <option value="Widowed">Widowed</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Date of Birth</label>
+                <input
+                  type="date"
+                  v-model="form.date_of_birth"
+                  class="form-control"
+                  :class="inputClass"
+                  :readonly="!isEditing"
+                />
+              </div>
+            </div>
+
+            <!-- Contact -->
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label class="form-label">Religion</label>
+                <input
+                  v-model="form.religion"
+                  @input="filterText(form, 'religion')"
+                  class="form-control"
+                  :class="inputClass"
+                />
+                <div v-if="inputWarnings.religion" class="text-warning mt-1">{{ inputWarnings.religion }}</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Phone Number</label>
+                <input
+                  type="tel"
+                  v-model="form.phone_number"
+                  @input="filterPhone(form, 'phone_number')"
+                  class="form-control"
+                  :class="inputClass"
+                />
+                <div v-if="inputWarnings.phone_number" class="text-warning mt-1">{{ inputWarnings.phone_number }}</div>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Email <span class="text-danger">*</span></label>
+                <input
+                  type="email"
+                  v-model="form.email"
+                  class="form-control"
+                  :class="inputClass"
+                  :readonly="!isEditing"
+                  required
+                />
+                <div v-if="emailError" class="text-danger mt-1">{{ emailError }}</div>
+              </div>
+            </div>
+
+            <!-- Password -->
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label class="form-label">New Password</label>
                 <input
                   type="password"
                   v-model="form.password"
-                  :disabled="!isEditing"
+                  class="form-control"
+                  :readonly="!isEditing"
                   placeholder="Leave blank if unchanged"
-                  :class="{ 'input-error': form.errors.password }"
                 />
-                <span class="error" v-if="form.errors.password">{{ form.errors.password }}</span>
               </div>
-              <div class="form-group">
-                <label>Confirm Password</label>
+              <div class="col-md-4">
+                <label class="form-label">Confirm Password</label>
                 <input
                   type="password"
                   v-model="form.password_confirmation"
-                  :disabled="!isEditing"
-                  placeholder="Re-type new password"
-                  :class="{ 'input-error': form.errors.password_confirmation }"
+                  class="form-control"
+                  :readonly="!isEditing"
+                  placeholder="Retype password"
                 />
-                <span class="error" v-if="form.errors.password_confirmation">{{ form.errors.password_confirmation }}</span>
               </div>
-              <div class="form-group">
-                <label>Status</label>
-                <input type="text" :value="capitalize(user.status)" disabled />
-              </div>
-            </div>
-
-            <div class="form-row">
-              <div class="form-group role-field">
-                <label>Role</label>
-                <input type="text" v-model="user.role" disabled />
+              <div class="col-md-4">
+                <label class="form-label">Status</label>
+                <input
+                  type="text"
+                  :value="capitalize(user.status)"
+                  readonly
+                  class="form-control"
+                />
               </div>
             </div>
 
-            <div class="button-group">
-              <button type="button" class="edit-btn" @click="toggleEdit">
-                {{ isEditing ? 'Cancel' : 'Edit' }}
+            <!-- Role -->
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label class="form-label">Role</label>
+                <input
+                  type="text"
+                  :value="user.role"
+                  readonly
+                  class="form-control"
+                />
+              </div>
+            </div>
+
+            <!-- Buttons -->
+            <div class="text-end mt-4">
+              <button type="button" class="btn btn-secondary me-2" @click="toggleEdit">
+                {{ isEditing ? 'Cancel' : 'Edit Profile' }}
               </button>
-              <button type="submit" class="update-btn" v-if="isEditing">Update</button>
+              <button v-if="isEditing" type="submit" class="btn btn-success">Update</button>
             </div>
           </form>
         </div>
@@ -135,226 +223,149 @@
 </template>
 
 <script setup>
-import { ref, nextTick } from 'vue';
-import { useForm, usePage } from '@inertiajs/vue3';
-import Sidebar from '@/Components/Sidebar.vue';
-import Header from '@/Components/Header.vue';
+import { ref, computed, watch } from 'vue'
+import { useForm, usePage, router } from '@inertiajs/vue3'
+import Sidebar from '@/Components/Sidebar.vue'
 
-const props = usePage().props;
-const user = ref(props.user || {});
-const successMessage = ref("");
+const user = computed(() => usePage().props.user || {})
+const isEditing = ref(false)
+const photoPreview = ref(null)
+const showSuccessModal = ref(false)
+const emailError = ref('')
+
+const inputWarnings = ref({
+  first_name: '',
+  last_name: '',
+  middle_name: '',
+  religion: '',
+  phone_number: '',
+})
+
+function showTemporaryWarning(field, message, duration = 2500) {
+  inputWarnings.value[field] = message
+  setTimeout(() => {
+    inputWarnings.value[field] = ''
+  }, duration)
+}
+
+const allowedNameChars = /[^a-zA-ZñÑ\s-]/g
+const allowedPhoneChars = /[^0-9]/g
+
+function filterText(obj, field) {
+  const original = obj[field]
+  const filtered = original.replace(allowedNameChars, '')
+  if (original !== filtered) showTemporaryWarning(field, 'Only letters, spaces, and hyphens allowed.')
+  obj[field] = filtered
+}
+
+function filterPhone(obj, field) {
+  const original = obj[field]
+  const filtered = original.replace(allowedPhoneChars, '')
+  if (original !== filtered) showTemporaryWarning(field, 'Only numbers are allowed.')
+  obj[field] = filtered
+}
 
 const form = useForm({
-  first_name: user.value.first_name || "",
-  last_name: user.value.last_name || "",
-  middle_name: user.value.middle_name || "",
-  sex: user.value.sex || "",
-  civil_status: user.value.civil_status || "",
-  date_of_birth: user.value.date_of_birth ? user.value.date_of_birth.substring(0, 10) : "",
-  religion: user.value.religion || "",
-  phone_number: user.value.phone_number || "",
-  email: user.value.email || "",
-  password: "",
-  password_confirmation: "",
-});
+  first_name: user.value.first_name ?? '',
+  last_name: user.value.last_name ?? '',
+  middle_name: user.value.middle_name ?? '',
+  sex: user.value.sex ?? '',
+  civil_status: user.value.civil_status ?? '',
+  date_of_birth: user.value.date_of_birth?.substring(0, 10) ?? '',
+  religion: user.value.religion ?? '',
+  phone_number: user.value.phone_number ?? '',
+  email: user.value.email ?? '',
+  password: '',
+  password_confirmation: '',
+  photo: null,
+})
 
-const isEditing = ref(false);
+watch(() => form.email, (val) => {
+  if (val.trim() === '') {
+    emailError.value = 'Email is required.'
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
+    emailError.value = 'Invalid email format.'
+  } else {
+    emailError.value = ''
+  }
+})
 
-const toggleEdit = () => {
-  isEditing.value = !isEditing.value;
+const inputClass = computed(() => (isEditing.value ? '' : 'bg-light pointer-events-none'))
+
+function toggleEdit() {
+  isEditing.value = !isEditing.value
   if (!isEditing.value) {
-    form.reset();
-    form.date_of_birth = user.value.date_of_birth ? user.value.date_of_birth.substring(0, 10) : "";
+    form.reset('password', 'password_confirmation')
+    emailError.value = ''
   }
-};
+}
 
-const capitalize = (val) => {
-  if (!val) return '';
-  return val.charAt(0).toUpperCase() + val.slice(1);
-};
+function capitalize(val) {
+  return val ? val.charAt(0).toUpperCase() + val.slice(1) : ''
+}
 
-const updateProfile = () => {
-  const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-  if (!emailPattern.test(form.email)) {
-    form.setError('email', 'Please enter a valid email address.');
-    return;
+function handlePhotoUpload(e) {
+  const file = e.target.files[0]
+  if (file) {
+    form.photo = file
+    photoPreview.value = URL.createObjectURL(file)
   }
+}
 
+function updateProfile() {
   if (form.password && form.password !== form.password_confirmation) {
-    form.setError('password_confirmation', 'Passwords do not match.');
-    return;
+    alert('Passwords do not match!')
+    return
   }
 
-  form.patch(route('profile.update'), {
-    preserveScroll: true,
-    onSuccess: () => {
-      isEditing.value = false;
-      form.reset("password", "password_confirmation");
-      successMessage.value = "Profile updated successfully! ✅";
-      setTimeout(() => successMessage.value = "", 3000);
-    },
-    onError: () => {
-      nextTick(() => {
-        const errorField = document.querySelector('.input-error');
-        if (errorField) errorField.scrollIntoView({ behavior: 'smooth', block: 'center' });
-      });
-    },
-  });
-};
+  if (emailError.value) {
+    alert(emailError.value)
+    return
+  }
 
-const changePhoto = () => {
-  console.log('Change photo clicked');
-};
+  form.post(route('profile.update'), {
+    preserveScroll: true,
+    preserveState: true,
+    forceFormData: true,
+    onSuccess: () => {
+      toggleEdit()
+      photoPreview.value = null
+      router.reload({ only: ['user'] })
+      showSuccessModal.value = true
+    },
+    onError: (errors) => {
+      const firstError = Object.values(errors)[0]
+      alert(firstError || 'An error occurred while updating your profile.')
+    },
+  })
+}
 </script>
 
 <style scoped>
-.app-layout {
-  display: flex;
-  height: 100vh;
-  overflow: hidden;
-  flex-direction: row;
+.form-wrapper {
+  background-color: #fff;
+  padding: 25px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
 }
-
-.main-content {
-  flex: 1;
-  padding: 20px;
-  margin-left: 220px;
-  overflow-y: auto;
+.pointer-events-none {
+  pointer-events: none;
 }
-
-.profile-settings {
-  background: white;
-  padding: 30px;
-  border-radius: 8px;
-  box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-  width: 90%;
-  max-width: 1200px;
-  margin: 20px auto;
+.bg-light {
+  background-color: #e9ecef;
 }
-
-.profile-container {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s ease;
 }
-
-.profile-image img {
-  width: 150px;
-  height: 150px;
-  border-radius: 50%;
-  object-fit: cover;
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
 }
-
-.change-photo {
-  margin-top: 10px;
-  padding: 10px 15px;
-  border: none;
-  background: #007bff;
-  color: white;
-  border-radius: 6px;
-  cursor: pointer;
+.text-warning {
+  font-size: 0.875rem;
+  color: #d39e00;
 }
-
-.success-message {
-  background: #28a745;
-  color: white;
-  padding: 10px;
-  border-radius: 6px;
-  text-align: center;
-  font-weight: bold;
-  margin: 15px 0;
-}
-
-.form-row {
-  display: flex;
-  gap: 30px;
-  margin-top: 15px;
-  flex-wrap: wrap;
-}
-
-.form-group {
-  flex: 1 1 250px;
-}
-
-.form-group input,
-.form-group select {
-  width: 100%;
-  padding: 10px;
-  border: 1px solid #ccc;
-  border-radius: 6px;
-}
-
-.input-error {
-  border-color: #dc3545 !important;
-  background-color: #fff0f0;
-}
-
-.error {
+.text-danger {
+  font-size: 0.875rem;
   color: #dc3545;
-  font-size: 13px;
-  margin-top: 5px;
-  display: block;
-}
-
-.button-group {
-  display: flex;
-  justify-content: center;
-  gap: 15px;
-  margin-top: 25px;
-  flex-wrap: wrap;
-}
-
-.edit-btn,
-.update-btn {
-  background: #007bff;
-  color: white;
-  border: none;
-  padding: 12px 25px;
-  cursor: pointer;
-  border-radius: 6px;
-}
-.update-btn {
-  background: #28a745;
-}
-
-@media (max-width: 768px) {
-  .main-content {
-    margin-left: 0;
-    padding: 15px;
-  }
-
-  .profile-settings {
-    padding: 20px;
-    width: 100%;
-    margin: 10px auto;
-    box-shadow: none;
-    border-radius: 0;
-  }
-
-  .form-row {
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .profile-image img {
-    width: 120px;
-    height: 120px;
-  }
-
-  .button-group {
-    flex-direction: column;
-    align-items: center;
-  }
-
-  .edit-btn,
-  .update-btn {
-    width: 100%;
-    padding: 10px;
-  }
-}
-
-.role-field input {
-  max-width: 200px;
-  margin-left: 5px;
 }
 </style>
