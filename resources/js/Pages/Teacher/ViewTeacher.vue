@@ -1,10 +1,13 @@
 <template>
   <MainLayout activeMenu="teachers">
     <div class="teacher-container">
-      <!-- Header -->
+      <!-- Header with Back + Edit -->
       <div class="d-flex justify-between align-items-center mb-4">
         <h2 class="teacher-title">Teacher Profile</h2>
-        <button class="btn btn-secondary" @click="goBack">← Back to List</button>
+        <div class="d-flex gap-2">
+          <button class="btn btn-secondary" @click="goBack">← Back to List</button>
+          <button class="btn btn-warning" @click="editTeacher">✎ Edit</button>
+        </div>
       </div>
 
       <!-- Profile Section -->
@@ -44,7 +47,7 @@
           </thead>
           <tbody>
             <tr v-for="doc in documents" :key="doc.id">
-              <td>{{ doc.name }}</td>
+              <td class="filename-cell" :title="doc.name">{{ doc.name }}</td>
               <td>{{ doc.category?.name || 'N/A' }}</td>
               <td>{{ formatDate(doc.created_at) }}</td>
               <td class="text-center">
@@ -115,6 +118,10 @@ const goBack = () => {
   router.get('/teachers')
 }
 
+const editTeacher = () => {
+  router.get(`/teachers/${props.teacher.id}/edit`)
+}
+
 const formatDate = (dateStr) => {
   const date = new Date(dateStr)
   return date.toLocaleDateString('en-PH', {
@@ -136,6 +143,14 @@ const statusColor = computed(() => {
   max-width: 1100px;
   margin: 0 auto;
   padding: 24px 20px;
+}
+
+/* Wrap or truncate long filenames gracefully */
+.filename-cell {
+  max-width: 300px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .preview-modal {

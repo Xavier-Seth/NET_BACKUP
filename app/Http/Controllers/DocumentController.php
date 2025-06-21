@@ -82,16 +82,57 @@ class DocumentController extends Controller
             'files' => 'required|array',
             'files.*' => 'required|file|mimes:pdf,doc,docx,xlsx,xls,png,jpg,jpeg|max:20480',
             'teacher_id' => 'nullable|exists:teachers,id',
+            'category_id' => 'nullable|exists:categories,id',
+            'action' => 'nullable|in:upload,replace'
         ]);
 
-        $uploadedDocuments = [];
         $user = User::findOrFail(auth()->id());
+        $uploadedDocuments = [];
 
+        // Check only first file for duplicate check logic
+        $file = $request->file('files')[0];
+        $teacherId = $request->teacher_id;
+        $categoryId = $request->category_id;
+
+        // ✅ Check for existing document for same teacher + category
+        $existing = Document::where('teacher_id', $teacherId)
+            ->where('category_id', $categoryId)
+            ->first();
+
+        if ($existing && $request->input('action') !== 'replace') {
+            return response()->json([
+                'duplicate' => true,
+                'existing_document_name' => $existing->name,
+            ]);
+        }
+
+        // ✅ If replacing, delete the old document first and log it
+        if ($existing && $request->input('action') === 'replace') {
+            // Delete the file from storage
+            if ($existing->path && Storage::disk('public')->exists($existing->path)) {
+                Storage::disk('public')->delete($existing->path);
+            }
+
+            if ($existing->pdf_preview_path && Storage::disk('public')->exists($existing->pdf_preview_path)) {
+                Storage::disk('public')->delete($existing->pdf_preview_path);
+            }
+
+            // Log the replacement activity
+            LogService::record(
+                "Replaced document '{$existing->name}'"
+                . ($existing->teacher ? " for teacher {$existing->teacher->full_name}" : "")
+            );
+
+            // Delete the document record
+            $existing->delete();
+        }
+
+        // ✅ Proceed with actual upload
         foreach ($request->file('files') as $file) {
             $document = $uploadService->handle(
                 $file,
-                $request->teacher_id,
-                null,
+                $teacherId,
+                $categoryId,
                 $user
             );
 
@@ -101,15 +142,20 @@ class DocumentController extends Controller
                 'category' => optional($document->category)->name ?? 'N/A',
             ];
 
-            // ✅ Log upload activity
+            // Log upload
             LogService::record(
-                "Uploaded document '{$document->name}'" .
-                ($document->teacher ? " for teacher {$document->teacher->full_name}" : "")
+                "Uploaded document '{$document->name}'"
+                . ($document->teacher ? " for teacher {$document->teacher->full_name}" : "")
             );
         }
 
-        return back()->with('uploadedDocuments', $uploadedDocuments);
+        return response()->json([
+            'success' => true,
+            'uploadedDocuments' => $uploadedDocuments,
+        ]);
     }
+
+
 
     public function scan(Request $request)
     {
@@ -182,7 +228,6 @@ class DocumentController extends Controller
 
         $document->delete();
 
-        // ✅ Log deletion
         LogService::record(
             "Deleted document '{$docName}'" .
             ($teacherName !== 'N/A' ? " belonging to teacher {$teacherName}" : "")

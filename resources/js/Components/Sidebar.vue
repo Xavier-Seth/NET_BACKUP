@@ -21,16 +21,15 @@
             </a>
           </li>
 
-          <!-- ✅ Fixed Teachers Menu -->
           <li>
             <a @click="go('teachers.index')" :class="['nav-link', { active: isActive('teachers.index') }]">
               <i class="bi bi-person-lines-fill"></i> Teachers
             </a>
           </li>
 
-          <!-- Documents dropdown -->
+          <!-- 🔧 Documents dropdown: no highlight on parent -->
           <li>
-            <a class="nav-link" @click="toggle('Documents')" :class="{ active: isInDocuments }">
+            <a class="nav-link" @click="toggle('Documents')">
               <i class="bi bi-folder2-open"></i> Documents
               <i class="bi bi-caret-left-fill caret-icon" :class="{ rotated: openDocs }"></i>
             </a>
@@ -68,7 +67,6 @@
             </ul>
           </li>
 
-          <!-- ✅ Register Teacher -->
           <li>
             <a @click="go('teachers.register')" :class="['nav-link', { active: isActive('teachers.register') }]">
               <i class="bi bi-person-badge"></i> Register Teachers
@@ -96,7 +94,7 @@
     </aside>
 
     <!-- Overlay for mobile -->
-    <div v-if="isOpen && isMobile" class="overlay" @click="isOpen = false"></div>
+    <div v-if="isOpen && isMobile" class="overlay" @click="isOpen.value = false"></div>
   </div>
 </template>
 
@@ -123,7 +121,6 @@ const go = (pathOrRoute) => {
   if (isMobile) isOpen.value = false
 }
 
-// ✅ Fix: exact route match by route name
 const isActive = (nameOrPath) => {
   const url = currentPath.value
   if (!nameOrPath.startsWith('/')) {
@@ -131,11 +128,6 @@ const isActive = (nameOrPath) => {
   }
   return url === nameOrPath
 }
-
-// ✅ Handle grouped dropdown active state
-const isInDocuments = computed(() => {
-  return currentPath.value.startsWith('/documents')
-})
 
 const logout = () => {
   if (confirm('Are you sure you want to log out?')) {

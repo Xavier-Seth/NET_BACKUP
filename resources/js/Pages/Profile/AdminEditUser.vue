@@ -1,191 +1,238 @@
 <template>
-    <div class="app-layout">
-      <Sidebar />
-      <div class="main-content">
-        <Header />
-        <div class="profile-settings">
-          <h2 v-if="!loading && user">Editing Profile of {{ form.last_name }}, {{ form.first_name }}</h2>
-  
-          <!-- ✅ Show loading spinner while fetching -->
-          <div v-if="loading" class="loading">Loading user profile...</div>
-  
-          <!-- ✅ Show error message if fetching fails -->
-          <div v-if="errorMessage" class="error-message">
-            {{ errorMessage }}
-          </div>
-  
-          <div v-if="!loading && user" class="profile-container">
-            <div class="profile-image">
-              <img :src="user.profilePicture || '/images/user-avatar.png'" alt="Profile Picture" />
-              <button class="change-photo" @click="changePhoto">Change Photo</button>
-            </div>
-            <form @submit.prevent="updateProfile" class="profile-form">
-              <div class="form-row">
-                <div class="form-group">
-                  <label>Last Name</label>
-                  <input type="text" v-model="form.last_name" :disabled="!isEditing" />
-                </div>
-                <div class="form-group">
-                  <label>First Name</label>
-                  <input type="text" v-model="form.first_name" :disabled="!isEditing" />
-                </div>
-                <div class="form-group">
-                  <label>Middle Name</label>
-                  <input type="text" v-model="form.middle_name" :disabled="!isEditing" />
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label>Sex</label>
-                  <select v-model="form.sex" :disabled="!isEditing">
-                    <option>Male</option>
-                    <option>Female</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label>Civil Status</label>
-                  <select v-model="form.civil_status" :disabled="!isEditing">
-                    <option>Single</option>
-                    <option>Married</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label>Date of Birth</label>
-                  <input type="date" v-model="form.date_of_birth" :disabled="!isEditing" />
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label>Religion</label>
-                  <input type="text" v-model="form.religion" :disabled="!isEditing" />
-                </div>
-                <div class="form-group">
-                  <label>Phone Number</label>
-                  <input type="text" v-model="form.phone_number" :disabled="!isEditing" />
-                </div>
-                <div class="form-group">
-                  <label>Email Address</label>
-                  <input type="email" v-model="form.email" :disabled="!isEditing" />
-                </div>
-              </div>
-              <div class="form-row">
-                <div class="form-group">
-                  <label>Password</label>
-                  <input type="password" v-model="form.password" :disabled="!isEditing" placeholder="Leave blank if unchanged" />
-                </div>
-                <div class="form-group">
-                  <label>Role</label>
-                  <select v-model="form.role" :disabled="!isEditing">
-                    <option>Admin</option>
-                    <option>LIS</option>
-                    <option>User</option>
-                  </select>
-                </div>
-                <div class="form-group">
-                  <label>Status</label>
-                  <select v-model="form.status" :disabled="!isEditing">
-                    <option value="active">Active</option>
-                    <option value="inactive">Inactive</option>
-                  </select>
-                </div>
-              </div>
-              <div class="button-group">
-                <button type="button" class="edit-btn" @click="toggleEdit">
-                  {{ isEditing ? 'Cancel' : 'Edit' }}
-                </button>
-                <button type="submit" class="update-btn" v-if="isEditing">
-                  Update
-                </button>
-              </div>
-            </form>
+  <div class="flex min-h-screen bg-gray-100">
+    <Sidebar />
+
+    <div class="flex-1 ml-[200px]">
+      <!-- ✅ Toast Alert -->
+      <transition name="fade">
+        <div
+          v-if="showToast"
+          class="fixed top-0 left-0 right-0 z-50 bg-green-600 text-white text-center py-2 shadow"
+        >
+          ✅ User updated successfully.
+        </div>
+      </transition>
+
+      <!-- Banner -->
+      <div class="container d-flex justify-content-center mt-3">
+        <div class="position-relative w-100" style="max-width: 1000px;">
+          <img src="/images/rizal.jpg" class="w-100 rounded-top" style="height: 200px; object-fit: cover;" />
+          <div class="position-absolute top-100 start-50 translate-middle text-center">
+            <label style="cursor: pointer;">
+              <img
+                :src="photoPreview || (user.profilePicture ? `${user.profilePicture}?t=${Date.now()}` : '/images/user-avatar.png')"
+                class="rounded-circle border border-white shadow"
+                style="width: 160px; height: 160px; object-fit: cover;"
+                alt="Profile"
+              />
+              <input ref="photoRef" type="file" accept="image/*" class="d-none" @change="handlePhotoUpload" />
+            </label>
+            <h5 class="mt-2 fw-bold">Edit User Profile</h5>
           </div>
         </div>
       </div>
+
+      <!-- ✅ Success Modal -->
+      <transition name="fade">
+        <div v-if="showSuccessModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div class="bg-white p-6 rounded shadow-lg text-center max-w-sm w-full">
+            <h4 class="text-xl font-semibold mb-2">✅ User Updated!</h4>
+            <p class="text-gray-700 mb-4">Go back to Users list?</p>
+            <div class="d-flex justify-content-center gap-3">
+              <button class="btn btn-success" @click="goToUsers">Yes</button>
+              <button class="btn btn-secondary" @click="showSuccessModal = false">No</button>
+            </div>
+          </div>
+        </div>
+      </transition>
+
+      <!-- Form -->
+      <div class="container d-flex justify-content-center mt-1">
+        <div class="form-wrapper bg-white shadow p-4 w-100" style="max-width: 1000px; border-radius: 0 0 10px 10px;">
+          <form @submit.prevent="submitForm">
+            <!-- Name -->
+            <div class="row mb-3" style="margin-top: 6rem;">
+              <div class="col-md-4">
+                <label class="form-label">Last Name *</label>
+                <input v-model="form.last_name" class="form-control" required />
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">First Name *</label>
+                <input v-model="form.first_name" class="form-control" required />
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Middle Name</label>
+                <input v-model="form.middle_name" class="form-control" />
+              </div>
+            </div>
+
+            <!-- Sex / Civil Status / DOB -->
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label class="form-label">Sex *</label>
+                <select v-model="form.sex" class="form-control" required>
+                  <option value="">Select</option>
+                  <option value="Male">Male</option>
+                  <option value="Female">Female</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Civil Status *</label>
+                <select v-model="form.civil_status" class="form-control" required>
+                  <option value="">Select</option>
+                  <option value="Single">Single</option>
+                  <option value="Married">Married</option>
+                  <option value="Widowed">Widowed</option>
+                </select>
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Date of Birth *</label>
+                <input type="date" v-model="form.date_of_birth" class="form-control" required />
+              </div>
+            </div>
+
+            <!-- Contact -->
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label class="form-label">Religion</label>
+                <input v-model="form.religion" class="form-control" />
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Phone Number *</label>
+                <input type="tel" v-model="form.phone_number" class="form-control" required />
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Email *</label>
+                <input type="email" v-model="form.email" class="form-control" required />
+              </div>
+            </div>
+
+            <!-- Password / Status / Role -->
+            <div class="row mb-3">
+              <div class="col-md-4">
+                <label class="form-label">New Password</label>
+                <input type="password" v-model="form.password" class="form-control" />
+              </div>
+              <div class="col-md-4">
+                <label class="form-label">Confirm Password</label>
+                <input type="password" v-model="form.password_confirmation" class="form-control" />
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Status *</label>
+                <select v-model="form.status" class="form-control" required>
+                  <option value="active">Active</option>
+                  <option value="inactive">Inactive</option>
+                </select>
+              </div>
+              <div class="col-md-2">
+                <label class="form-label">Role *</label>
+                <select v-model="form.role" class="form-control" required>
+                  <option value="Admin">Admin</option>
+                  <option value="Admin Staff">Admin Staff</option>
+                  <option value="User">User</option>
+                </select>
+              </div>
+            </div>
+
+            <!-- Buttons -->
+            <div class="text-end mt-4 d-flex justify-content-between">
+              <div>
+                <button type="button" class="btn btn-outline-secondary me-2" @click="cancelChanges">Cancel Changes</button>
+                <button type="button" class="btn btn-outline-dark" @click="goToUsers">Back to Users List</button>
+              </div>
+              <button type="submit" class="btn btn-success">Save Changes</button>
+            </div>
+          </form>
+        </div>
+      </div>
     </div>
-  </template>
-  
-  <script setup>
-import { ref, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router'; // ✅ Import Vue Router
-import MainLayout from "@/Layouts/MainLayout.vue";
-import axios from 'axios';
+  </div>
+</template>
 
-const users = ref([]);
-const searchQuery = ref("");
-const loading = ref(true);
-const router = useRouter(); // ✅ Define `router`
-const selectedStatus = ref("");
-const selectedRoles = ref({ admin: false, lis: false });
+<script setup>
+import { ref } from 'vue'
+import { useForm, usePage, router } from '@inertiajs/vue3'
+import Sidebar from '@/Components/Sidebar.vue'
 
-// ✅ Confirm Edit & Redirect Admin to Edit Page
-const confirmEdit = (user) => {
-    console.log("Selected User:", user); // ✅ Debugging Log
+const user = usePage().props.user
+const photoPreview = ref(null)
+const showSuccessModal = ref(false)
+const showToast = ref(false)
 
-    if (!user || !user.id) {
-        alert("Invalid user selected.");
-        return;
+const form = useForm({
+  first_name: user.first_name ?? '',
+  last_name: user.last_name ?? '',
+  middle_name: user.middle_name ?? '',
+  sex: user.sex ?? '',
+  civil_status: user.civil_status ?? '',
+  date_of_birth: user.date_of_birth?.substring(0, 10) ?? '',
+  religion: user.religion ?? '',
+  phone_number: user.phone_number ?? '',
+  email: user.email ?? '',
+  role: user.role ?? '',
+  status: user.status ?? '',
+  password: '',
+  password_confirmation: '',
+  photo: null,
+})
+
+function handlePhotoUpload(e) {
+  const file = e.target.files[0]
+  if (file) {
+    form.photo = file
+    photoPreview.value = URL.createObjectURL(file)
+  }
+}
+
+function submitForm() {
+  if (form.password && form.password !== form.password_confirmation) {
+    alert('Passwords do not match!')
+    return
+  }
+
+  form.post(route('admin.update-user.post', { id: user.id }), {
+    preserveScroll: true,
+    forceFormData: true,
+    onSuccess: () => {
+      photoPreview.value = null
+      showSuccessModal.value = true
+      showTemporaryToast()
+    },
+    onError: (errors) => {
+      const firstError = Object.values(errors)[0]
+      alert(firstError || 'An error occurred while updating the user.')
     }
+  })
+}
 
-    if (confirm(`Do you want to edit the profile of ${user.last_name}, ${user.first_name}?`)) {
-        console.log("Redirecting to AdminEditUser.vue for ID:", user.id); // ✅ Debugging Log
-        router.push({ name: 'admin.edit-user', params: { id: user.id } }); // ✅ Fix Undefined Error
-    }
-};
+function goToUsers() {
+  router.visit(route('users.index'))
+}
+
+function cancelChanges() {
+  form.reset()
+  photoPreview.value = null
+}
+
+function showTemporaryToast() {
+  showToast.value = true
+  setTimeout(() => {
+    showToast.value = false
+  }, 3000)
+}
 </script>
 
-  
-  <style scoped>
-  .loading {
-    text-align: center;
-    font-size: 18px;
-    font-weight: bold;
-    color: #007bff;
-  }
-  .error-message {
-    color: #ff0000;
-    font-weight: bold;
-    text-align: center;
-    margin-bottom: 15px;
-  }
-  .app-layout {
-    display: flex;
-    height: 100vh;
-    overflow: hidden;
-  }
-  .main-content {
-    flex: 1;
-    padding: 20px;
-    margin-left: 220px;
-    overflow-y: auto;
-  }
-  .profile-settings {
-    background: white;
-    padding: 30px;
-    border-radius: 8px;
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    width: 90%;
-    max-width: 1200px;
-    margin: auto;
-    margin-top: 20px;
-  }
-  .profile-container {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-  }
-  .profile-image img {
-    width: 150px;
-    height: 150px;
-    border-radius: 50%;
-  }
-  .change-photo {
-    margin-top: 10px;
-    padding: 10px 15px;
-    border: none;
-    background: #007bff;
-    color: white;
-    border-radius: 6px;
-    cursor: pointer;
-  }
-  </style>
-  
+<style scoped>
+.form-wrapper {
+  background-color: #fff;
+  padding: 25px;
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
+  border-radius: 10px;
+}
+.fade-enter-active, .fade-leave-active {
+  transition: opacity 0.3s ease;
+}
+.fade-enter-from, .fade-leave-to {
+  opacity: 0;
+}
+</style>

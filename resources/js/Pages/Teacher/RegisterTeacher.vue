@@ -338,6 +338,7 @@ const submit = () => {
   form.post("/teachers", {
     forceFormData: true,
     onSuccess: () => {
+      alert('User registered successfully!');
       form.reset()
       pdsRef.value.value = ''
       photoRef.value.value = ''

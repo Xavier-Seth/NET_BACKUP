@@ -18,20 +18,43 @@
               </tr>
             </thead>
             <tbody>
-              <tr v-for="log in logs" :key="log.id">
+              <tr v-for="log in paginatedLogs" :key="log.id">
                 <td class="p-3">{{ formatDate(log.created_at) }}</td>
                 <td class="p-3">
                   {{ log.user?.role || 'N/A' }} ({{ getUserName(log.user) }})
                 </td>
                 <td class="p-3">{{ log.activity }}</td>
               </tr>
-              <tr v-if="logs.length === 0">
+              <tr v-if="paginatedLogs.length === 0">
                 <td class="p-3 text-center text-muted" colspan="3">
                   No log entries found.
                 </td>
               </tr>
             </tbody>
           </table>
+
+          <!-- Pagination -->
+          <div class="mt-4 flex justify-center items-center space-x-2">
+            <button
+              class="px-3 py-1 rounded bg-gray-300 hover:bg-gray-400"
+              :disabled="currentPage === 1"
+              @click="currentPage--"
+            >
+              Prev
+            </button>
+
+            <span class="font-medium text-sm">
+              Page {{ currentPage }} of {{ totalPages }}
+            </span>
+
+            <button
+              class="px-3 py-1 rounded bg-gray-300 hover:bg-gray-400"
+              :disabled="currentPage === totalPages"
+              @click="currentPage++"
+            >
+              Next
+            </button>
+          </div>
         </div>
       </div>
     </div>
@@ -39,10 +62,23 @@
 </template>
 
 <script setup>
+import { ref, computed } from "vue";
 import Sidebar from "@/Components/Sidebar.vue";
 
 const props = defineProps({
   logs: Array,
+});
+
+const currentPage = ref(1);
+const perPage = 20;
+
+const totalPages = computed(() =>
+  Math.ceil(props.logs.length / perPage)
+);
+
+const paginatedLogs = computed(() => {
+  const start = (currentPage.value - 1) * perPage;
+  return props.logs.slice(start, start + perPage);
 });
 
 function formatDate(datetime) {

@@ -147,8 +147,10 @@ class ProfileController extends Controller
 
         $user->update($validated);
 
-        return redirect()->route('users.index')->with('success', 'User updated successfully.');
+        // ✅ FIXED: Stay on same page so Vue can handle modal + toast
+        return back(); // or: return response()->noContent();
     }
+
 
     /**
      * Delete an account (only Admin can do so).
@@ -156,17 +158,20 @@ class ProfileController extends Controller
     public function destroy($id)
     {
         $currentUser = Auth::user();
-        if ($currentUser->role !== 'Admin') {
-            return redirect()->route('profile.edit')->with('error', 'Unauthorized action.');
-        }
-
         $user = User::findOrFail($id);
 
+        // ❌ Prevent deleting your own account
         if ($currentUser->id === $user->id) {
-            return redirect()->route('users.index')->with('error', 'Admin cannot delete their own account.');
+            return redirect()->route('users.index')->with('error', 'You cannot delete your own account.');
+        }
+
+        // ❌ Prevent deleting the last remaining admin
+        if ($user->role === 'Admin' && User::where('role', 'Admin')->count() === 1) {
+            return redirect()->route('users.index')->with('error', 'Cannot delete the only remaining Admin account.');
         }
 
         $user->delete();
+
         return redirect()->route('users.index')->with('success', 'User deleted successfully.');
     }
 }

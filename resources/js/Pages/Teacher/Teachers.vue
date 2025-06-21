@@ -1,16 +1,29 @@
 <template>
   <MainLayout activeMenu="teachers">
     <div class="teacher-container">
-      <!-- Header + Add Button -->
+      <!-- Header: Title + Search + Add New Button -->
       <div class="d-flex justify-between align-items-center mb-3 header-row">
         <h2 class="teacher-title">Teachers</h2>
-        <button class="btn btn-primary" @click="addNewTeacher">+ Add New</button>
+        <div class="d-flex align-items-center gap-2">
+          <input
+            type="text"
+            v-model="searchQuery"
+            class="form-control search-input"
+            placeholder="Search teacher..."
+          />
+          <button class="btn btn-primary" @click="addNewTeacher">+ Add New</button>
+        </div>
       </div>
 
-      <!-- Teacher Cards -->
-      <div class="card-list">
+      <!-- Loading Placeholder -->
+      <div v-if="!teachers || teachers.length === 0" class="text-center text-muted py-4">
+        Loading...
+      </div>
+
+      <!-- Teacher Cards with smooth animation -->
+      <transition-group name="fade" tag="div" class="card-list">
         <div
-          v-for="teacher in teachers"
+          v-for="teacher in filteredTeachers"
           :key="teacher.id"
           class="teacher-card"
         >
@@ -20,6 +33,7 @@
               :src="teacher.photo_path ? `/storage/${teacher.photo_path}` : '/images/user-avatar.png'"
               class="profile-img"
               alt="Teacher Photo"
+              loading="lazy"
             />
             <span class="teacher-name">{{ teacher.full_name }}</span>
           </div>
@@ -42,16 +56,28 @@
             <i class="bi bi-trash text-danger" title="Delete" @click="confirmDelete(teacher)"></i>
           </div>
         </div>
-      </div>
+      </transition-group>
     </div>
   </MainLayout>
 </template>
 
 <script setup>
+import { ref, computed } from 'vue'
 import { router } from '@inertiajs/vue3'
 import MainLayout from '@/Layouts/MainLayout.vue'
 
-defineProps({ teachers: Array })
+const props = defineProps({
+  teachers: Array,
+})
+
+const searchQuery = ref('')
+
+const filteredTeachers = computed(() => {
+  const query = searchQuery.value.toLowerCase()
+  return props.teachers.filter(t =>
+    t.full_name.toLowerCase().includes(query)
+  )
+})
 
 const confirmDelete = (teacher) => {
   if (confirm(`⚠️ Are you sure you want to delete ${teacher.full_name}?\nThis will also delete all their uploaded documents.`)) {
@@ -84,14 +110,27 @@ const addNewTeacher = () => {
 
 .header-row {
   display: flex;
+  flex-wrap: wrap;
   justify-content: space-between;
   align-items: center;
+  gap: 12px;
 }
 
 .teacher-title {
   font-size: 24px;
   font-weight: bold;
-  margin-bottom: 0;
+  margin: 0;
+}
+
+.search-input {
+  width: 250px;
+  padding: 8px 12px;
+  border-radius: 8px;
+  border: 1px solid #ccc;
+}
+.search-input:focus {
+  border-color: #007bff;
+  box-shadow: 0 0 4px rgba(0, 123, 255, 0.5);
 }
 
 .card-list {
@@ -99,6 +138,17 @@ const addNewTeacher = () => {
   flex-direction: column;
   gap: 1px;
   margin-top: 16px;
+}
+
+/* Transition animations */
+.fade-enter-active,
+.fade-leave-active {
+  transition: all 0.4s ease;
+}
+.fade-enter-from,
+.fade-leave-to {
+  opacity: 0;
+  transform: translateY(10px);
 }
 
 .teacher-card {

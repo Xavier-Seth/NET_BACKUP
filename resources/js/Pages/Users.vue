@@ -1,3 +1,111 @@
+<script setup>
+import { ref, computed, onMounted } from 'vue'
+import { router, usePage } from '@inertiajs/vue3'
+import MainLayout from '@/Layouts/MainLayout.vue'
+import axios from 'axios'
+
+const users = ref([])
+const loading = ref(true)
+const searchQuery = ref('')
+const statusFilter = ref('active')
+const selectedRoles = ref({ admin: false, adminStaff: false })
+const sortKey = ref('full_name')
+const sortAsc = ref(true)
+
+const showDeleteModal = ref(false)
+const selectedUser = ref(null)
+
+const currentUserId = usePage().props.auth.user.id
+
+const fetchUsers = async () => {
+  try {
+    const response = await axios.get('/api/users')
+    users.value = response.data
+  } catch (err) {
+    console.error('Fetch error:', err)
+  } finally {
+    loading.value = false
+  }
+}
+
+const toggleStatusFilter = () => {
+  statusFilter.value = statusFilter.value === 'active' ? 'inactive' : 'active'
+}
+
+const filteredUsers = computed(() => {
+  return users.value.filter(user => {
+    const fullName = `${user.last_name} ${user.first_name} ${user.middle_name}`.toLowerCase()
+    const search = searchQuery.value.toLowerCase()
+    const matchesSearch = fullName.includes(search)
+    const matchesStatus = user.status.toLowerCase() === statusFilter.value
+    const matchesRole =
+      (!selectedRoles.value.admin && !selectedRoles.value.adminStaff) ||
+      (selectedRoles.value.admin && user.role.toLowerCase() === 'admin') ||
+      (selectedRoles.value.adminStaff && user.role.toLowerCase() === 'admin staff')
+    return matchesSearch && matchesStatus && matchesRole
+  })
+})
+
+const sortedUsers = computed(() => {
+  return [...filteredUsers.value].sort((a, b) => {
+    const fieldA = sortKey.value === 'full_name'
+      ? `${a.last_name} ${a.first_name} ${a.middle_name}`.toLowerCase()
+      : a[sortKey.value]?.toLowerCase()
+    const fieldB = sortKey.value === 'full_name'
+      ? `${b.last_name} ${b.first_name} ${b.middle_name}`.toLowerCase()
+      : b[sortKey.value]?.toLowerCase()
+    if (fieldA < fieldB) return sortAsc.value ? -1 : 1
+    if (fieldA > fieldB) return sortAsc.value ? 1 : -1
+    return 0
+  })
+})
+
+const sortUsers = (key) => {
+  if (sortKey.value === key) {
+    sortAsc.value = !sortAsc.value
+  } else {
+    sortKey.value = key
+    sortAsc.value = true
+  }
+}
+
+const confirmEdit = (user) => {
+  if (!user?.id) {
+    alert('Invalid user selected.')
+    return
+  }
+  if (confirm(`Do you want to edit the profile of ${user.last_name}, ${user.first_name}?`)) {
+    router.get(route('admin.edit-user', { id: user.id }))
+  }
+}
+
+const confirmDelete = (user) => {
+  if (user.id === currentUserId) {
+    alert("⚠️ You cannot delete your own account while logged in.")
+    return
+  }
+  selectedUser.value = user
+  showDeleteModal.value = true
+}
+
+const deleteUser = async () => {
+  if (!selectedUser.value?.id) return
+
+  try {
+    await axios.delete(`/api/users/${selectedUser.value.id}`)
+    users.value = users.value.filter(u => u.id !== selectedUser.value.id)
+    showDeleteModal.value = false
+
+    alert(`${selectedUser.value.last_name}, ${selectedUser.value.first_name} was successfully deleted.`)
+  } catch (error) {
+    console.error('Delete failed:', error)
+    alert('Failed to delete user.')
+  }
+}
+
+onMounted(fetchUsers)
+</script>
+
 <template>
   <MainLayout>
     <!-- Filters -->
@@ -73,7 +181,10 @@
     <div v-if="showDeleteModal" class="modal-backdrop">
       <div class="modal-box">
         <h5>Confirm Deletion</h5>
-        <p>Are you sure you want to delete <strong>{{ selectedUser?.last_name }}, {{ selectedUser?.first_name }}</strong>?</p>
+        <p>
+          Are you sure you want to delete
+          <strong>{{ selectedUser?.last_name }}, {{ selectedUser?.first_name }}</strong>?
+        </p>
         <div class="modal-actions">
           <button class="btn btn-secondary" @click="showDeleteModal = false">Cancel</button>
           <button class="btn btn-danger" @click="deleteUser">Yes, Delete</button>
@@ -82,110 +193,6 @@
     </div>
   </MainLayout>
 </template>
-
-<script setup>
-import { ref, computed, onMounted } from 'vue';
-import { useRouter } from 'vue-router';
-import MainLayout from "@/Layouts/MainLayout.vue";
-import axios from 'axios';
-
-const users = ref([]);
-const loading = ref(true);
-const searchQuery = ref("");
-const statusFilter = ref("active");
-const selectedRoles = ref({ admin: false, adminStaff: false });
-const sortKey = ref("full_name");
-const sortAsc = ref(true);
-const router = useRouter();
-
-const showDeleteModal = ref(false);
-const selectedUser = ref(null);
-
-const fetchUsers = async () => {
-  try {
-    const response = await axios.get('/api/users');
-    users.value = response.data;
-  } catch (err) {
-    console.error("Fetch error:", err);
-  } finally {
-    loading.value = false;
-  }
-};
-
-const toggleStatusFilter = () => {
-  statusFilter.value = statusFilter.value === 'active' ? 'inactive' : 'active';
-};
-
-const filteredUsers = computed(() => {
-  return users.value.filter(user => {
-    const fullName = `${user.last_name} ${user.first_name} ${user.middle_name}`.toLowerCase();
-    const search = searchQuery.value.toLowerCase();
-    const matchesSearch = fullName.includes(search);
-    const matchesStatus = user.status.toLowerCase() === statusFilter.value;
-    const matchesRole =
-      (!selectedRoles.value.admin && !selectedRoles.value.adminStaff) ||
-      (selectedRoles.value.admin && user.role.toLowerCase() === 'admin') ||
-      (selectedRoles.value.adminStaff && user.role.toLowerCase() === 'admin staff');
-    return matchesSearch && matchesStatus && matchesRole;
-  });
-});
-
-const sortedUsers = computed(() => {
-  return [...filteredUsers.value].sort((a, b) => {
-    const fieldA = sortKey.value === 'full_name'
-      ? `${a.last_name} ${a.first_name} ${a.middle_name}`.toLowerCase()
-      : a[sortKey.value]?.toLowerCase();
-    const fieldB = sortKey.value === 'full_name'
-      ? `${b.last_name} ${b.first_name} ${b.middle_name}`.toLowerCase()
-      : b[sortKey.value]?.toLowerCase();
-    if (fieldA < fieldB) return sortAsc.value ? -1 : 1;
-    if (fieldA > fieldB) return sortAsc.value ? 1 : -1;
-    return 0;
-  });
-});
-
-const sortUsers = (key) => {
-  if (sortKey.value === key) {
-    sortAsc.value = !sortAsc.value;
-  } else {
-    sortKey.value = key;
-    sortAsc.value = true;
-  }
-};
-
-const confirmEdit = (user) => {
-  if (!user?.id) {
-    alert("Invalid user selected.");
-    return;
-  }
-  if (confirm(`Do you want to edit the profile of ${user.last_name}, ${user.first_name}?`)) {
-    router.push({ name: 'admin.edit-user', params: { id: user.id } });
-  }
-};
-
-const confirmDelete = (user) => {
-  selectedUser.value = user;
-  showDeleteModal.value = true;
-};
-
-const deleteUser = async () => {
-  if (!selectedUser.value?.id) return;
-
-  try {
-    await axios.delete(`/api/users/${selectedUser.value.id}`);
-    users.value = users.value.filter(u => u.id !== selectedUser.value.id);
-    showDeleteModal.value = false;
-
-    // ✅ Show success alert
-    alert(`${selectedUser.value.last_name}, ${selectedUser.value.first_name} was successfully deleted.`);
-  } catch (error) {
-    console.error("Delete failed:", error);
-    alert("Failed to delete user.");
-  }
-};
-
-onMounted(fetchUsers);
-</script>
 
 <style scoped>
 /* Keep your full CSS as it already looks great */
@@ -359,6 +366,7 @@ onMounted(fetchUsers);
   .users-table td:nth-of-type(5)::before { content: "Actions"; }
 }
 
+/* ✅ Modal Styling */
 .modal-backdrop {
   position: fixed;
   top: 0;
@@ -382,11 +390,16 @@ onMounted(fetchUsers);
   text-align: center;
 }
 
+/* ✅ Updated for horizontal button layout */
 .modal-actions {
   display: flex;
-  justify-content: flex-end;
-  gap: 10px;
+  justify-content: center;
+  gap: 20px;
   margin-top: 20px;
+}
+
+.modal-actions .btn {
+  min-width: 110px;
 }
 
 .btn-secondary {

@@ -1,221 +1,242 @@
 <template>
   <MainLayout activeMenu="dashboard">
-    <!-- ✅ Success Notification -->
-    <div v-if="success" class="notification-bar">
-      {{ success }}
+    <!-- Top Section: Avatars + Widgets -->
+    <div class="d-flex justify-content-between align-items-center px-4 py-3 bg-light flex-wrap">
+      <!-- Avatar Carousel -->
+      <div class="d-flex align-items-center">
+        <!-- Left Arrow -->
+        <button
+          class="carousel-arrow"
+          @click="scrollAvatars(-1)"
+          :disabled="avatarIndex === 0"
+        >
+          ‹
+        </button>
+
+        <!-- 6-Slot Avatar Row -->
+        <div class="d-flex gap-3 fixed-avatar-row">
+          <div
+            v-for="teacher in visibleAvatars"
+            :key="teacher.id"
+            class="avatar-wrapper text-center"
+            :title="teacher.name"
+            @click="viewDocuments(teacher.id)"
+          >
+            <div class="story-ring">
+              <img :src="teacher.photo" class="rounded-circle avatar-img" />
+            </div>
+            <small class="d-block mt-1 text-truncate text-muted">{{ teacher.name }}</small>
+          </div>
+        </div>
+
+        <!-- Right Arrow -->
+        <button
+          class="carousel-arrow"
+          @click="scrollAvatars(1)"
+          :disabled="avatarIndex + 6 >= avatars.length"
+        >
+          ›
+        </button>
+      </div>
+
+      <!-- Widgets -->
+      <div class="d-flex gap-3 ms-auto mt-3 mt-md-0">
+        <!-- Storage Widget -->
+        <div class="storage-card p-3 border rounded text-center">
+          <h6 class="text-primary mb-2">Total Storage</h6>
+          <div class="donut-chart mx-auto">
+            <svg viewBox="0 0 36 36" class="donut-svg">
+              <circle class="donut-bg" cx="18" cy="18" r="15" />
+              <circle
+                class="donut-fg"
+                cx="18"
+                cy="18"
+                r="15"
+                :stroke-dasharray="`${percentage},100`"
+              />
+              <text x="18" y="20" text-anchor="middle" class="donut-text">{{ percentage }}%</text>
+            </svg>
+          </div>
+          <p class="mt-2 mb-0">{{ totalStorage }}</p>
+        </div>
+
+        <!-- Teachers Widget -->
+        <div class="teacher-widget p-3 border rounded text-center">
+          <h6 class="text-primary mb-2">Total Teachers</h6>
+          <div>
+            <i class="bi bi-person-lines-fill fs-2 text-info"></i>
+            <p class="mt-2 mb-0 fs-5 fw-bold">{{ totalTeachers }}</p>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <!-- ✅ Stat Cards -->
-    <section class="stats">
-      <div class="stat-card navy">
-        <i class="bi bi-file-earmark-text stat-icon"></i>
-        <h3>Total Documents</h3>
-        <p>{{ totalDocuments }}</p>
+    <!-- Teacher List Cards -->
+    <div class="teacher-list p-4 bg-white">
+      <div
+        v-for="teacher in teachers"
+        :key="teacher.id"
+        class="d-flex align-items-center border-bottom py-3"
+      >
+        <img :src="teacher.photo" alt="Teacher" class="rounded-circle avatar-img me-3" />
+        <div class="flex-grow-1">
+          <div class="fw-semibold">{{ teacher.name }}</div>
+        </div>
+        <div class="d-flex align-items-center me-4">
+          <span :class="['status-dot', teacher.status]"></span>
+          <span class="ms-1 status-label text-capitalize">{{ teacher.status }}</span>
+        </div>
+        <button class="btn btn-outline-primary btn-sm" @click="viewDocuments(teacher.id)">
+          View Documents
+        </button>
       </div>
-      <div class="stat-card green">
-        <i class="bi bi-people stat-icon"></i>
-        <h3>Active Users</h3>
-        <p>{{ totalUsers }}</p>
-      </div>
-      <div class="stat-card red">
-        <i class="bi bi-hdd-stack stat-icon"></i>
-        <h3>Storage Usage</h3>
-        <p>{{ totalStorage }}</p>
-      </div>
-    </section>
 
-    <!-- ✅ Recently Uploaded -->
-    <section class="files-table-section">
-      <div class="table-heading">
-        <h2>Recently Uploaded</h2>
-      </div>
-      <div class="table-container">
-        <table class="dashboard-table">
-          <thead>
-            <tr>
-              <th>Filename</th>
-              <th>Category</th>
-              <th>Uploaded By</th>
-              <th>Uploaded At</th>
-              <th>Action</th>
-            </tr>
-          </thead>
-          <tbody>
-            <tr v-for="file in recentUploads" :key="file.id">
-              <td>{{ file.filename }}</td>
-              <td class="text-capitalize">{{ file.category || 'N/A' }}</td>
-              <td>{{ file.uploaded_by }}</td>
-              <td>{{ new Date(file.created_at).toLocaleString() }}</td>
-              <td>
-                <button class="btn-action view" @click="previewFile(file)">
-                  <i class="bi bi-eye"></i>
-                </button>
-              </td>
-            </tr>
-          </tbody>
-        </table>
-      </div>
-    </section>
-
-    <!-- ✅ Preview Modal -->
-    <div v-if="previewUrl" class="preview-modal">
-      <div class="preview-content">
-        <button class="close-preview" @click="closePreview">&times;</button>
-        <iframe :src="previewUrl" frameborder="0" class="preview-frame"></iframe>
+      <!-- Pagination -->
+      <div v-if="pagination?.links?.length" class="text-center mt-4">
+        <button
+          v-for="(link, index) in pagination.links"
+          :key="index"
+          class="btn btn-sm mx-1"
+          :class="{ 'btn-primary': link.active, 'btn-outline-secondary': !link.active }"
+          :disabled="!link.url"
+          v-html="link.label"
+          @click="goToPage(link.url)"
+        />
       </div>
     </div>
   </MainLayout>
 </template>
 
 <script setup>
+import { usePage, router } from '@inertiajs/vue3'
+import { ref, computed } from 'vue'
 import MainLayout from '@/Layouts/MainLayout.vue'
-import { ref } from 'vue'
-import { usePage } from '@inertiajs/vue3'
 
 const page = usePage()
-const totalDocuments = page.props.totalDocuments
-const totalUsers = page.props.totalUsers
-const totalStorage = page.props.totalStorage
-const recentUploads = page.props.recentUploads || []
-const success = page.props.success
 
-const previewUrl = ref(null)
+// Props
+const avatars = page.props.avatars || []
+const teachers = page.props.teachers?.data || []
+const pagination = page.props.teachers
+const totalStorage = page.props.totalStorage || '0.00 MB'
+const totalTeachers = page.props.totalTeachers || 0
 
-function previewFile(file) {
-  previewUrl.value = `/storage/${file.pdf_preview_path || file.file_path}`
-  document.body.style.overflow = 'hidden'
+// Avatar carousel state
+const avatarIndex = ref(0)
+const visibleAvatars = computed(() => avatars.slice(avatarIndex.value, avatarIndex.value + 6))
+
+const scrollAvatars = (direction) => {
+  const newIndex = avatarIndex.value + direction
+  if (newIndex >= 0 && newIndex <= avatars.length - 6) {
+    avatarIndex.value = newIndex
+  }
 }
 
-function closePreview() {
-  previewUrl.value = null
-  document.body.style.overflow = ''
+const viewDocuments = (id) => router.visit(`/teachers/${id}`)
+
+const goToPage = (url) => {
+  if (url) router.visit(url, { preserveScroll: true })
 }
+
+const percentage = computed(() => {
+  const used = parseFloat(totalStorage)
+  return Math.min(Math.round((used / 1000) * 100), 100)
+})
 </script>
 
 <style scoped>
-.notification-bar {
-  background-color: #d1e7dd;
-  color: #0f5132;
-  padding: 12px;
+/* Avatar Carousel */
+.fixed-avatar-row {
+  width: 520px;
+  justify-content: space-between;
+}
+.avatar-wrapper {
+  flex: 0 0 auto;
+  width: 70px;
   text-align: center;
-  border-radius: 6px;
-  margin: 10px 80px;
-  font-weight: bold;
-  border: 1px solid #badbcc;
+  cursor: pointer;
 }
-
-.stats {
-  margin-top: 30px;
-  margin-left: 80px;
-  display: flex;
-  justify-content: flex-start;
-  gap: 75px;
-  flex-wrap: wrap;
+.avatar-img {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 50%;
 }
-.stat-card {
-  flex: 1;
-  min-width: 240px;
-  max-width: 280px;
-  height: 150px;
-  border-radius: 15px;
-  box-shadow: 2px 2px 8px rgba(0, 0, 0, 0.1);
-  color: white;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  text-align: center;
+.story-ring {
+  padding: 2px;
+  background: linear-gradient(45deg, #0d6efd, #ffc107);
+  border-radius: 50%;
+  display: inline-block;
 }
-.stat-icon {
-  font-size: 2rem;
-  margin-bottom: 10px;
+.story-ring img {
+  border: 2px solid #fff;
 }
-.navy { background: #19184f; }
-.green { background: #002500; }
-.red { background: #7b0828; }
-
-.files-table-section {
-  margin-top: 20px;
-  margin-left: 80px;
-  margin-right: 20px;
-}
-.table-heading {
-  margin-bottom: 10px;
-}
-.table-container {
-  background: white;
-  border-radius: 10px;
-  padding: 15px;
-  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
-  overflow-x: auto;
-}
-.dashboard-table {
-  width: 100%;
-  border-collapse: collapse;
-}
-.dashboard-table th,
-.dashboard-table td {
-  padding: 15px;
-  border-bottom: 1px solid #ddd;
-  font-size: 15px;
-}
-.dashboard-table thead th {
-  background: #19184f;
-  color: white;
-  white-space: nowrap;
-}
-
-.btn-action {
-  border: none;
+.carousel-arrow {
   background: none;
-  cursor: pointer;
-  font-size: 18px;
-  color: #333;
-}
-.btn-action.view i {
+  border: none;
+  font-size: 2rem;
+  font-weight: bold;
   color: #0d6efd;
+  cursor: pointer;
+  padding: 0 10px;
 }
-.btn-action:hover {
-  color: #007bff;
+.carousel-arrow:disabled {
+  color: #ccc;
+  cursor: not-allowed;
 }
 
-/* 🔍 Modal */
-.preview-modal {
-  position: fixed;
-  inset: 0;
-  background: rgba(0, 0, 0, 0.7);
-  z-index: 1000;
-  display: flex;
-  align-items: center;
-  justify-content: center;
+/* Widgets */
+.storage-card,
+.teacher-widget {
+  width: 180px;
+  background: #fff;
 }
-.preview-content {
-  background: white;
-  border-radius: 10px;
-  width: 90vw;
-  height: 85vh;
-  max-width: 900px;
-  box-shadow: 0 0 30px rgba(0, 0, 0, 0.4);
-  position: relative;
-  display: flex;
-  flex-direction: column;
+.donut-chart {
+  width: 100px;
+  height: 100px;
 }
-.preview-frame {
-  flex: 1;
+.donut-svg {
+  transform: rotate(-90deg);
   width: 100%;
-  border: none;
-  border-radius: 0 0 10px 10px;
+  height: 100%;
 }
-.close-preview {
-  position: absolute;
-  top: 10px;
-  right: 10px;
-  background: #dc3545;
-  color: white;
-  border: none;
-  padding: 6px 12px;
-  border-radius: 6px;
-  cursor: pointer;
-  font-size: 16px;
+.donut-bg {
+  fill: none;
+  stroke: #e9ecef;
+  stroke-width: 4;
+}
+.donut-fg {
+  fill: none;
+  stroke: #28a745;
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.6s ease;
+}
+.donut-text {
+  font-size: 0.5em;
+  fill: #28a745;
+  font-weight: bold;
+  transform: rotate(90deg);
+}
+
+/* Teacher List */
+.teacher-list {
+  background: #fff;
+}
+.status-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.status-dot.active {
+  background: #28a745;
+}
+.status-dot.inactive {
+  background: #ffc107;
+}
+.status-label {
+  font-size: 0.9rem;
+  color: #6c757d;
 }
 </style>

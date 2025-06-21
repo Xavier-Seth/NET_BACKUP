@@ -132,7 +132,12 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
     Route::get('/api/users', [UserController::class, 'getUsers'])->name('api.users');
 
     Route::get('/admin/edit-user/{id}', [ProfileController::class, 'editAdmin'])->name('admin.edit-user');
+
+    // ✅ PATCH route (original)
     Route::patch('/admin/edit-user/{id}', [ProfileController::class, 'updateAdmin'])->name('admin.update-user');
+
+    // ✅ NEW POST route (added for form.post support)
+    Route::post('/admin/edit-user/{id}/update', [ProfileController::class, 'updateAdmin'])->name('admin.update-user.post');
 
     Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware(['auth:sanctum', 'role:Admin']);
 });
