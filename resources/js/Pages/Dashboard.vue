@@ -147,8 +147,12 @@ const percentage = computed(() => {
 <style scoped>
 /* Avatar Carousel */
 .fixed-avatar-row {
-  width: 520px;
-  justify-content: space-between;
+  width: auto;
+  flex-wrap: nowrap;
+  gap: 1rem;
+}
+.fixed-avatar-row {
+  overflow-x: auto;
 }
 .avatar-wrapper {
   flex: 0 0 auto;

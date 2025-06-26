@@ -2,37 +2,28 @@
   <div class="layout">
     <Sidebar v-if="isSidebarVisible" />
     <div class="content">
-      <button class="toggle-sidebar-btn d-md-none" @click="toggleSidebar">Toggle Sidebar</button>
-
       <div class="documents-container">
-        <!-- Controls -->
         <div class="controls d-flex align-items-center">
           <button class="btn upload-btn" @click="goToUpload">Upload</button>
-
           <div class="teacher-filter ms-3">
             <label for="teacher">Teacher</label>
             <select id="teacher" v-model="teacherFilter" class="form-select">
               <option value="">All</option>
-              <option v-for="t in teachers" :key="t.id" :value="t.full_name">
-                {{ t.full_name }}
-              </option>
+              <option v-for="t in teachers" :key="t.id" :value="t.full_name">{{ t.full_name }}</option>
             </select>
           </div>
-
           <input
-            type="text"
             v-model="searchQuery"
+            type="text"
             class="search-bar ms-auto"
             placeholder="Search by document name..."
           />
         </div>
 
-        <!-- No Results -->
         <div v-if="filteredDocuments.length === 0" class="text-center text-muted py-5 fs-6">
           <i class="bi bi-info-circle"></i> No documents found.
         </div>
 
-        <!-- Table Results -->
         <div v-else class="table-wrapper">
           <table class="documents-table">
             <thead>
@@ -50,13 +41,9 @@
             <table class="documents-table">
               <tbody>
                 <tr v-for="document in paginatedDocuments" :key="document.id">
-                  <td class="truncate-cell" :title="document.name">
-                    {{ document.name }}
-                  </td>
+                  <td class="truncate-cell">{{ document.name }}</td>
                   <td>{{ document.teacher?.full_name ?? 'N/A' }}</td>
-                  <td class="truncate-cell" :title="document.category?.name ?? 'N/A'">
-                    {{ document.category?.name ?? 'N/A' }}
-                  </td>
+                  <td class="truncate-cell">{{ document.category?.name ?? 'N/A' }}</td>
                   <td>{{ formatDate(document.created_at) }}</td>
                   <td class="action-buttons">
                     <button @click="previewDocument(document)" class="icon-btn" title="Preview">
@@ -70,6 +57,9 @@
                     >
                       <i class="bi bi-download"></i>
                     </a>
+                    <button @click="openEditModal(document)" class="icon-btn text-warning" title="Edit">
+                      <i class="bi bi-pencil"></i>
+                    </button>
                     <button @click="confirmDelete(document)" class="icon-btn text-danger" title="Delete">
                       <i class="bi bi-trash"></i>
                     </button>
@@ -79,7 +69,6 @@
             </table>
           </div>
 
-          <!-- Pagination -->
           <div class="pagination-info">
             Showing {{ paginationRange.start }} to {{ paginationRange.end }} of {{ paginationRange.total }} entries
           </div>
@@ -93,25 +82,58 @@
     </div>
 
     <!-- Preview Modal -->
-    <div v-if="previewUrl" class="preview-modal">
-      <div class="preview-content">
-        <button class="close-preview" @click="closePreview">&times;</button>
-        <iframe v-if="previewType === 'pdf'" :src="previewUrl" frameborder="0"></iframe>
-        <img v-else :src="previewUrl" alt="Document Preview" />
+    <!-- Preview Modal -->
+<div v-if="previewUrl" class="preview-modal">
+  <div class="preview-content">
+    <button class="close-preview" @click="closePreview">&times;</button>
+    <!-- Let browser show native PDF controls -->
+    <iframe :src="previewUrl" class="preview-frame" frameborder="0"></iframe>
+  </div>
+</div>
+
+    <!-- Edit Metadata Modal -->
+    <div v-if="editingDoc" class="preview-modal">
+      <div class="preview-content p-6 edit-modal">
+        <h2 class="font-bold text-lg mb-4">Edit Document Metadata</h2>
+
+        <label class="block font-semibold mb-1">Document Name</label>
+        <input v-model="editForm.name" type="text" class="border rounded p-2 w-full mb-4" />
+
+        <label class="block font-semibold mb-1">Teacher</label>
+        <select v-model="editForm.teacher_id" class="border rounded p-2 w-full mb-4">
+          <option value="">-- Select Teacher --</option>
+          <option v-for="t in teachers" :key="t.id" :value="t.id">{{ t.full_name }}</option>
+        </select>
+
+        <label class="block font-semibold mb-1">Category</label>
+        <select v-model="editForm.category_id" class="border rounded p-2 w-full mb-4">
+          <option value="">-- Select Category --</option>
+          <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
+        </select>
+
+        <div class="flex justify-end w-full mt-4">
+          <button @click="submitEdit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded mr-2">
+            Save
+          </button>
+          <button @click="editingDoc = null" class="bg-gray-300 hover:bg-gray-400 px-4 py-2 rounded">
+            Cancel
+          </button>
+        </div>
       </div>
     </div>
   </div>
 </template>
-
 
 <script setup>
 import Sidebar from "@/Components/Sidebar.vue";
 import { ref, computed, watch } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 
-const { props } = usePage();
-const documents = ref(props.documents);
-const teachers = ref(props.teachers);
+// ✅ Pull all props passed by controller
+const page = usePage().props;
+const documents = ref(page.documents);
+const teachers = ref(page.teachers);
+const categories = ref(page.categories); // ✅ this is required for the category dropdown
 
 const currentPage = ref(1);
 const searchQuery = ref("");
@@ -121,29 +143,27 @@ const previewType = ref("pdf");
 const ENTRIES_PER_PAGE = 20;
 const isSidebarVisible = ref(true);
 
+const editingDoc = ref(null);
+const editForm = ref({ name: "", teacher_id: "", category_id: "" });
+
 const teacherCategories = [
   "Work Experience Sheet",
   "Personal Data Sheet",
   "Oath of Office",
   "Certification of Assumption to Duty",
   "Transcript of Records",
-  "Appointment Form"
+  "Appointment Form",
 ];
 
-function toggleSidebar() {
-  isSidebarVisible.value = !isSidebarVisible.value;
-}
-
-function previewDocument(document) {
-  const extension = document.name.split(".").pop().toLowerCase();
-
-  if (extension === "pdf" || ["jpg", "jpeg", "png"].includes(extension)) {
-    previewType.value = extension === "pdf" ? "pdf" : "image";
-    previewUrl.value = `/documents/${document.id}/preview`;
-  } else if (["doc", "docx", "xls", "xlsx"].includes(extension)) {
-    if (document.pdf_preview_path) {
+function previewDocument(doc) {
+  const ext = doc.name.split(".").pop().toLowerCase();
+  if (ext === "pdf" || ["jpg", "jpeg", "png"].includes(ext)) {
+    previewType.value = ext === "pdf" ? "pdf" : "image";
+    previewUrl.value = `/documents/${doc.id}/preview`;
+  } else if (["doc", "docx", "xls", "xlsx"].includes(ext)) {
+    if (doc.pdf_preview_path) {
       previewType.value = "pdf";
-      previewUrl.value = `/storage/${document.pdf_preview_path}`;
+      previewUrl.value = `/storage/${doc.pdf_preview_path}`;
     } else {
       alert("❗ No PDF preview available for this document.");
     }
@@ -157,67 +177,83 @@ function closePreview() {
   previewType.value = null;
 }
 
-function confirmDelete(document) {
-  if (confirm(`Are you sure you want to delete "${document.name}"?`)) {
-    router.delete(`/documents/${document.id}`, {
-      onSuccess: () => {
-        documents.value = documents.value.filter(d => d.id !== document.id);
-      },
-      onError: () => {
-        alert("❗ Failed to delete the document.");
-      }
-    });
-  }
+function confirmDelete(doc) {
+  if (!confirm(`Delete "${doc.name}"?`)) return;
+  router.delete(`/documents/${doc.id}`, {
+    onSuccess: () => {
+      documents.value = documents.value.filter(d => d.id !== doc.id);
+    },
+    onError: () => alert("❗ Failed to delete the document."),
+  });
 }
 
-watch(previewUrl, (val) => {
+function openEditModal(doc) {
+  editingDoc.value = doc;
+  editForm.value = {
+    name: doc.name || "",
+    teacher_id: doc.teacher_id || "",
+    category_id: doc.category_id || "",
+  };
+}
+
+function submitEdit() {
+  router.patch(`/documents/${editingDoc.value.id}/update-metadata`, {
+    name: editForm.value.name,
+    teacher_id: editForm.value.teacher_id,
+    category_id: editForm.value.category_id,
+  }, {
+    preserveScroll: true,
+    onSuccess: () => {
+      editingDoc.value = null;
+      router.reload({ only: ["documents"] });
+    },
+  });
+}
+
+watch(previewUrl, val => {
   document.body.style.overflow = val ? "hidden" : "";
 });
+watch([searchQuery, teacherFilter], () => currentPage.value = 1);
 
-watch([searchQuery, teacherFilter], () => {
-  currentPage.value = 1;
-});
-
-const filteredDocuments = computed(() => {
-  return documents.value.filter((doc) => {
-    const name = doc.name ?? "";
-    const teacher = doc.teacher?.full_name ?? "";
-    const category = doc.category?.name ?? "";
-
-    const matchesCategory = teacherCategories.includes(category);
-    const matchesSearch = name.toLowerCase().includes(searchQuery.value.toLowerCase());
-    const matchesTeacher = teacherFilter.value === "" || teacher === teacherFilter.value;
-
-    return matchesCategory && matchesSearch && matchesTeacher;
-  });
-});
+const filteredDocuments = computed(() =>
+  documents.value.filter(doc => {
+    const n = doc.name.toLowerCase();
+    const t = doc.teacher?.full_name ?? "";
+    const c = doc.category?.name ?? "";
+    return (
+      teacherCategories.includes(c) &&
+      n.includes(searchQuery.value.toLowerCase()) &&
+      (teacherFilter.value === "" || t === teacherFilter.value)
+    );
+  })
+);
 
 const paginatedDocuments = computed(() => {
   const start = (currentPage.value - 1) * ENTRIES_PER_PAGE;
-  const end = start + ENTRIES_PER_PAGE;
-  return filteredDocuments.value.slice(start, end);
+  return filteredDocuments.value.slice(start, start + ENTRIES_PER_PAGE);
 });
 
-const totalPages = computed(() => Math.ceil(filteredDocuments.value.length / ENTRIES_PER_PAGE));
+const totalPages = computed(() =>
+  Math.ceil(filteredDocuments.value.length / ENTRIES_PER_PAGE)
+);
 
 const paginationRange = computed(() => {
   const total = filteredDocuments.value.length;
-  if (total === 0) return { start: 0, end: 0, total };
+  if (!total) return { start: 0, end: 0, total };
   const start = (currentPage.value - 1) * ENTRIES_PER_PAGE + 1;
   const end = Math.min(start + ENTRIES_PER_PAGE - 1, total);
   return { start, end, total };
 });
 
-function formatDate(date) {
-  return new Date(date).toLocaleDateString();
+function formatDate(d) {
+  return new Date(d).toLocaleDateString();
 }
 
 const goToUpload = () => router.get("/upload");
 </script>
-  
-  <style scoped>
-  
 
+  
+<style scoped>
   html, body {
     height: 100%;
     margin: 0;
@@ -458,37 +494,70 @@ const goToUpload = () => router.get("/upload");
     background-color: #157347;
   }
   
-  .preview-modal {
-    position: fixed;
-    inset: 0;
-    z-index: 999;
-    background: rgba(0, 0, 0, 0.6);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-  }
+ .preview-modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.7);
+  z-index: 9999;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
   
-  .preview-content {
-    position: relative;
-    background: white;
-    width: 90vw;
-    max-width: 700px;
-    height: 500px;
-    border-radius: 10px;
-    overflow-y: auto;
-    box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    padding: 15px;
-  }
-  .preview-content iframe,
-  .preview-content img {
-    width: 100%;
-    height: 100%;
-    object-fit: contain;
-    border-radius: 6px;
-  }
+ .preview-content {
+  position: relative;
+  background: white;
+  width: 90vw;
+  max-width: 900px;
+  max-height: 90vh;
+  border-radius: 10px;
+  overflow: hidden;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.4);
+  display: flex;
+  flex-direction: column;
+
+}.preview-content {
+  background: white;
+  width: 90vw;
+  height: 85vh;
+  max-width: 900px;
+  border-radius: 10px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow: 0 0 20px rgba(0, 0, 0, 0.5);
+}
+
+.preview-frame {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
+.close-preview {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: #dc3545;
+  color: white;
+  border: none;
+  padding: 6px 12px;
+  border-radius: 6px;
+  font-size: 18px;
+  cursor: pointer;
+}
+
+.preview-content iframe,
+.preview-content img {
+  flex: 1;
+  width: 100%;
+  height: 80vh;
+  object-fit: contain;
+  border: none;
+}
   .close-preview {
     position: absolute;
     top: 10px;
@@ -502,6 +571,16 @@ const goToUpload = () => router.get("/upload");
     font-size: 16px;
     z-index: 1;
   }
+  .edit-modal {
+  max-width: 900px;
+  width: 90vw;
+  height: auto;
+  align-items: flex-start;
+  justify-content: flex-start;
+  display: flex;
+  flex-direction: column;
+}
+
   
   @media (max-width: 768px) {
     .layout {

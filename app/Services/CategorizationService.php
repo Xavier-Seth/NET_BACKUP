@@ -76,6 +76,7 @@ class CategorizationService
             'Certification of Assumption to Duty',
             'Transcript of Records',
             'Appointment Form',
+            'Daily Time Record',
         ];
     }
 }

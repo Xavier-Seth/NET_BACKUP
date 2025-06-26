@@ -2,7 +2,6 @@
   <div>
     <div class="flex bg-gray-100 min-h-screen">
       <Sidebar />
-
       <div class="flex-1 bg-gray-100 overflow-y-auto ml-[200px]">
         <div class="flex justify-center items-center min-h-screen px-4 py-10">
           <div
@@ -21,14 +20,12 @@
               ⚠️ Flask app is offline. Using fallback mode (no OCR).
             </p>
 
-            <p
-              v-if="successMessage"
-              class="text-green-700 font-semibold bg-green-100 border border-green-300 rounded p-3 mt-4 w-full text-center transition-all duration-500"
-            >
+            <p v-if="successMessage"
+              class="text-green-700 font-semibold bg-green-100 border border-green-300 rounded p-3 mt-4 w-full text-center transition-all duration-500">
               {{ successMessage }}
             </p>
 
-            <!-- Detected Info -->
+            <!-- Detected Info Section -->
             <div
               v-if="selectedFiles.length && !isScanning"
               class="mt-4 w-full max-w-xs mx-auto text-left text-sm text-gray-800"
@@ -41,12 +38,30 @@
                 No category or teacher detected. Please select the category manually:
               </div>
 
+              <!-- ✅ Grouped Category Dropdown -->
               <div v-if="showCategorySelection" class="mb-4">
                 <select v-model="category_id" class="border rounded p-2 w-full">
                   <option disabled value="">Select Category</option>
-                  <option v-for="c in categories" :key="c.id" :value="c.id">
-                    {{ c.name }}
-                  </option>
+
+                  <optgroup label="📚 Teacher-Related Documents">
+                    <option
+                      v-for="c in categories.filter(c => teacherDocumentTypes.includes(c.name))"
+                      :key="`teacher-${c.id}`"
+                      :value="c.id"
+                    >
+                      {{ c.name }}
+                    </option>
+                  </optgroup>
+
+                  <optgroup label="🏫 School Property Documents">
+                    <option
+                      v-for="c in categories.filter(c => !teacherDocumentTypes.includes(c.name))"
+                      :key="`school-${c.id}`"
+                      :value="c.id"
+                    >
+                      {{ c.name }}
+                    </option>
+                  </optgroup>
                 </select>
               </div>
 
@@ -72,7 +87,7 @@
               </div>
             </div>
 
-            <!-- File Input -->
+            <!-- File Input and Upload -->
             <div class="flex gap-2 justify-center mt-4">
               <input
                 id="fileInput"
@@ -93,7 +108,7 @@
 
             <div v-if="isScanning || isUploading" class="spinner mt-6"></div>
 
-            <!-- Selected Files -->
+            <!-- Selected Files List -->
             <div
               v-if="selectedFiles.length && !isScanning && !isUploading"
               class="selected-files mt-6 w-full text-left"
@@ -127,7 +142,7 @@
       </div>
     </div>
 
-    <!-- Duplicate Prompt Modal -->
+    <!-- Modal -->
     <DuplicatePromptModal
       v-if="showDuplicateModal"
       :existing-name="duplicateDocName"
@@ -175,15 +190,21 @@ export default {
         "Oath of Office",
         "Certification of Assumption to Duty",
         "Transcript of Records",
-        "Appointment Form"
+        "Appointment Form",
+        "Daily Time Record"
       ]
     };
+  },
+  watch: {
+    category_id(newVal) {
+      const selectedCategory = this.categories.find(c => c.id === newVal)?.name;
+      this.showTeacherSelection = this.teacherDocumentTypes.includes(selectedCategory);
+    }
   },
   methods: {
     browseFile() {
       document.getElementById("fileInput").click();
     },
-
     handleFileUpload(e) {
       this.selectedFiles = Array.from(e.target.files);
       this.successMessage = "";
@@ -191,25 +212,21 @@ export default {
         this.scanFile(this.selectedFiles[0]);
       }
     },
-
     async scanFile(file) {
       this.isScanning = true;
       const formData = new FormData();
       formData.append("file", file);
-
       try {
-        const res = await axios.post("/upload/scan", formData, {
-          headers: { "Content-Type": "multipart/form-data" }
-        });
-
+        const res = await axios.post("/upload/scan", formData);
         this.detectedTeacher = res.data.teacher || null;
         this.detectedCategory = res.data.category || null;
         this.flaskOffline = !!res.data.fallback_used;
-        // Always show category selection if not detected
         this.showCategorySelection = !this.detectedCategory;
-        // Show teacher selection if the chosen or detected category is in teacherDocumentTypes
-        const categoryForCheck = this.detectedCategory ||
+
+        const categoryForCheck =
+          this.detectedCategory ||
           this.categories.find(c => c.id === this.category_id)?.name;
+
         this.showTeacherSelection =
           !!categoryForCheck &&
           this.teacherDocumentTypes.includes(categoryForCheck);
@@ -228,11 +245,9 @@ export default {
         this.isScanning = false;
       }
     },
-
     removeFile(i) {
       this.selectedFiles.splice(i, 1);
     },
-
     handleDragOver(e) {
       e.preventDefault();
       this.isDragging = true;
@@ -248,11 +263,9 @@ export default {
         this.scanFile(this.selectedFiles[0]);
       }
     },
-
     formatFileSize(size) {
       return `${(size / 1024).toFixed(2)} KB`;
     },
-
     async uploadFiles() {
       if (this.showTeacherSelection && !this.teacher_id) {
         return alert("❌ Please select a teacher.");
@@ -260,7 +273,6 @@ export default {
       if (this.showCategorySelection && !this.category_id) {
         return alert("❌ Please select a category.");
       }
-
       this.isUploading = true;
       const formData = new FormData();
       this.selectedFiles.forEach(f => formData.append("files[]", f));
@@ -268,20 +280,13 @@ export default {
       formData.append("category_id", this.category_id);
 
       try {
-        const resp = await axios.post("/upload", formData, {
-          headers: { "Content-Type": "multipart/form-data" }
-        });
-
-        // Debug response
-        console.log('Upload response:', resp.data);
-
+        const resp = await axios.post("/upload", formData);
         if (resp.data.duplicate) {
           this.duplicateDocName = resp.data.existing_document_name;
           this.pendingFormData = formData;
           this.showDuplicateModal = true;
           return;
         }
-
         this.resetAfterUpload();
       } catch (err) {
         console.error(err);
@@ -290,7 +295,6 @@ export default {
         this.isUploading = false;
       }
     },
-
     async handleReplace() {
       this.pendingFormData.append("action", "replace");
       await this.sendFinalUpload();
@@ -301,10 +305,7 @@ export default {
     },
     async sendFinalUpload() {
       try {
-        const resp = await axios.post("/upload", this.pendingFormData, {
-          headers: { "Content-Type": "multipart/form-data" }
-        });
-        console.log('Final upload response:', resp.data);
+        await axios.post("/upload", this.pendingFormData);
         this.resetAfterUpload();
       } catch (err) {
         console.error(err);
@@ -314,13 +315,11 @@ export default {
         this.pendingFormData = null;
       }
     },
-
     resetAfterUpload() {
       this.selectedFiles = [];
       this.teacher_id = "";
       this.category_id = "";
       this.successMessage = "✅ Document uploaded successfully!";
-      // force file input reset
       this.fileInputKey++;
       setTimeout(() => (this.successMessage = ""), 4000);
     }

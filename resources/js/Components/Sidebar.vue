@@ -27,7 +27,7 @@
             </a>
           </li>
 
-          <!-- 🔧 Documents dropdown: no highlight on parent -->
+          <!-- 🔧 Documents dropdown -->
           <li>
             <a class="nav-link" @click="toggle('Documents')">
               <i class="bi bi-folder2-open"></i> Documents
@@ -42,11 +42,6 @@
               </li>
 
               <li class="section-title">DTR's</li>
-              <li>
-                <a @click="go('/documents/attendance')" :class="['dropdown-link', { active: currentPath.startsWith('/documents/attendance') }]">
-                  <i class="bi bi-file-earmark-text"></i> Attendance Log's
-                </a>
-              </li>
               <li>
                 <a @click="go('/documents/dtr')" :class="['dropdown-link', { active: currentPath.startsWith('/documents/dtr') }]">
                   <i class="bi bi-file-earmark-text"></i> DTR's

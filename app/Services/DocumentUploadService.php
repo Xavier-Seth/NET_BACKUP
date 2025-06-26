@@ -49,14 +49,12 @@ class DocumentUploadService
                     mkdir($outputDir, 0755, true);
                 }
 
-                // Use default LibreOffice detection
                 $command = "soffice --headless --convert-to pdf --outdir " . escapeshellarg($outputDir) . " " . escapeshellarg($decryptedPath);
                 exec($command);
 
                 $baseName = pathinfo($decryptedPath, PATHINFO_FILENAME);
                 $convertedPdf = $outputDir . '/' . $baseName . '.pdf';
 
-                // Fallback: check for any matching PDF
                 if (!file_exists($convertedPdf)) {
                     $matches = glob($outputDir . '/' . $baseName . '*.pdf');
                     if (count($matches)) {
@@ -71,12 +69,14 @@ class DocumentUploadService
                 }
             }
 
-            // ✅ If already a PDF
+            // ✅ If already a PDF — save decrypted copy for preview
             if ($extension === 'pdf') {
-                $pdfPreviewPath = $path;
+                $previewPath = "previews/{$filename}";
+                Storage::disk('public')->put($previewPath, file_get_contents($decryptedPath));
+                $pdfPreviewPath = $previewPath;
             }
 
-            // ✅ OCR + Classification via Python microservice
+            // ✅ OCR + Classification via Python
             try {
                 $response = Http::timeout(5)->attach(
                     'file',
@@ -165,7 +165,6 @@ class DocumentUploadService
         ]);
     }
 
-
     protected function isSchoolProperty($categoryName): bool
     {
         return in_array($categoryName, $this->schoolPropertyCategories);
@@ -177,7 +176,6 @@ class DocumentUploadService
         $iv = random_bytes(16);
         $data = file_get_contents($filePath);
         $encrypted = openssl_encrypt($data, 'aes-256-cbc', $key, 0, $iv);
-
         return base64_encode($iv . $encrypted);
     }
 
@@ -187,7 +185,6 @@ class DocumentUploadService
         $data = base64_decode($base64);
         $iv = substr($data, 0, 16);
         $encrypted = substr($data, 16);
-
         return openssl_decrypt($encrypted, 'aes-256-cbc', $key, 0, $iv);
     }
 }

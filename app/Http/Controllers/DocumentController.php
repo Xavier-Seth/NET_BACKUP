@@ -30,7 +30,7 @@ class DocumentController extends Controller
         $categorizationService = new CategorizationService();
         $teacherDocumentTypes = $categorizationService->getTeacherDocumentTypes();
 
-        return Inertia::render('Documents', [
+        return Inertia::render('Teacher/TeacherProfile', [
             'documents' => $documents,
             'teachers' => $teachers,
             'categories' => $categories,
@@ -235,4 +235,44 @@ class DocumentController extends Controller
 
         return back()->with('success', 'Document deleted successfully.');
     }
+    public function dtrIndex(Request $request)
+    {
+        $query = Document::with(['teacher', 'category'])
+            ->whereHas('category', fn($q) => $q->where('name', 'Daily Time Record'));
+
+        if ($request->search) {
+            $query->where('name', 'like', '%' . $request->search . '%');
+        }
+
+        if ($request->teacher) {
+            $query->whereHas('teacher', fn($q) => $q->where('full_name', $request->teacher));
+        }
+
+        return Inertia::render('Teacher/DtrDocuments', [
+            'documents' => $query->latest()->paginate(10)->withQueryString(),
+            'teachers' => Teacher::orderBy('full_name')->get(),
+            'categories' => Category::orderBy('name')->get(), // ✅ Include this
+            'filters' => $request->only(['search', 'teacher']),
+        ]);
+    }
+
+    public function updateMetadata(Request $request, Document $document)
+    {
+        $request->validate([
+            'teacher_id' => 'nullable|exists:teachers,id',
+            'category_id' => 'required|exists:categories,id',
+            'name' => 'nullable|string|max:255',
+        ]);
+
+        $document->update([
+            'teacher_id' => $request->teacher_id,
+            'category_id' => $request->category_id,
+            'name' => $request->name ?? $document->name,
+        ]);
+
+        LogService::record("Updated metadata for document '{$document->name}'");
+
+        return back()->with('success', 'Document metadata updated.');
+    }
+
 }

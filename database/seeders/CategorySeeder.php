@@ -59,6 +59,12 @@ class CategorySeeder extends Seeder
                 'created_at' => Carbon::now(),
                 'updated_at' => Carbon::now(),
             ],
+            [
+                'name' => 'Daily Time Record',
+                'slug' => 'daily-time-record',
+                'created_at' => Carbon::now(),
+                'updated_at' => Carbon::now(),
+            ],
         ]);
     }
 }
