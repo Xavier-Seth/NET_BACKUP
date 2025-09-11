@@ -3,18 +3,20 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-use App\Models\Document;
-use App\Models\Teacher;
-use App\Models\Category;
-use App\Models\User;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log as LaravelLog;
+use Illuminate\Support\Str;
+
+use App\Models\Document;
+use App\Models\Teacher;
+use App\Models\Category;
+use App\Models\User;
+
 use App\Services\DocumentUploadService;
 use App\Services\CategorizationService;
 use App\Services\LogService;
-use Illuminate\Support\Str;
 
 class DocumentController extends Controller
 {
@@ -44,7 +46,7 @@ class DocumentController extends Controller
             $fullPath = Storage::disk('public')->path($document->pdf_preview_path);
             return response()->file($fullPath, [
                 'Content-Type' => 'application/pdf',
-                'Content-Disposition' => 'inline; filename="' . pathinfo($document->name, PATHINFO_FILENAME) . '.pdf"'
+                'Content-Disposition' => 'inline; filename="' . pathinfo($document->name, PATHINFO_FILENAME) . '.pdf"',
             ]);
         }
 
@@ -81,20 +83,22 @@ class DocumentController extends Controller
         $request->validate([
             'files' => 'required|array',
             'files.*' => 'required|file|mimes:pdf,doc,docx,xlsx,xls,png,jpg,jpeg|max:20480',
-            'teacher_id' => 'nullable|exists:teachers,id',
-            'category_id' => 'nullable|exists:categories,id',
-            'action' => 'nullable|in:upload,replace'
+            'teacher_id' => 'nullable|integer|exists:teachers,id',
+            'category_id' => 'nullable|integer|exists:categories,id',
+            'action' => 'nullable|in:upload,replace',
+            'skip_ocr' => 'nullable|boolean',
+            'scanned_text' => 'nullable|string',
         ]);
 
         $user = User::findOrFail(auth()->id());
-        $uploadedDocuments = [];
 
-        // Check only first file for duplicate check logic
+        // Normalize incoming IDs (treat "" as null)
+        $teacherId = $request->filled('teacher_id') ? (int) $request->input('teacher_id') : null;
+        $categoryId = $request->filled('category_id') ? (int) $request->input('category_id') : null;
+
+        // duplicate check on first file
         $file = $request->file('files')[0];
-        $teacherId = $request->teacher_id;
-        $categoryId = $request->category_id;
 
-        // ✅ Check for existing document for same teacher + category
         $existing = Document::where('teacher_id', $teacherId)
             ->where('category_id', $categoryId)
             ->first();
@@ -106,34 +110,32 @@ class DocumentController extends Controller
             ]);
         }
 
-        // ✅ If replacing, delete the old document first and log it
         if ($existing && $request->input('action') === 'replace') {
-            // Delete the file from storage
             if ($existing->path && Storage::disk('public')->exists($existing->path)) {
                 Storage::disk('public')->delete($existing->path);
             }
-
             if ($existing->pdf_preview_path && Storage::disk('public')->exists($existing->pdf_preview_path)) {
                 Storage::disk('public')->delete($existing->pdf_preview_path);
             }
 
-            // Log the replacement activity
-            LogService::record(
-                "Replaced document '{$existing->name}'"
-                . ($existing->teacher ? " for teacher {$existing->teacher->full_name}" : "")
-            );
+            LogService::record("Replaced document '{$existing->name}'" .
+                ($existing->teacher ? " for teacher {$existing->teacher->full_name}" : ''));
 
-            // Delete the document record
             $existing->delete();
         }
 
-        // ✅ Proceed with actual upload
+        $uploadedDocuments = [];
+
         foreach ($request->file('files') as $file) {
             $document = $uploadService->handle(
                 $file,
                 $teacherId,
                 $categoryId,
-                $user
+                $user,
+                [
+                    'skip_ocr' => (bool) $request->boolean('skip_ocr'),
+                    'scanned_text' => $request->input('scanned_text')
+                ]
             );
 
             $uploadedDocuments[] = [
@@ -142,11 +144,8 @@ class DocumentController extends Controller
                 'category' => optional($document->category)->name ?? 'N/A',
             ];
 
-            // Log upload
-            LogService::record(
-                "Uploaded document '{$document->name}'"
-                . ($document->teacher ? " for teacher {$document->teacher->full_name}" : "")
-            );
+            LogService::record("Uploaded document '{$document->name}'" .
+                ($document->teacher ? " for teacher {$document->teacher->full_name}" : ''));
         }
 
         return response()->json([
@@ -154,8 +153,6 @@ class DocumentController extends Controller
             'uploadedDocuments' => $uploadedDocuments,
         ]);
     }
-
-
 
     public function scan(Request $request)
     {
@@ -166,10 +163,12 @@ class DocumentController extends Controller
         $file = $request->file('file');
         $tempPath = $file->store('temp-scan', 'public');
         $fullPath = storage_path('app/public/' . $tempPath);
+
         $ocrText = '';
         $matchedTeacher = null;
         $matchedCategory = null;
         $belongsToTeacher = false;
+        $categoryId = null;
 
         try {
             $response = Http::attach('file', file_get_contents($fullPath), $file->getClientOriginalName())
@@ -177,15 +176,24 @@ class DocumentController extends Controller
 
             if ($response->successful()) {
                 $data = $response->json();
-                $ocrText = $data['text'] ?? '';
+                // Prefer "text", else "text_preview"
+                $ocrText = $data['text'] ?? $data['text_preview'] ?? '';
                 $matchedCategory = $data['subcategory'] ?? null;
             } else {
-                LaravelLog::error("❌ Flask scan OCR failed: " . $response->body());
+                LaravelLog::error("Flask scan OCR failed: " . $response->body());
             }
 
+            // Normalize category (TOR -> Transcript of Records, etc.)
+            $matchedCategory = $this->normalizeCategoryName($matchedCategory);
+
+            // Resolve to category_id if possible (case-insensitive)
+            if ($matchedCategory) {
+                $categoryId = Category::whereRaw('LOWER(name) = ?', [strtolower($matchedCategory)])->value('id');
+            }
+
+            // Try to find teacher name inside OCR text
             if (!empty($ocrText)) {
-                $teachers = Teacher::all();
-                foreach ($teachers as $teacher) {
+                foreach (Teacher::all() as $teacher) {
                     if (Str::contains(strtolower($ocrText), strtolower($teacher->full_name))) {
                         $matchedTeacher = $teacher->full_name;
                         break;
@@ -195,11 +203,13 @@ class DocumentController extends Controller
 
             if ($matchedCategory) {
                 $teacherDocumentTypes = (new CategorizationService())->getTeacherDocumentTypes();
-                $belongsToTeacher = in_array($matchedCategory, $teacherDocumentTypes);
+                // case-insensitive check
+                $belongsToTeacher = collect($teacherDocumentTypes)
+                    ->map(fn($n) => strtolower($n))
+                    ->contains(strtolower($matchedCategory));
             }
-
         } catch (\Exception $e) {
-            LaravelLog::error("❌ Exception during scan: " . $e->getMessage());
+            LaravelLog::error("Exception during scan: " . $e->getMessage());
         } finally {
             if (Storage::disk('public')->exists($tempPath)) {
                 Storage::disk('public')->delete($tempPath);
@@ -208,8 +218,10 @@ class DocumentController extends Controller
 
         return response()->json([
             'teacher' => $matchedTeacher,
-            'category' => $matchedCategory,
+            'category' => $matchedCategory,   // normalized canonical name
+            'category_id' => $categoryId,     // helps the UI map directly
             'belongs_to_teacher' => $belongsToTeacher,
+            'text' => $ocrText,               // expose text for reuse
         ]);
     }
 
@@ -218,7 +230,6 @@ class DocumentController extends Controller
         if ($document->path && Storage::disk('public')->exists($document->path)) {
             Storage::disk('public')->delete($document->path);
         }
-
         if ($document->pdf_preview_path && Storage::disk('public')->exists($document->pdf_preview_path)) {
             Storage::disk('public')->delete($document->pdf_preview_path);
         }
@@ -230,11 +241,12 @@ class DocumentController extends Controller
 
         LogService::record(
             "Deleted document '{$docName}'" .
-            ($teacherName !== 'N/A' ? " belonging to teacher {$teacherName}" : "")
+            ($teacherName !== 'N/A' ? " belonging to teacher {$teacherName}" : '')
         );
 
         return back()->with('success', 'Document deleted successfully.');
     }
+
     public function dtrIndex(Request $request)
     {
         $query = Document::with(['teacher', 'category'])
@@ -243,7 +255,6 @@ class DocumentController extends Controller
         if ($request->search) {
             $query->where('name', 'like', '%' . $request->search . '%');
         }
-
         if ($request->teacher) {
             $query->whereHas('teacher', fn($q) => $q->where('full_name', $request->teacher));
         }
@@ -251,7 +262,7 @@ class DocumentController extends Controller
         return Inertia::render('Teacher/DtrDocuments', [
             'documents' => $query->latest()->paginate(10)->withQueryString(),
             'teachers' => Teacher::orderBy('full_name')->get(),
-            'categories' => Category::orderBy('name')->get(), // ✅ Include this
+            'categories' => Category::orderBy('name')->get(),
             'filters' => $request->only(['search', 'teacher']),
         ]);
     }
@@ -275,4 +286,22 @@ class DocumentController extends Controller
         return back()->with('success', 'Document metadata updated.');
     }
 
+    // ─────────────────────────────────────────────────────────────
+    // Helpers
+    // ─────────────────────────────────────────────────────────────
+    private function normalizeCategoryName(?string $name): ?string
+    {
+        if (!$name)
+            return null;
+        $map = [
+            'TOR' => 'Transcript of Records',
+            'PDS' => 'Personal Data Sheet',
+            'COAD' => 'Certification of Assumption to Duty',
+            'WES' => 'Work Experience Sheet',
+            'DTR' => 'Daily Time Record',
+            'APPOINTMENT' => 'Appointment Form',
+        ];
+        $key = trim($name);
+        return $map[$key] ?? $map[strtoupper($key)] ?? $key;
+    }
 }

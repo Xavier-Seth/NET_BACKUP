@@ -79,6 +79,13 @@
               <i class="bi bi-clock-history"></i> Logs
             </a>
           </li>
+
+          <!-- ⚙️ Settings -->
+          <li>
+            <a @click="go('settings.index')" :class="['nav-link', { active: isActive('settings.index') || activeMenu === 'settings' }]">
+              <i class="bi bi-gear"></i> Settings
+            </a>
+          </li>
         </ul>
       </nav>
 
@@ -89,13 +96,17 @@
     </aside>
 
     <!-- Overlay for mobile -->
-    <div v-if="isOpen && isMobile" class="overlay" @click="isOpen.value = false"></div>
+    <div v-if="isOpen && isMobile" class="overlay" @click="isOpen = false"></div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, defineProps } from 'vue'
 import { usePage, router } from '@inertiajs/vue3'
+
+const props = defineProps({
+  activeMenu: { type: String, default: '' } // ← from MainLayout/pages
+})
 
 const user = usePage().props.auth.user
 const isOpen = ref(true)
@@ -119,7 +130,8 @@ const go = (pathOrRoute) => {
 const isActive = (nameOrPath) => {
   const url = currentPath.value
   if (!nameOrPath.startsWith('/')) {
-    return route().current(nameOrPath)
+    // Prefer real route check; fall back to prop for manual highlight
+    return route().current(nameOrPath) || props.activeMenu === nameOrPath
   }
   return url === nameOrPath
 }
@@ -157,109 +169,47 @@ onMounted(() => {
   scrollbar-width: none;
   -ms-overflow-style: none;
 }
-.sidebar::-webkit-scrollbar {
-  display: none;
-}
+.sidebar::-webkit-scrollbar { display: none; }
 .logo {
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  padding: 10px 0;
-  margin-bottom: 10px;
+  display: flex; justify-content: center; align-items: center;
+  padding: 10px 0; margin-bottom: 10px;
 }
-.logo img {
-  width: 100px;
-  height: auto;
-  object-fit: contain;
-}
-.menu {
-  flex-grow: 1;
-}
-.menu ul {
-  list-style: none;
-  padding: 0 0 0 10px;
-  margin: 0;
-}
+.logo img { width: 100px; height: auto; object-fit: contain; }
+.menu { flex-grow: 1; }
+.menu ul { list-style: none; padding: 0 0 0 10px; margin: 0; }
 .nav-link {
-  display: flex;
-  align-items: center;
-  padding: 10px 16px;
-  gap: 10px;
-  font-size: 15px;
-  color: white;
-  text-decoration: none;
-  transition: background 0.2s, color 0.2s;
-  border-radius: 12px;
+  display: flex; align-items: center; padding: 10px 16px;
+  gap: 10px; font-size: 15px; color: white; text-decoration: none;
+  transition: background 0.2s, color 0.2s; border-radius: 12px;
 }
-.nav-link:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
+.nav-link:hover { background: rgba(255,255,255,0.1); }
 .nav-link.active {
-  background: white;
-  color: #12172b;
-  font-weight: bold;
-  border-radius: 12px;
+  background: white; color: #12172b; font-weight: bold; border-radius: 12px;
 }
-.caret-icon {
-  margin-left: auto;
-  transition: transform 0.3s ease;
-}
-.caret-icon.rotated {
-  transform: rotate(-90deg);
-}
-.dropdown {
-  padding-left: 10px;
-  margin-top: 5px;
-}
+.nav-link.disabled { opacity: .6; cursor: not-allowed; pointer-events: auto; }
+.caret-icon { margin-left: auto; transition: transform .3s ease; }
+.caret-icon.rotated { transform: rotate(-90deg); }
+.dropdown { padding-left: 10px; margin-top: 5px; }
 .dropdown-link {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  padding: 6px 16px;
-  font-size: 14px;
-  color: #ccc;
-  text-decoration: none;
-  transition: background 0.2s, color 0.2s;
-  border-radius: 12px;
+  display: flex; align-items: center; gap: 8px; padding: 6px 16px;
+  font-size: 14px; color: #ccc; text-decoration: none;
+  transition: background .2s, color .2s; border-radius: 12px;
 }
-.dropdown-link:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: white;
-}
+.dropdown-link:hover { background: rgba(255,255,255,0.1); color: white; }
 .dropdown-link.active {
-  background: white;
-  color: #12172b;
-  font-weight: bold;
-  border-radius: 12px;
+  background: white; color: #12172b; font-weight: bold; border-radius: 12px;
 }
 .section-title {
-  font-size: 13px;
-  font-weight: 600;
-  color: #a1a1a1;
-  margin-top: 10px;
-  padding-left: 16px;
-  text-transform: uppercase;
+  font-size: 13px; font-weight: 600; color: #a1a1a1;
+  margin-top: 10px; padding-left: 16px; text-transform: uppercase;
 }
 .logout {
-  margin-top: 20px;
-  padding: 12px 16px;
-  font-size: 14px;
-  color: white;
-  cursor: pointer;
-  display: flex;
-  align-items: center;
-  gap: 10px;
+  margin-top: 20px; padding: 12px 16px; font-size: 14px;
+  color: white; cursor: pointer; display: flex; align-items: center; gap: 10px;
 }
-.logout:hover {
-  background: rgba(255, 255, 255, 0.1);
-}
+.logout:hover { background: rgba(255,255,255,0.1); }
 .overlay {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.3);
-  z-index: 900;
+  position: fixed; top: 0; left: 0; width: 100vw; height: 100vh;
+  background: rgba(0,0,0,0.3); z-index: 900;
 }
 </style>

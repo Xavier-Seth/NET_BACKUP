@@ -7,24 +7,26 @@ use App\Models\SchoolPropertyDocument;
 use App\Models\Category;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
-use Illuminate\Support\Facades\Crypt;
-use App\Services\LogService; // ✅ Import the log service
-use Symfony\Component\HttpFoundation\Response;
+use App\Services\LogService; // ✅ Import LogService
 
 class SchoolPropertyDocumentController extends Controller
 {
+    /**
+     * Display a listing of the school property documents.
+     */
     public function index(Request $request)
     {
-        $query = SchoolPropertyDocument::with(['user', 'category'])->orderBy('created_at', 'desc');
+        $query = SchoolPropertyDocument::with(['user', 'category'])
+            ->orderBy('created_at', 'desc');
 
-        // Filter by Category (ICS / RIS)
+        // 🔎 Filter by category
         if ($request->category) {
             $query->whereHas('category', function ($q) use ($request) {
                 $q->where('name', $request->category);
             });
         }
 
-        // Search by Document No or Name
+        // 🔎 Search by document_no or file name
         if ($request->search) {
             $query->where(function ($q) use ($request) {
                 $q->where('document_no', 'like', '%' . $request->search . '%')
@@ -32,7 +34,7 @@ class SchoolPropertyDocumentController extends Controller
             });
         }
 
-        $documents = $query->paginate(20);
+        $documents = $query->paginate(20)->withQueryString();
         $categories = Category::whereIn('name', ['ICS', 'RIS'])->get();
 
         return Inertia::render('DocumentsSchoolProperties', [
@@ -42,16 +44,15 @@ class SchoolPropertyDocumentController extends Controller
         ]);
     }
 
+    /**
+     * Download and decrypt the given document.
+     */
     public function download(SchoolPropertyDocument $schoolDocument)
     {
         $encryptedPath = $schoolDocument->path;
 
-        if (!$encryptedPath) {
-            abort(404, 'Missing file path.');
-        }
-
-        if (!Storage::disk('public')->exists($encryptedPath)) {
-            abort(404, 'Encrypted file not found.');
+        if (!$encryptedPath || !Storage::disk('public')->exists($encryptedPath)) {
+            abort(404, 'File not found.');
         }
 
         try {
@@ -63,31 +64,36 @@ class SchoolPropertyDocumentController extends Controller
             $tempFilePath = tempnam(sys_get_temp_dir(), 'doc_');
             file_put_contents($tempFilePath, $decryptedContent);
 
-            return response()->download($tempFilePath, $schoolDocument->name)->deleteFileAfterSend(true);
+            return response()->download($tempFilePath, $schoolDocument->name)
+                ->deleteFileAfterSend(true);
         } catch (\Exception $e) {
             \Log::error("❌ Download error: " . $e->getMessage());
-            return back()->with('error', 'Failed to decrypt or download.');
+            return back()->with('error', 'Failed to decrypt or download the file.');
         }
     }
 
+    /**
+     * Delete the given document and log the action.
+     */
     public function destroy(SchoolPropertyDocument $schoolDocument)
     {
         try {
-            // Store details before delete
+            // Capture details before deletion
             $docName = $schoolDocument->name;
             $categoryName = optional($schoolDocument->category)->name ?? 'N/A';
             $uploadedBy = optional($schoolDocument->user)->name ?? 'Unknown';
 
+            // Delete file + DB record
             Storage::disk('public')->delete($schoolDocument->path);
             $schoolDocument->delete();
 
-            // ✅ Log the deletion
+            // Log deletion
             LogService::record("Deleted school property document '{$docName}' under category '{$categoryName}' uploaded by '{$uploadedBy}'");
 
             return redirect()->back()->with('success', 'Document deleted successfully.');
         } catch (\Exception $e) {
-            \Log::error("Delete failed: " . $e->getMessage());
-            return redirect()->back()->with('error', 'Delete failed.');
+            \Log::error("❌ Delete failed: " . $e->getMessage());
+            return redirect()->back()->with('error', 'Failed to delete document.');
         }
     }
 }

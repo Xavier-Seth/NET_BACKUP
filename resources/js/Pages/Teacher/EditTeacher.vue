@@ -41,7 +41,7 @@
           class="form-wrapper mt-1 bg-white shadow p-4"
           style="max-width: 1000px; width: 100%; border-radius: 0 0 10px 10px;"
         >
-          <form @submit.prevent="submit">
+          <form @submit.prevent="openUpdateConfirm">
             <!-- Name Fields -->
             <div class="row mb-3" style="margin-top: 5rem;">
               <div class="col-md-4">
@@ -170,7 +170,7 @@
                 <button type="button" class="btn btn-outline-secondary" @click="goBack">
                   ← Back to List
                 </button>
-                <button type="button" class="btn btn-secondary" @click="cancelEdit">
+                <button type="button" class="btn btn-secondary" @click="openCancelConfirm">
                   Cancel
                 </button>
               </div>
@@ -179,6 +179,54 @@
               </button>
             </div>
           </form>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirm Update Modal -->
+    <div v-if="modals.updateConfirm" class="overlay" @keydown.esc="closeAll" tabindex="0">
+      <div class="modal-card">
+        <button class="close-btn" @click="closeAll">✕</button>
+        <h5 class="mb-2">Confirm Update</h5>
+        <p class="text-gray-600">Are you sure you want to update this profile?</p>
+        <div class="mt-4 d-flex justify-content-end gap-2">
+          <button class="btn btn-success" @click="submitUpdate">Yes, update</button>
+          <button class="btn btn-outline-secondary" @click="closeAll">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Confirm Cancel Modal -->
+    <div v-if="modals.cancelConfirm" class="overlay" @keydown.esc="closeAll" tabindex="0">
+      <div class="modal-card">
+        <button class="close-btn" @click="closeAll">✕</button>
+        <h5 class="mb-2">Discard Changes?</h5>
+        <p class="text-gray-600">All unsaved edits will be lost.</p>
+        <div class="mt-4 d-flex justify-content-end gap-2">
+          <button class="btn btn-danger" @click="proceedCancel">Discard</button>
+          <button class="btn btn-outline-secondary" @click="closeAll">Keep editing</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info Modal (success / error) -->
+    <div v-if="info.show" class="overlay" @keydown.esc="closeAll" tabindex="0">
+      <div class="modal-card">
+        <button class="close-btn" @click="closeAll">✕</button>
+        <div class="d-flex align-items-center mb-2">
+          <span
+            v-if="info.type !== 'default'"
+            :class="['rounded-circle me-2 d-inline-flex align-items-center justify-content-center',
+                    info.type==='success' ? 'bg-success' : 'bg-danger']"
+            style="width:28px;height:28px;"
+          >
+            <span class="text-white fw-bold">{{ info.type==='success' ? '✓' : '!' }}</span>
+          </span>
+          <h5 class="m-0">{{ info.title }}</h5>
+        </div>
+        <p class="text-gray-700">{{ info.message }}</p>
+        <div class="mt-4 d-flex justify-content-end">
+          <button class="btn btn-primary" @click="closeAll">OK</button>
         </div>
       </div>
     </div>
@@ -200,49 +248,68 @@ const form = useForm({
   photo: null,
 })
 
-const sanitizeName    = v => (v || '').replace(/[^a-zA-ZñÑ.\s]/g, '').trimStart()
+/* --- sanitizers --- */
+const sanitizeName    = v => (v || '').replace(/[^a-zA-ZñÑ.\s-]/g, '').trimStart()
 const sanitizeNumbers = v => (v || '').replace(/\D/g, '')
 const sanitizeRemarks = v => (v || '').replace(/[^a-zA-Z0-9ñÑ\s.,!?()\-]/g, '')
 
+/* --- modal state --- */
+const modals = ref({
+  updateConfirm: false,
+  cancelConfirm: false,
+})
+const info = ref({ show: false, title: '', message: '', type: 'default' })
+const showInfo = (title, message, type = 'default') => { info.value = { show: true, title, message, type } }
+const closeAll = () => { modals.value.updateConfirm = false; modals.value.cancelConfirm = false; info.value.show = false }
+
+/* --- file --- */
 const handlePhotoChange = (e) => {
   const file = e.target.files[0]
   if (file) {
     form.photo = file
     photoPreview.value = URL.createObjectURL(file)
   }
-  e.target.value = ''
+  e.target.value = '' // allow picking the same file again
 }
 
-const submit = () => {
-  if (!confirm('Are you sure you want to update this profile?')) return
+/* --- submit flow --- */
+const openUpdateConfirm = () => {
+  // basic front-end checks
+  if (!form.first_name?.trim() || !form.last_name?.trim()) {
+    showInfo('Missing Fields', 'Please provide at least First Name and Last Name.', 'error')
+    return
+  }
+  modals.value.updateConfirm = true
+}
 
-  form.first_name  = form.first_name.trim()
-  form.middle_name = form.middle_name.trim()
-  form.last_name   = form.last_name.trim()
-  form.full_name   = [ form.first_name, form.middle_name, form.last_name ].filter(Boolean).join(' ')
+const submitUpdate = () => {
+  modals.value.updateConfirm = false
+
+  form.first_name  = (form.first_name || '').trim()
+  form.middle_name = (form.middle_name || '').trim()
+  form.last_name   = (form.last_name || '').trim()
+  form.full_name   = [form.first_name, form.middle_name, form.last_name].filter(Boolean).join(' ')
 
   form.post(`/teachers/${form.id}/update`, {
     forceFormData: true,
     preserveScroll: true,
     onSuccess: () => {
-      alert('✅ Teacher profile updated successfully!')
+      showInfo('Success', 'Teacher profile updated successfully!', 'success')
       form.clearErrors()
     },
     onError: (errs) => {
       errors.value = errs
+      const firstKey = Object.keys(errs || {})[0]
+      const msg = firstKey ? String(errs[firstKey]) : 'Update failed. Please review the form.'
+      showInfo('Update Failed', msg, 'error')
     },
   })
 }
 
-const cancelEdit = () => {
-  if (confirm('Cancel changes? All unsaved edits will be lost.')) {
-    router.get('/teachers')
-  }
-}
-
-const goBack = () => {
-  router.get('/teachers')
-}
+/* --- cancel flow --- */
+const openCancelConfirm = () => { modals.value.cancelConfirm = true }
+const proceedCancel = () => { modals.value.cancelConfirm = false; router.get('/teachers') }
+const goBack = () => { router.get('/teachers') }
 </script>
 
 <style scoped>
@@ -250,19 +317,27 @@ const goBack = () => {
   margin-left: 200px;
   padding: 20px;
 }
-img.rounded-circle {
-  transition: all 0.3s ease;
-  cursor: pointer;
-}
+img.rounded-circle { transition: all 0.3s ease; cursor: pointer; }
 .form-wrapper {
   background: #fff;
   padding: 25px;
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
 }
-.is-invalid {
-  border-color: #dc3545;
+.is-invalid { border-color: #dc3545; }
+.text-danger { font-size: 0.875rem; }
+
+/* --- modal styles --- */
+.overlay {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(31,41,55,.5); /* gray-800/50 */
 }
-.text-danger {
-  font-size: 0.875rem;
+.modal-card {
+  position: relative; width: 24rem; /* w-96 */
+  background: #fff; padding: 1.25rem; border-radius: .5rem; box-shadow: 0 10px 25px rgba(0,0,0,.15);
+}
+.close-btn {
+  position: absolute; top: .5rem; right: .5rem;
+  border: 0; background: #f8f9fa; padding: .25rem .5rem; border-radius: .25rem;
 }
 </style>

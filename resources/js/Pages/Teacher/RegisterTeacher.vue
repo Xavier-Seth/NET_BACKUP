@@ -33,7 +33,7 @@
       <!-- Form Section -->
       <div class="container d-flex justify-content-center">
         <div class="mt-1 form-wrapper bg-white shadow p-4" style="margin-top: 0px; max-width: 1000px; width: 100%; border-radius: 0 0 10px 10px;">
-          <form @submit.prevent="submit">
+          <form @submit.prevent="handleSubmit">
             <!-- Name -->
             <div class="row mb-3" style="margin-top: 5rem;">
               <div class="col-md-4">
@@ -206,6 +206,43 @@
         </div>
       </div>
     </div>
+
+    <!-- Confirm Modal -->
+    <div v-if="modals.confirm" class="overlay" @keydown.esc="closeAll" tabindex="0">
+      <div class="modal-card">
+        <button class="close-btn" @click="closeAll">✕</button>
+        <h5 class="mb-2">Confirm Registration</h5>
+        <p class="text-gray-600">Are you sure you want to register this teacher?</p>
+        <div class="mt-4 d-flex justify-content-end gap-2">
+          <button class="btn btn-success" @click="submit">Yes, register</button>
+          <button class="btn btn-outline-secondary" @click="closeAll">Cancel</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Info Modal (success / error / validation) -->
+    <div v-if="info.show" class="overlay" @keydown.esc="closeAll" tabindex="0">
+      <div class="modal-card">
+        <button class="close-btn" @click="closeAll">✕</button>
+        <div class="d-flex align-items-center mb-2">
+          <span
+            v-if="info.type !== 'default'"
+            :class="[
+              'rounded-circle me-2 d-inline-flex align-items-center justify-content-center',
+              info.type==='success' ? 'bg-success' : (info.type==='error' ? 'bg-danger' : 'bg-secondary')
+            ]"
+            style="width:28px;height:28px;"
+          >
+            <span class="text-white fw-bold">{{ info.type==='success' ? '✓' : '!' }}</span>
+          </span>
+          <h5 class="m-0">{{ info.title }}</h5>
+        </div>
+        <p class="text-gray-700">{{ info.message }}</p>
+        <div class="mt-4 d-flex justify-content-end">
+          <button class="btn btn-primary" @click="closeAll">OK</button>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -251,22 +288,27 @@ const inputWarnings = ref({
   contact: '',
 })
 
+/* --- modal state --- */
+const modals = ref({ confirm: false })
+const info = ref({ show: false, title: '', message: '', type: 'default' })
+const showInfo = (title, message, type='default') => { info.value = { show: true, title, message, type } }
+const closeAll = () => { modals.value.confirm = false; info.value.show = false }
+
+/* --- temp warning helper --- */
 const showTemporaryWarning = (field, message, duration = 2500) => {
   inputWarnings.value[field] = message
-  setTimeout(() => {
-    inputWarnings.value[field] = ''
-  }, duration)
+  setTimeout(() => { inputWarnings.value[field] = '' }, duration)
 }
 
-// Real-time validation
+/* --- live validation --- */
 watch(() => form.first_name, (val) => {
-  localErrors.value.first_name = val.trim() === '' ? 'First name is required.' : ''
+  localErrors.value.first_name = (val || '').trim() === '' ? 'First name is required.' : ''
 })
 watch(() => form.last_name, (val) => {
-  localErrors.value.last_name = val.trim() === '' ? 'Last name is required.' : ''
+  localErrors.value.last_name = (val || '').trim() === '' ? 'Last name is required.' : ''
 })
 watch(() => form.email, (val) => {
-  if (val.trim() === '') {
+  if ((val || '').trim() === '') {
     localErrors.value.email = 'Email is required.'
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
     localErrors.value.email = 'Invalid email format.'
@@ -275,18 +317,15 @@ watch(() => form.email, (val) => {
   }
 })
 
-// Input restrictions
+/* --- restrictions --- */
 const restrictToLettersWithDot = (e) => {
   const value = e.target.value
   const filtered = value.replace(/[^a-zA-ZñÑ.\s]/g, '')
   const field = e.target.dataset.field
-  if (value !== filtered) {
-    showTemporaryWarning(field, 'Only letters, spaces, and dots allowed.')
-  }
+  if (value !== filtered) showTemporaryWarning(field, 'Only letters, spaces, and dots allowed.')
   e.target.value = filtered
   if (field) form[field] = filtered
 }
-
 const restrictToAlphaNumericDash = (e) => {
   const value = e.target.value
   const filtered = value.replace(/[^a-zA-Z0-9-]/g, '')
@@ -294,57 +333,55 @@ const restrictToAlphaNumericDash = (e) => {
   e.target.value = filtered
   if (field) form[field] = filtered
 }
-
 const restrictToNumbers = (e) => {
   const value = e.target.value
   const filtered = value.replace(/\D/g, '')
   const field = e.target.dataset.field
-  if (value !== filtered) {
-    showTemporaryWarning(field, 'Only numbers are allowed.')
-  }
+  if (value !== filtered) showTemporaryWarning(field, 'Only numbers are allowed.')
   e.target.value = filtered
   if (field) form[field] = filtered
 }
-
 const restrictRemarks = (e) => {
   const value = e.target.value
   e.target.value = value.replace(/[^a-zA-Z0-9ñÑ\s.,!?()\-]/g, '')
   form.remarks = e.target.value
 }
 
-const handleFileUpload = (event) => {
-  form.pds = event.target.files[0]
-}
-
+/* --- file handlers --- */
+const handleFileUpload = (event) => { form.pds = event.target.files[0] }
 const handlePhotoUpload = (event) => {
   const file = event.target.files[0]
   form.photo = file
-  photoPreview.value = file && file.type.startsWith("image/")
-    ? URL.createObjectURL(file)
-    : null
+  photoPreview.value = file && file.type.startsWith("image/") ? URL.createObjectURL(file) : null
+}
+
+/* --- submit flow --- */
+const handleSubmit = () => {
+  if (localErrors.value.first_name || localErrors.value.last_name || localErrors.value.email) {
+    showInfo('Please Fix Errors', 'Kindly resolve the highlighted field errors before submitting.', 'error')
+    return
+  }
+  modals.value.confirm = true
 }
 
 const submit = () => {
-  if (
-    localErrors.value.first_name ||
-    localErrors.value.last_name ||
-    localErrors.value.email
-  ) {
-    alert("Please fix the errors before submitting.")
-    return
-  }
+  modals.value.confirm = false
 
   form.full_name = [form.first_name, form.middle_name, form.last_name].filter(Boolean).join(" ")
+
   form.post("/teachers", {
     forceFormData: true,
     onSuccess: () => {
-      alert('User registered successfully!');
+      showInfo('Success', 'Teacher registered successfully!', 'success')
       form.reset()
-      pdsRef.value.value = ''
-      photoRef.value.value = ''
+      if (pdsRef.value)  pdsRef.value.value = ''
+      if (photoRef.value) photoRef.value.value = ''
       photoPreview.value = null
     },
     onError: (errors) => {
+      const firstKey = Object.keys(errors || {})[0]
+      const msg = firstKey ? String(errors[firstKey]) : 'Registration failed. Please review the form.'
+      showInfo('Registration Failed', msg, 'error')
       console.error("Server validation error:", errors)
     },
   })
@@ -352,27 +389,25 @@ const submit = () => {
 </script>
 
 <style scoped>
-.flex-1 {
-  margin-left: 200px;
-  padding: 20px;
+.flex-1 { margin-left: 200px; padding: 20px; }
+img.rounded-circle { transition: all 0.3s ease; cursor: pointer; }
+.form-wrapper { background-color: #ffffff; padding: 25px; box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08); }
+.is-invalid { border-color: #dc3545; }
+.text-danger { font-size: 0.875rem; }
+.text-warning { font-size: 0.875rem; color: #d39e00; }
+
+/* modal styles */
+.overlay {
+  position: fixed; inset: 0; z-index: 50;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(31,41,55,.5);
 }
-img.rounded-circle {
-  transition: all 0.3s ease;
-  cursor: pointer;
+.modal-card {
+  position: relative; width: 24rem; background: #fff;
+  padding: 1.25rem; border-radius: .5rem; box-shadow: 0 10px 25px rgba(0,0,0,.15);
 }
-.form-wrapper {
-  background-color: #ffffff;
-  padding: 25px;
-  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
-}
-.is-invalid {
-  border-color: #dc3545;
-}
-.text-danger {
-  font-size: 0.875rem;
-}
-.text-warning {
-  font-size: 0.875rem;
-  color: #d39e00;
+.close-btn {
+  position: absolute; top: .5rem; right: .5rem;
+  border: 0; background: #f8f9fa; padding: .25rem .5rem; border-radius: .25rem;
 }
 </style>

@@ -27,15 +27,9 @@ import { usePage, router } from "@inertiajs/vue3"
 
 export default {
   name: "MainLayout",
-  components: {
-    Sidebar,
-    Header,
-  },
+  components: { Sidebar, Header },
   props: {
-    activeMenu: {
-      type: String,
-      default: "",
-    },
+    activeMenu: { type: String, default: "" },
   },
   setup() {
     const page = usePage()
@@ -45,9 +39,7 @@ export default {
     const handleUnauthorized = (errors) => {
       if (errors.status === 403) {
         errorMessage.value = "❌ Unauthorized Access: You do not have permission."
-        setTimeout(() => {
-          errorMessage.value = ""
-        }, 5000)
+        setTimeout(() => (errorMessage.value = ""), 5000)
       }
     }
 
@@ -55,10 +47,7 @@ export default {
       router.on("error", handleUnauthorized)
     })
 
-    return {
-      user,
-      errorMessage,
-    }
+    return { user, errorMessage }
   },
   methods: {
     setActive(menuItem) {
@@ -70,34 +59,14 @@ export default {
 
 <style scoped>
 .main-layout {
-  display: flex;
-  flex-direction: row;
-  min-height: 100vh;
-  background: #f5f5f5;
-  overflow: hidden;
+  display: flex; flex-direction: row; min-height: 100vh;
+  background: #f5f5f5; overflow: hidden;
 }
-
-.main-content {
-  flex: 1;
-  padding: 20px;
-  margin-left: 200px;
-  transition: margin-left 0.3s ease;
-}
-
+.main-content { flex: 1; padding: 20px; margin-left: 200px; transition: margin-left .3s ease; }
 .alert-box {
-  position: fixed;
-  top: 15px;
-  left: 50%;
-  transform: translateX(-50%);
-  z-index: 1050;
-  width: 90%;
-  max-width: 350px;
-  text-align: center;
+  position: fixed; top: 15px; left: 50%;
+  transform: translateX(-50%); z-index: 1050;
+  width: 90%; max-width: 350px; text-align: center;
 }
-
-@media (max-width: 768px) {
-  .main-content {
-    margin-left: 0;
-  }
-}
+@media (max-width: 768px) { .main-content { margin-left: 0; } }
 </style>

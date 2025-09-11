@@ -20,32 +20,68 @@
               ⚠️ Flask app is offline. Using fallback mode (no OCR).
             </p>
 
-            <p v-if="successMessage"
-              class="text-green-700 font-semibold bg-green-100 border border-green-300 rounded p-3 mt-4 w-full text-center transition-all duration-500">
+            <p
+              v-if="successMessage"
+              class="text-green-700 font-semibold bg-green-100 border border-green-300 rounded p-3 mt-4 w-full text-center transition-all duration-500"
+            >
               {{ successMessage }}
             </p>
 
-            <!-- Detected Info Section -->
+            <!-- Detected / Override Info -->
             <div
               v-if="selectedFiles.length && !isScanning"
               class="mt-4 w-full max-w-xs mx-auto text-left text-sm text-gray-800"
             >
+              <!-- If nothing detected, ask to pick -->
               <div
-                v-if="!detectedCategory && !detectedTeacher && showCategorySelection"
+                v-if="!detectedCategory && !detectedTeacher && showCategorySelection && !overrideMode"
                 class="mb-2 text-red-600 font-semibold flex items-center gap-1"
               >
                 <i class="bi bi-x-circle-fill"></i>
                 No category or teacher detected. Please select the category manually:
               </div>
 
-              <!-- ✅ Grouped Category Dropdown -->
-              <div v-if="showCategorySelection" class="mb-4">
-                <select v-model="category_id" class="border rounded p-2 w-full">
-                  <option disabled value="">Select Category</option>
+              <!-- Status badge -->
+              <div class="mb-2 flex items-center gap-2" v-if="detectedCategory || overrideMode">
+                <span
+                  class="inline-flex items-center gap-2 text-xs font-semibold px-2 py-1 rounded"
+                  :class="overrideMode ? 'bg-yellow-100 text-yellow-800 border border-yellow-300' : 'bg-green-100 text-green-800 border border-green-300'"
+                >
+                  <i :class="overrideMode ? 'bi bi-pencil-square' : 'bi bi-check2-circle'"></i>
+                  {{ overrideMode ? 'Overridden classification' : 'Detected classification' }}
+                </span>
+
+                <!-- Reclassify / Reset buttons -->
+                <button
+                  v-if="!overrideMode && detectedCategory"
+                  @click="startReclassify"
+                  class="text-indigo-700 hover:text-indigo-900 text-xs font-semibold underline"
+                >
+                  Reclassify
+                </button>
+                <button
+                  v-if="overrideMode"
+                  @click="resetToDetected"
+                  class="text-gray-600 hover:text-gray-900 text-xs font-semibold underline"
+                >
+                  Reset to detected
+                </button>
+              </div>
+
+              <!-- Show the current “effective” category -->
+              <div v-if="canonicalCategory" class="text-green-700 font-semibold mb-2">
+                Category: {{ canonicalCategory }}
+              </div>
+
+              <!-- Category select:
+                   - Visible when: we need a manual pick (nothing detected), OR user opted to override -->
+              <div v-if="showCategorySelection || overrideMode" class="mb-4">
+                <select v-model.number="category_id" class="border rounded p-2 w-full">
+                  <option disabled :value="null">Select Category</option>
 
                   <optgroup label="📚 Teacher-Related Documents">
                     <option
-                      v-for="c in categories.filter(c => teacherDocumentTypes.includes(c.name))"
+                      v-for="c in categories.filter(c => isTeacherDocByName(c.name))"
                       :key="`teacher-${c.id}`"
                       :value="c.id"
                     >
@@ -55,7 +91,7 @@
 
                   <optgroup label="🏫 School Property Documents">
                     <option
-                      v-for="c in categories.filter(c => !teacherDocumentTypes.includes(c.name))"
+                      v-for="c in categories.filter(c => !isTeacherDocByName(c.name))"
                       :key="`school-${c.id}`"
                       :value="c.id"
                     >
@@ -65,29 +101,30 @@
                 </select>
               </div>
 
-              <div v-if="detectedCategory" class="text-green-700 font-semibold mb-2">
-                Detected Category: {{ detectedCategory }}
-              </div>
-
-              <div v-if="showTeacherSelection">
-                <p v-if="detectedCategory && !detectedTeacher" class="text-red-600">
+              <!-- Teacher requirement computed from canonicalCategory -->
+              <div v-if="requiresTeacher">
+                <p v-if="!overrideMode && detectedCategory && !detectedTeacher" class="text-red-600">
                   This document “{{ detectedCategory }}” belongs to a teacher. Please select the teacher:
                 </p>
-                <div v-if="!detectedTeacher" class="mt-2">
-                  <select v-model="teacher_id" class="border rounded p-2 w-full">
-                    <option disabled value="">Select Teacher</option>
+
+                <!-- Teacher select is shown if:
+                     - No teacher detected, or
+                     - We are in override mode (since user may change teacher too) -->
+                <div v-if="overrideMode || !detectedTeacher" class="mt-2">
+                  <select v-model.number="teacher_id" class="border rounded p-2 w-full">
+                    <option disabled :value="null">Select Teacher</option>
                     <option v-for="t in teachers" :key="t.id" :value="t.id">
                       {{ t.full_name }}
                     </option>
                   </select>
                 </div>
-                <p v-if="detectedTeacher" class="mt-2 text-green-700">
+
+                <p v-if="!overrideMode && detectedTeacher" class="mt-2 text-green-700">
                   <strong>Detected Teacher:</strong> {{ detectedTeacher }}
                 </p>
               </div>
             </div>
 
-            <!-- File Input and Upload -->
             <div class="flex gap-2 justify-center mt-4">
               <input
                 id="fileInput"
@@ -108,7 +145,6 @@
 
             <div v-if="isScanning || isUploading" class="spinner mt-6"></div>
 
-            <!-- Selected Files List -->
             <div
               v-if="selectedFiles.length && !isScanning && !isUploading"
               class="selected-files mt-6 w-full text-left"
@@ -128,7 +164,6 @@
               </ul>
             </div>
 
-            <!-- Upload Button -->
             <button
               v-if="selectedFiles.length && !isScanning"
               @click="uploadFiles"
@@ -142,7 +177,6 @@
       </div>
     </div>
 
-    <!-- Modal -->
     <DuplicatePromptModal
       v-if="showDuplicateModal"
       :existing-name="duplicateDocName"
@@ -170,12 +204,11 @@ export default {
       isDragging: false,
       isUploading: false,
       isScanning: false,
-      teacher_id: "",
-      category_id: "",
+      teacher_id: null,
+      category_id: null,
       fileInputKey: 0,
       detectedTeacher: null,
       detectedCategory: null,
-      showTeacherSelection: false,
       showCategorySelection: false,
       flaskOffline: false,
       successMessage: "",
@@ -184,33 +217,83 @@ export default {
       duplicateDocName: "",
       pendingFormData: null,
 
+      lastOcrText: "",
+
+      // NEW: manual override mode
+      overrideMode: false,
+
       teacherDocumentTypes: [
         "Work Experience Sheet",
         "Personal Data Sheet",
         "Oath of Office",
         "Certification of Assumption to Duty",
         "Transcript of Records",
+        "TOR",
         "Appointment Form",
         "Daily Time Record"
       ]
     };
   },
+  computed: {
+    // Effective category name:
+    // - If overriding, use selected category_id
+    // - Else use detectedCategory; if not present, map from category_id
+    canonicalCategory() {
+      if (this.overrideMode) {
+        return this.canonicalCategoryNameById(this.category_id) || "";
+      }
+      return (this.detectedCategory && String(this.detectedCategory).trim())
+        || this.canonicalCategoryNameById(this.category_id)
+        || "";
+    },
+    // Teacher need derived from the effective category
+    requiresTeacher() {
+      return this.isTeacherDocByName(this.canonicalCategory);
+    }
+  },
   watch: {
     category_id(newVal) {
-      const selectedCategory = this.categories.find(c => c.id === newVal)?.name;
-      this.showTeacherSelection = this.teacherDocumentTypes.includes(selectedCategory);
+      this.category_id = newVal === null ? null : Number(newVal);
+      // If user changes category while overriding, and new category doesn't require a teacher, clear selected teacher
+      if (this.overrideMode && !this.isTeacherDocByName(this.canonicalCategoryNameById(this.category_id))) {
+        this.teacher_id = null;
+      }
     }
   },
   methods: {
+    // ── Helpers ─────────────────────────────────────────────
+    normalizeCategoryName(name) {
+      if (!name) return null;
+      const map = {
+        TOR: "Transcript of Records",
+        PDS: "Personal Data Sheet",
+        COAD: "Certification of Assumption to Duty",
+        WES: "Work Experience Sheet",
+        DTR: "Daily Time Record",
+        APPOINTMENT: "Appointment Form",
+      };
+      const raw = String(name).trim();
+      return map[raw] || map[raw.toUpperCase()] || raw;
+    },
+    isTeacherDocByName(categoryName) {
+      if (!categoryName) return false;
+      const set = new Set(this.teacherDocumentTypes.map(n => n.trim().toLowerCase()));
+      return set.has(String(categoryName).trim().toLowerCase());
+    },
+    canonicalCategoryNameById(id) {
+      const c = this.categories.find(x => x.id === Number(id));
+      return c ? String(c.name).trim() : "";
+    },
+
+    // ── UI actions ─────────────────────────────────────────
     browseFile() {
       document.getElementById("fileInput").click();
     },
     handleFileUpload(e) {
       this.selectedFiles = Array.from(e.target.files);
       this.successMessage = "";
-      if (this.selectedFiles.length) {
-        this.scanFile(this.selectedFiles[0]);
-      }
+      this.overrideMode = false;  // reset override on new selection
+      if (this.selectedFiles.length) this.scanFile(this.selectedFiles[0]);
     },
     async scanFile(file) {
       this.isScanning = true;
@@ -218,27 +301,30 @@ export default {
       formData.append("file", file);
       try {
         const res = await axios.post("/upload/scan", formData);
+
         this.detectedTeacher = res.data.teacher || null;
-        this.detectedCategory = res.data.category || null;
-        this.flaskOffline = !!res.data.fallback_used;
+
+        const serverCat = res.data.category || null;
+        this.detectedCategory = this.normalizeCategoryName(serverCat);
+
         this.showCategorySelection = !this.detectedCategory;
 
-        const categoryForCheck =
-          this.detectedCategory ||
-          this.categories.find(c => c.id === this.category_id)?.name;
-
-        this.showTeacherSelection =
-          !!categoryForCheck &&
-          this.teacherDocumentTypes.includes(categoryForCheck);
+        if (res.data.category_id) {
+          this.category_id = Number(res.data.category_id);
+        } else if (this.detectedCategory) {
+          const c = this.categories.find(
+            x => x.name.trim().toLowerCase() === this.detectedCategory.trim().toLowerCase()
+          );
+          if (c) this.category_id = c.id;
+        }
 
         if (this.detectedTeacher) {
           const t = this.teachers.find(x => x.full_name === this.detectedTeacher);
           if (t) this.teacher_id = t.id;
         }
-        if (this.detectedCategory) {
-          const c = this.categories.find(x => x.name === this.detectedCategory);
-          if (c) this.category_id = c.id;
-        }
+
+        this.lastOcrText = res.data.text || "";
+        this.flaskOffline = !!res.data.fallback_used;
       } catch (err) {
         console.error(err);
       } finally {
@@ -249,8 +335,7 @@ export default {
       this.selectedFiles.splice(i, 1);
     },
     handleDragOver(e) {
-      e.preventDefault();
-      this.isDragging = true;
+      e.preventDefault(); this.isDragging = true;
     },
     handleDragLeave() {
       this.isDragging = false;
@@ -259,25 +344,68 @@ export default {
       e.preventDefault();
       this.selectedFiles = Array.from(e.dataTransfer.files);
       this.isDragging = false;
-      if (this.selectedFiles.length) {
-        this.scanFile(this.selectedFiles[0]);
-      }
+      this.overrideMode = false;
+      if (this.selectedFiles.length) this.scanFile(this.selectedFiles[0]);
     },
     formatFileSize(size) {
       return `${(size / 1024).toFixed(2)} KB`;
     },
+
+    // ── Reclassify controls ────────────────────────────────
+    startReclassify() {
+      this.overrideMode = true;
+
+      // If we have a detected category, prefill the select with it
+      if (this.detectedCategory && !this.category_id) {
+        const c = this.categories.find(
+          x => x.name.trim().toLowerCase() === this.detectedCategory.trim().toLowerCase()
+        );
+        if (c) this.category_id = c.id;
+      }
+    },
+    resetToDetected() {
+      this.overrideMode = false;
+      // restore category id to detected one if exists
+      if (this.detectedCategory) {
+        const c = this.categories.find(
+          x => x.name.trim().toLowerCase() === this.detectedCategory.trim().toLowerCase()
+        );
+        this.category_id = c ? c.id : null;
+      } else {
+        this.category_id = null;
+      }
+      // restore teacher to detected (if any)
+      if (this.detectedTeacher) {
+        const t = this.teachers.find(x => x.full_name === this.detectedTeacher);
+        this.teacher_id = t ? t.id : null;
+      } else {
+        this.teacher_id = null;
+      }
+    },
+
+    // ── Upload ─────────────────────────────────────────────
     async uploadFiles() {
-      if (this.showTeacherSelection && !this.teacher_id) {
+      // Force manual teacher selection if needed
+      if (this.requiresTeacher && !this.teacher_id) {
         return alert("❌ Please select a teacher.");
       }
-      if (this.showCategorySelection && !this.category_id) {
+      // If we need to pick category (either nothing detected or in override), ensure it's chosen
+      if ((this.showCategorySelection || this.overrideMode) && !this.category_id) {
         return alert("❌ Please select a category.");
       }
+
       this.isUploading = true;
       const formData = new FormData();
       this.selectedFiles.forEach(f => formData.append("files[]", f));
-      formData.append("teacher_id", this.teacher_id);
-      formData.append("category_id", this.category_id);
+      if (this.teacher_id != null) formData.append("teacher_id", this.teacher_id);
+      if (this.category_id != null) formData.append("category_id", this.category_id);
+
+      // Reuse scan results so backend can skip OCR
+      formData.append("skip_ocr", "1");
+      formData.append("scanned_text", this.lastOcrText || "");
+
+      // Signal to backend that user intentionally overrode model result
+      if (this.overrideMode) formData.append("override", "1");
 
       try {
         const resp = await axios.post("/upload", formData);
@@ -317,8 +445,13 @@ export default {
     },
     resetAfterUpload() {
       this.selectedFiles = [];
-      this.teacher_id = "";
-      this.category_id = "";
+      this.teacher_id = null;
+      this.category_id = null;
+      this.lastOcrText = "";
+      this.detectedTeacher = null;
+      this.detectedCategory = null;
+      this.overrideMode = false;
+      this.showCategorySelection = false;
       this.successMessage = "✅ Document uploaded successfully!";
       this.fileInputKey++;
       setTimeout(() => (this.successMessage = ""), 4000);
@@ -339,9 +472,7 @@ export default {
   text-align: center;
   transition: border-color 0.3s;
 }
-.upload-container.dragging {
-  border-color: #2563eb;
-}
+.upload-container.dragging { border-color: #2563eb; }
 .upload-btn {
   margin-top: 1.5rem;
   padding: 0.75rem 1.5rem;
@@ -352,25 +483,12 @@ export default {
   cursor: pointer;
   transition: background 0.3s;
 }
-.upload-btn:hover {
-  background: #1e40af;
-}
-.upload-btn:disabled {
-  background: #a0aec0;
-  cursor: not-allowed;
-}
+.upload-btn:hover { background: #1e40af; }
+.upload-btn:disabled { background: #a0aec0; cursor: not-allowed; }
 .spinner {
-  margin-top: 1rem;
-  width: 2.5rem;
-  height: 2.5rem;
-  border: 4px solid #ccc;
-  border-top-color: #2563eb;
-  border-radius: 50%;
-  animation: spin 1s linear infinite;
+  margin-top: 1rem; width: 2.5rem; height: 2.5rem;
+  border: 4px solid #ccc; border-top-color: #2563eb;
+  border-radius: 50%; animation: spin 1s linear infinite;
 }
-@keyframes spin {
-  to {
-    transform: rotate(360deg);
-  }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>

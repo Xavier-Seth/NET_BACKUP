@@ -144,14 +144,47 @@
         </div>
       </div>
 
-      <!-- Confirmation Modal -->
-      <div v-if="showModal" class="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-50 z-50">
-        <div class="bg-white p-6 rounded-lg shadow-lg w-96">
-          <h2 class="text-lg font-semibold text-gray-700 mb-4">Confirm Registration</h2>
+      <!-- Confirm Modal -->
+      <div
+        v-if="showConfirm"
+        class="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-50 z-50"
+        @keydown.esc="closeAll"
+        tabindex="0"
+      >
+        <div class="bg-white p-6 rounded-lg shadow-lg w-96 relative">
+          <button class="btn btn-sm btn-light position-absolute top-0 end-0 m-2" @click="closeAll">✕</button>
+          <h5 class="mb-3">Confirm Registration</h5>
           <p class="text-gray-600">Are you sure you want to register this user?</p>
-          <div class="mt-4 flex justify-end space-x-4">
-            <button @click="registerUser" class="btn btn-success">Yes</button>
-            <button @click="showModal = false" class="btn btn-danger">Cancel</button>
+          <div class="mt-4 d-flex justify-content-end gap-2">
+            <button class="btn btn-success" @click="registerUser">Yes</button>
+            <button class="btn btn-outline-secondary" @click="closeAll">Cancel</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- Info Modal (success / error / validation) -->
+      <div
+        v-if="info.show"
+        class="fixed inset-0 flex items-center justify-center bg-gray-800 bg-opacity-50 z-50"
+        @keydown.esc="closeAll"
+        tabindex="0"
+      >
+        <div class="bg-white p-6 rounded-lg shadow-lg w-96 relative">
+          <button class="btn btn-sm btn-light position-absolute top-0 end-0 m-2" @click="closeAll">✕</button>
+          <div class="d-flex align-items-center mb-2">
+            <span
+              v-if="info.type !== 'default'"
+              :class="['rounded-circle me-2 d-inline-flex align-items-center justify-content-center',
+                       info.type==='success' ? 'bg-success' : (info.type==='error' ? 'bg-danger' : 'bg-secondary')]"
+              style="width:28px;height:28px;"
+            >
+              <span class="text-white fw-bold">{{ info.type==='success' ? '✓' : '!' }}</span>
+            </span>
+            <h5 class="m-0">{{ info.title }}</h5>
+          </div>
+          <p class="text-gray-700">{{ info.message }}</p>
+          <div class="mt-4 d-flex justify-content-end">
+            <button class="btn btn-primary" @click="closeAll">OK</button>
           </div>
         </div>
       </div>
@@ -167,8 +200,19 @@ import Sidebar from '@/Components/Sidebar.vue';
 export default {
   name: 'RegisterUser',
   components: { Sidebar },
+
   setup() {
-    const showModal = ref(false);
+    const showConfirm = ref(false);
+    const info = ref({ show: false, title: '', message: '', type: 'default' });
+
+    const showInfo = (title, message, type = 'default') => {
+      info.value = { show: true, title, message, type };
+    };
+    const closeAll = () => {
+      showConfirm.value = false;
+      info.value.show = false;
+    };
+
     const photoRef = ref(null);
     const photoPreview = ref(null);
     const formRef = ref(null);
@@ -187,9 +231,7 @@ export default {
 
     const showTemporaryWarning = (field, message, duration = 2500) => {
       inputWarnings.value[field] = message;
-      setTimeout(() => {
-        inputWarnings.value[field] = '';
-      }, duration);
+      setTimeout(() => (inputWarnings.value[field] = ''), duration);
     };
 
     const form = useForm({
@@ -222,52 +264,48 @@ export default {
     const handlePhotoUpload = (event) => {
       const file = event.target.files[0];
       form.photo = file;
-      if (file && file.type.startsWith("image/")) {
-        photoPreview.value = URL.createObjectURL(file);
-      } else {
-        photoPreview.value = null;
-      }
+      photoPreview.value = file && file.type.startsWith('image/')
+        ? URL.createObjectURL(file)
+        : null;
     };
 
     const handleSubmit = () => {
       const el = formRef.value;
       if (el && el.checkValidity()) {
-        showModal.value = true;
+        showConfirm.value = true;
       } else {
-        el.reportValidity();
+        showInfo('Incomplete Form', 'Please complete all required fields before submitting.', 'error');
+        el && el.reportValidity();
       }
     };
 
     const registerUser = () => {
-      showModal.value = false;
+      showConfirm.value = false;
 
       if (form.password !== form.password_confirmation) {
-        alert('Passwords do not match!');
+        showInfo('Password Mismatch', 'Passwords do not match. Please re-enter matching passwords.', 'error');
         return;
       }
 
       if (localErrors.value.email) {
-        alert(localErrors.value.email);
+        showInfo('Invalid Email', localErrors.value.email, 'error');
         return;
       }
 
       form.post(route('register'), {
         forceFormData: true,
         onSuccess: () => {
-          alert('User registered successfully!');
+          showInfo('Success', 'User registered successfully!', 'success');
           form.reset();
           form.clearErrors();
           if (photoRef.value) photoRef.value.value = '';
           photoPreview.value = null;
         },
         onError: (errors) => {
-          const firstErrorKey = Object.keys(errors)[0];
-          if (firstErrorKey) {
-            alert(errors[firstErrorKey]);
-          } else {
-            alert('An error occurred during registration.');
-          }
-        }
+          const firstKey = Object.keys(errors)[0];
+          const msg = firstKey ? String(errors[firstKey]) : 'An error occurred during registration.';
+          showInfo('Registration Failed', msg, 'error');
+        },
       });
     };
 
@@ -275,27 +313,22 @@ export default {
     const allowedPhoneChars = /[^0-9]/g;
 
     const filterText = (obj, field) => {
-      const original = obj[field];
+      const original = obj[field] ?? '';
       const filtered = original.replace(allowedNameChars, '');
-      if (original !== filtered) {
-        showTemporaryWarning(field, 'Only letters, spaces, and hyphens allowed.');
-      }
+      if (original !== filtered) showTemporaryWarning(field, 'Only letters, spaces, and hyphens allowed.');
       obj[field] = filtered;
     };
 
     const filterPhone = (obj, field) => {
-      const original = obj[field];
+      const original = obj[field] ?? '';
       const filtered = original.replace(allowedPhoneChars, '');
-      if (original !== filtered) {
-        showTemporaryWarning(field, 'Only numbers are allowed.');
-      }
+      if (original !== filtered) showTemporaryWarning(field, 'Only numbers are allowed.');
       obj[field] = filtered;
     };
 
     return {
       form,
       formRef,
-      showModal,
       registerUser,
       photoRef,
       photoPreview,
@@ -305,6 +338,9 @@ export default {
       filterPhone,
       inputWarnings,
       localErrors,
+      showConfirm,
+      info,
+      closeAll,
     };
   },
 };
