@@ -13,7 +13,7 @@
           >
             <i class="bi bi-cloud-arrow-up-fill upload-icon text-3xl"></i>
             <h2 class="text-xl font-bold mt-4">Drag and drop your files</h2>
-            <p class="text-gray-500 text-sm mt-2">Supports: PDF, DOCX, XLSX, XLS, PNG, JPG</p>
+            <p class="text-gray-500 text-sm mt-2">Supports: PDF, DOCX, XLSX, XLS, PNG, JPG, JPEG, DOC</p>
             <p class="text-gray-500 text-sm mt-2">Or</p>
 
             <p v-if="flaskOffline" class="text-red-600 font-bold mt-2">
@@ -32,7 +32,6 @@
               v-if="selectedFiles.length && !isScanning"
               class="mt-4 w-full max-w-xs mx-auto text-left text-sm text-gray-800"
             >
-              <!-- If nothing detected, ask to pick -->
               <div
                 v-if="!detectedCategory && !detectedTeacher && showCategorySelection && !overrideMode"
                 class="mb-2 text-red-600 font-semibold flex items-center gap-1"
@@ -41,7 +40,6 @@
                 No category or teacher detected. Please select the category manually:
               </div>
 
-              <!-- Status badge -->
               <div class="mb-2 flex items-center gap-2" v-if="detectedCategory || overrideMode">
                 <span
                   class="inline-flex items-center gap-2 text-xs font-semibold px-2 py-1 rounded"
@@ -51,7 +49,6 @@
                   {{ overrideMode ? 'Overridden classification' : 'Detected classification' }}
                 </span>
 
-                <!-- Reclassify / Reset buttons -->
                 <button
                   v-if="!overrideMode && detectedCategory"
                   @click="startReclassify"
@@ -68,13 +65,10 @@
                 </button>
               </div>
 
-              <!-- Show the current “effective” category -->
               <div v-if="canonicalCategory" class="text-green-700 font-semibold mb-2">
                 Category: {{ canonicalCategory }}
               </div>
 
-              <!-- Category select:
-                   - Visible when: we need a manual pick (nothing detected), OR user opted to override -->
               <div v-if="showCategorySelection || overrideMode" class="mb-4">
                 <select v-model.number="category_id" class="border rounded p-2 w-full">
                   <option disabled :value="null">Select Category</option>
@@ -101,15 +95,11 @@
                 </select>
               </div>
 
-              <!-- Teacher requirement computed from canonicalCategory -->
               <div v-if="requiresTeacher">
                 <p v-if="!overrideMode && detectedCategory && !detectedTeacher" class="text-red-600">
                   This document “{{ detectedCategory }}” belongs to a teacher. Please select the teacher:
                 </p>
 
-                <!-- Teacher select is shown if:
-                     - No teacher detected, or
-                     - We are in override mode (since user may change teacher too) -->
                 <div v-if="overrideMode || !detectedTeacher" class="mt-2">
                   <select v-model.number="teacher_id" class="border rounded p-2 w-full">
                     <option disabled :value="null">Select Teacher</option>
@@ -128,12 +118,13 @@
             <div class="flex gap-2 justify-center mt-4">
               <input
                 id="fileInput"
+                ref="fileInput"
                 type="file"
                 :key="fileInputKey"
                 class="hidden"
                 multiple
                 @change="handleFileUpload"
-                accept=".pdf,.docx,.xlsx,.xls,.png,.jpg,.doc"
+                accept=".pdf,.docx,.xlsx,.xls,.png,.jpg,.jpeg,.doc"
               />
               <button
                 @click="browseFile"
@@ -157,7 +148,7 @@
                   class="flex items-center justify-between border-b py-2 text-gray-700"
                 >
                   <span>{{ file.name }} ({{ formatFileSize(file.size) }})</span>
-                  <button @click="removeFile(i)" class="text-red-500 hover:text-red-700">
+                  <button @click="removeFile(i)" class="text-red-500 hover:text-red-700" title="Remove">
                     <i class="bi bi-trash"></i>
                   </button>
                 </li>
@@ -177,10 +168,10 @@
       </div>
     </div>
 
+    <!-- Duplicate Modal: Continue / Cancel only -->
     <DuplicatePromptModal
       v-if="showDuplicateModal"
       :existing-name="duplicateDocName"
-      @replace="handleReplace"
       @continue="handleContinue"
       @cancel="showDuplicateModal = false"
     />
@@ -218,8 +209,6 @@ export default {
       pendingFormData: null,
 
       lastOcrText: "",
-
-      // NEW: manual override mode
       overrideMode: false,
 
       teacherDocumentTypes: [
@@ -235,9 +224,6 @@ export default {
     };
   },
   computed: {
-    // Effective category name:
-    // - If overriding, use selected category_id
-    // - Else use detectedCategory; if not present, map from category_id
     canonicalCategory() {
       if (this.overrideMode) {
         return this.canonicalCategoryNameById(this.category_id) || "";
@@ -246,7 +232,6 @@ export default {
         || this.canonicalCategoryNameById(this.category_id)
         || "";
     },
-    // Teacher need derived from the effective category
     requiresTeacher() {
       return this.isTeacherDocByName(this.canonicalCategory);
     }
@@ -254,7 +239,6 @@ export default {
   watch: {
     category_id(newVal) {
       this.category_id = newVal === null ? null : Number(newVal);
-      // If user changes category while overriding, and new category doesn't require a teacher, clear selected teacher
       if (this.overrideMode && !this.isTeacherDocByName(this.canonicalCategoryNameById(this.category_id))) {
         this.teacher_id = null;
       }
@@ -287,13 +271,19 @@ export default {
 
     // ── UI actions ─────────────────────────────────────────
     browseFile() {
-      document.getElementById("fileInput").click();
+      const el = this.$refs.fileInput;
+      if (el) {
+        el.value = null;
+        el.click();
+      }
     },
     handleFileUpload(e) {
-      this.selectedFiles = Array.from(e.target.files);
+      const files = Array.from(e.target.files || []);
+      this.selectedFiles = files;
       this.successMessage = "";
-      this.overrideMode = false;  // reset override on new selection
+      this.overrideMode = false;
       if (this.selectedFiles.length) this.scanFile(this.selectedFiles[0]);
+      e.target.value = null;
     },
     async scanFile(file) {
       this.isScanning = true;
@@ -303,10 +293,8 @@ export default {
         const res = await axios.post("/upload/scan", formData);
 
         this.detectedTeacher = res.data.teacher || null;
-
         const serverCat = res.data.category || null;
         this.detectedCategory = this.normalizeCategoryName(serverCat);
-
         this.showCategorySelection = !this.detectedCategory;
 
         if (res.data.category_id) {
@@ -333,17 +321,23 @@ export default {
     },
     removeFile(i) {
       this.selectedFiles.splice(i, 1);
+      if (this.selectedFiles.length === 0) {
+        this.fileInputKey++;
+        this.teacher_id = null;
+        this.category_id = null;
+        this.lastOcrText = "";
+        this.detectedTeacher = null;
+        this.detectedCategory = null;
+        this.overrideMode = false;
+        this.showCategorySelection = false;
+      }
     },
-    handleDragOver(e) {
-      e.preventDefault(); this.isDragging = true;
-    },
-    handleDragLeave() {
-      this.isDragging = false;
-    },
+    handleDragOver(e) { e.preventDefault(); this.isDragging = true; },
+    handleDragLeave() { this.isDragging = false; },
     handleDrop(e) {
       e.preventDefault();
-      this.selectedFiles = Array.from(e.dataTransfer.files);
       this.isDragging = false;
+      this.selectedFiles = Array.from(e.dataTransfer.files || []);
       this.overrideMode = false;
       if (this.selectedFiles.length) this.scanFile(this.selectedFiles[0]);
     },
@@ -354,8 +348,6 @@ export default {
     // ── Reclassify controls ────────────────────────────────
     startReclassify() {
       this.overrideMode = true;
-
-      // If we have a detected category, prefill the select with it
       if (this.detectedCategory && !this.category_id) {
         const c = this.categories.find(
           x => x.name.trim().toLowerCase() === this.detectedCategory.trim().toLowerCase()
@@ -365,7 +357,6 @@ export default {
     },
     resetToDetected() {
       this.overrideMode = false;
-      // restore category id to detected one if exists
       if (this.detectedCategory) {
         const c = this.categories.find(
           x => x.name.trim().toLowerCase() === this.detectedCategory.trim().toLowerCase()
@@ -374,7 +365,6 @@ export default {
       } else {
         this.category_id = null;
       }
-      // restore teacher to detected (if any)
       if (this.detectedTeacher) {
         const t = this.teachers.find(x => x.full_name === this.detectedTeacher);
         this.teacher_id = t ? t.id : null;
@@ -385,11 +375,9 @@ export default {
 
     // ── Upload ─────────────────────────────────────────────
     async uploadFiles() {
-      // Force manual teacher selection if needed
       if (this.requiresTeacher && !this.teacher_id) {
         return alert("❌ Please select a teacher.");
       }
-      // If we need to pick category (either nothing detected or in override), ensure it's chosen
       if ((this.showCategorySelection || this.overrideMode) && !this.category_id) {
         return alert("❌ Please select a category.");
       }
@@ -399,23 +387,26 @@ export default {
       this.selectedFiles.forEach(f => formData.append("files[]", f));
       if (this.teacher_id != null) formData.append("teacher_id", this.teacher_id);
       if (this.category_id != null) formData.append("category_id", this.category_id);
-
-      // Reuse scan results so backend can skip OCR
       formData.append("skip_ocr", "1");
       formData.append("scanned_text", this.lastOcrText || "");
-
-      // Signal to backend that user intentionally overrode model result
       if (this.overrideMode) formData.append("override", "1");
 
       try {
         const resp = await axios.post("/upload", formData);
-        if (resp.data.duplicate) {
-          this.duplicateDocName = resp.data.existing_document_name;
+
+        if (resp?.data?.duplicate) {
+          // Show prompt with Continue (allow duplicate) or Cancel
+          this.duplicateDocName = resp.data.existing_document_name || "";
           this.pendingFormData = formData;
           this.showDuplicateModal = true;
           return;
         }
-        this.resetAfterUpload();
+
+        if (resp?.data?.success) {
+          this.resetAfterUpload();
+        } else {
+          alert("❌ Upload failed.");
+        }
       } catch (err) {
         console.error(err);
         alert("❌ Upload failed.");
@@ -423,18 +414,25 @@ export default {
         this.isUploading = false;
       }
     },
-    async handleReplace() {
-      this.pendingFormData.append("action", "replace");
-      await this.sendFinalUpload();
-    },
+
     async handleContinue() {
-      this.pendingFormData.append("action", "upload");
-      await this.sendFinalUpload();
-    },
-    async sendFinalUpload() {
+      // Repost with allow_duplicate=1
+      if (!this.pendingFormData) return;
+      this.pendingFormData.set("allow_duplicate", "1");
       try {
-        await axios.post("/upload", this.pendingFormData);
-        this.resetAfterUpload();
+        const resp = await axios.post("/upload", this.pendingFormData);
+
+        if (resp?.data?.duplicate) {
+          // Very rare: backend still flags duplicate → let user know
+          alert("Server still detected a duplicate. Please try again or contact admin.");
+          return;
+        }
+
+        if (resp?.data?.success) {
+          this.resetAfterUpload();
+        } else {
+          alert("❌ Upload failed.");
+        }
       } catch (err) {
         console.error(err);
         alert("❌ Upload failed.");
@@ -443,6 +441,7 @@ export default {
         this.pendingFormData = null;
       }
     },
+
     resetAfterUpload() {
       this.selectedFiles = [];
       this.teacher_id = null;

@@ -1,32 +1,27 @@
 <template>
-  <div class="fixed inset-0 z-50 bg-black bg-opacity-50 flex items-center justify-center">
-    <div class="bg-white rounded-lg shadow-lg max-w-md w-full p-6">
-      <h2 class="text-lg font-bold text-red-600 mb-2">Duplicate Document Detected</h2>
-      <p class="text-gray-700 mb-4">
-        A document of this type already exists for the selected teacher:
-        <strong>"{{ existingName }}"</strong>
+  <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/40">
+    <div class="bg-white rounded-lg shadow-lg w-full max-w-md p-6">
+      <h3 class="text-lg font-semibold mb-2">Possible Duplicate</h3>
+      <p class="text-sm text-gray-700">
+        A document with a similar name already exists
+        <span v-if="existingName"><strong> ({{ existingName }})</strong></span>.
       </p>
-      <p class="text-sm text-gray-600 mb-4">
-        What would you like to do?
+      <p class="text-sm text-gray-700 mt-2">
+        Do you want to <strong>add this as another file</strong>?
       </p>
-      <div class="flex justify-end gap-2">
+
+      <div class="mt-6 flex items-center justify-end gap-2">
         <button
-          class="px-4 py-2 text-sm rounded bg-gray-300 hover:bg-gray-400 text-gray-800"
+          class="px-4 py-2 rounded border border-gray-300 text-gray-700 hover:bg-gray-100"
           @click="$emit('cancel')"
         >
           Cancel
         </button>
         <button
-          class="px-4 py-2 text-sm rounded bg-blue-600 hover:bg-blue-700 text-white"
+          class="px-4 py-2 rounded bg-indigo-600 text-white font-semibold hover:bg-indigo-700"
           @click="$emit('continue')"
         >
-          Continue (Add Another)
-        </button>
-        <button
-          class="px-4 py-2 text-sm rounded bg-green-600 hover:bg-green-700 text-white"
-          @click="$emit('replace')"
-        >
-          Replace Existing
+          Continue
         </button>
       </div>
     </div>
@@ -35,11 +30,12 @@
 
 <script>
 export default {
+  name: "DuplicatePromptModal",
   props: {
     existingName: {
       type: String,
-      required: true,
-    },
-  },
+      default: ""
+    }
+  }
 };
 </script>

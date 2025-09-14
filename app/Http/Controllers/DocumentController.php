@@ -85,7 +85,8 @@ class DocumentController extends Controller
             'files.*' => 'required|file|mimes:pdf,doc,docx,xlsx,xls,png,jpg,jpeg|max:20480',
             'teacher_id' => 'nullable|integer|exists:teachers,id',
             'category_id' => 'nullable|integer|exists:categories,id',
-            'action' => 'nullable|in:upload,replace',
+            // removed: 'action'
+            'allow_duplicate' => 'nullable|boolean',
             'skip_ocr' => 'nullable|boolean',
             'scanned_text' => 'nullable|string',
         ]);
@@ -96,34 +97,27 @@ class DocumentController extends Controller
         $teacherId = $request->filled('teacher_id') ? (int) $request->input('teacher_id') : null;
         $categoryId = $request->filled('category_id') ? (int) $request->input('category_id') : null;
 
-        // duplicate check on first file
-        $file = $request->file('files')[0];
+        $allowDuplicate = (bool) $request->boolean('allow_duplicate'); // true when Continue(Add Another)
 
-        $existing = Document::where('teacher_id', $teacherId)
-            ->where('category_id', $categoryId)
-            ->first();
+        // ── Duplicate gate (teacher documents only; by teacher_id + category_id) ─────────
+        // We check once before processing any files. If blocked, UI shows the modal.
+        $existing = null;
+        if ($teacherId && $categoryId) {
+            $existing = Document::where('teacher_id', $teacherId)
+                ->where('category_id', $categoryId)
+                ->latest('id')
+                ->first();
+        }
 
-        if ($existing && $request->input('action') !== 'replace') {
+        // If duplicate exists and UI did NOT allow duplicate → notify UI
+        if ($existing && !$allowDuplicate) {
             return response()->json([
                 'duplicate' => true,
                 'existing_document_name' => $existing->name,
             ]);
         }
 
-        if ($existing && $request->input('action') === 'replace') {
-            if ($existing->path && Storage::disk('public')->exists($existing->path)) {
-                Storage::disk('public')->delete($existing->path);
-            }
-            if ($existing->pdf_preview_path && Storage::disk('public')->exists($existing->pdf_preview_path)) {
-                Storage::disk('public')->delete($existing->pdf_preview_path);
-            }
-
-            LogService::record("Replaced document '{$existing->name}'" .
-                ($existing->teacher ? " for teacher {$existing->teacher->full_name}" : ''));
-
-            $existing->delete();
-        }
-
+        // ── Save all files ─────────────────────────────────────────────────────
         $uploadedDocuments = [];
 
         foreach ($request->file('files') as $file) {
@@ -133,8 +127,10 @@ class DocumentController extends Controller
                 $categoryId,
                 $user,
                 [
+                    // removed: 'action'
+                    'allow_duplicate' => $allowDuplicate,
                     'skip_ocr' => (bool) $request->boolean('skip_ocr'),
-                    'scanned_text' => $request->input('scanned_text')
+                    'scanned_text' => $request->input('scanned_text'),
                 ]
             );
 
@@ -144,8 +140,8 @@ class DocumentController extends Controller
                 'category' => optional($document->category)->name ?? 'N/A',
             ];
 
-            LogService::record("Uploaded document '{$document->name}'" .
-                ($document->teacher ? " for teacher {$document->teacher->full_name}" : ''));
+            LogService::record("Uploaded document '{$document->name}'"
+                . ($document->teacher ? " for teacher {$document->teacher->full_name}" : ''));
         }
 
         return response()->json([
@@ -176,7 +172,6 @@ class DocumentController extends Controller
 
             if ($response->successful()) {
                 $data = $response->json();
-                // Prefer "text", else "text_preview"
                 $ocrText = $data['text'] ?? $data['text_preview'] ?? '';
                 $matchedCategory = $data['subcategory'] ?? null;
             } else {
@@ -203,7 +198,6 @@ class DocumentController extends Controller
 
             if ($matchedCategory) {
                 $teacherDocumentTypes = (new CategorizationService())->getTeacherDocumentTypes();
-                // case-insensitive check
                 $belongsToTeacher = collect($teacherDocumentTypes)
                     ->map(fn($n) => strtolower($n))
                     ->contains(strtolower($matchedCategory));
@@ -218,10 +212,10 @@ class DocumentController extends Controller
 
         return response()->json([
             'teacher' => $matchedTeacher,
-            'category' => $matchedCategory,   // normalized canonical name
-            'category_id' => $categoryId,     // helps the UI map directly
+            'category' => $matchedCategory,  // normalized canonical name
+            'category_id' => $categoryId,       // helps the UI map directly
             'belongs_to_teacher' => $belongsToTeacher,
-            'text' => $ocrText,               // expose text for reuse
+            'text' => $ocrText,          // expose text for reuse
         ]);
     }
 
@@ -240,8 +234,8 @@ class DocumentController extends Controller
         $document->delete();
 
         LogService::record(
-            "Deleted document '{$docName}'" .
-            ($teacherName !== 'N/A' ? " belonging to teacher {$teacherName}" : '')
+            "Deleted document '{$docName}'"
+            . ($teacherName !== 'N/A' ? " belonging to teacher {$teacherName}" : '')
         );
 
         return back()->with('success', 'Document deleted successfully.');
