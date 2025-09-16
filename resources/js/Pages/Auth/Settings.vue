@@ -198,7 +198,7 @@ const save = (section) => {
   alert(`Saving ${section} (wire this to your controller when ready)`)
 }
 
-const confirmAndRun = (e) => {
+const confirmAndRun = () => {
   if (confirm('Run a new backup now?')) {
     // normal navigation so the browser can accept the file stream
     window.location.href = route('settings.backup.run_download')
@@ -252,7 +252,7 @@ const refreshArchives = async () => {
   font-weight: 600; transition: .2s ease;
 }
 .tab.active { background: var(--brand); color: #fff; border-color: var(--brand); }
-.tab:hover { box-shadow: 0 2px 10px rgba(0,0,0,.04); }
+tab:hover { box-shadow: 0 2px 10px rgba(0,0,0,.04); }
 
 /* Card */
 .card { border: 1px solid var(--border); background: var(--card-bg); border-radius: 14px; overflow: hidden; margin-bottom: 16px; box-shadow: 0 2px 24px rgba(0,0,0,.03); }

@@ -19,9 +19,8 @@ class SettingsController extends Controller
     }
 
     /**
-     * Old POST endpoint (kept for background/manual use).
-     * Creates a backup then redirects back with a flash message.
-     * Not used for direct download because XHR cannot stream files.
+     * Keep: POST endpoint that just creates a backup (no download).
+     * Useful for background/manual runs or API usage.
      */
     public function runBackup(Request $request, BackupService $backup)
     {
@@ -31,7 +30,7 @@ class SettingsController extends Controller
 
     /**
      * NEW: GET endpoint that creates the backup and immediately streams it.
-     * Use this for the "Run Backup Now" button to trigger a real browser download.
+     * Use this for the "Run Backup Now" button so the browser downloads the ZIP.
      */
     public function runAndDownload(Request $request, BackupService $backup)
     {
