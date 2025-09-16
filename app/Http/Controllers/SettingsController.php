@@ -20,24 +20,30 @@ class SettingsController extends Controller
 
     public function runBackup(Request $request, BackupService $backup)
     {
-        // Authorization handled by route middleware (role:Admin,Admin Staff)
+        // 🔒 Only Admin / Admin Staff can run this (handled by middleware in web.php)
         $name = $backup->make();
-        return back()->with('success', "Backup created: {$name}");
+        $full = storage_path("app/backups/{$name}");
+
+        // Immediately download the freshly created ZIP
+        return response()->download($full, $name, [
+            'Content-Type' => 'application/zip',
+        ]);
     }
 
     public function archives(Request $request)
     {
-        // Authorization handled by route middleware (role:Admin,Admin Staff)
+        // 🔒 Only Admin / Admin Staff can access (handled by middleware)
         return response()->json($this->mapArchives());
     }
 
     public function download(Request $request, string $name)
     {
-        // Authorization handled by route middleware (role:Admin,Admin Staff)
+        // 🔒 Only Admin / Admin Staff can access (handled by middleware)
         $path = "backups/{$name}";
-        abort_unless(Storage::exists($path), 404);
+        abort_unless(Storage::disk('local')->exists($path), 404);
 
-        return Storage::download($path, $name, [
+        $full = storage_path("app/{$path}");
+        return response()->download($full, $name, [
             'Content-Type' => 'application/zip',
         ]);
     }
@@ -45,14 +51,15 @@ class SettingsController extends Controller
     // ── helpers ───────────────────────────────────────────────
     protected function mapArchives(): array
     {
-        $files = Storage::files('backups');
+        $disk = Storage::disk('local'); // force local to avoid FILESYSTEM_DISK mismatch
+        $files = $disk->files('backups');
         rsort($files); // newest first
 
-        return array_values(array_map(function ($f) {
+        return array_values(array_map(function ($f) use ($disk) {
             return [
                 'name' => basename($f),
-                'date' => date('Y-m-d H:i:s', Storage::lastModified($f)),
-                'size' => Storage::size($f),
+                'date' => date('Y-m-d H:i:s', $disk->lastModified($f)),
+                'size' => $disk->size($f),
             ];
         }, $files));
     }
