@@ -69,10 +69,17 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // 🔒 Only Admin / Admin Staff may run/list/download backups
     Route::middleware('role:Admin,Admin Staff')->group(function () {
+        // (kept) POST for non-download/background
         Route::post('/settings/backup/run', [SettingsController::class, 'runBackup'])
             ->name('settings.backup.run');
+
+        // NEW: GET that runs and directly streams the zip
+        Route::get('/settings/backup/run-download', [SettingsController::class, 'runAndDownload'])
+            ->name('settings.backup.run_download');
+
         Route::get('/settings/backup/archives', [SettingsController::class, 'archives'])
             ->name('settings.backup.archives');
+
         Route::get('/settings/backup/download/{name}', [SettingsController::class, 'download'])
             ->name('settings.backup.download');
     });

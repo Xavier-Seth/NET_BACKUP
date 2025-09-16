@@ -79,13 +79,16 @@
               <h6 class="mb-1">Create a new backup</h6>
               <small class="text-muted">Recommended before big changes or updates.</small>
             </div>
-            <button class="btn btn-outline-primary" :disabled="isBackingUp" @click="runBackup">
-              <span v-if="!isBackingUp"><i class="bi bi-cloud-arrow-down me-2"></i>Run Backup Now</span>
-              <span v-else class="d-inline-flex align-items-center">
-                <span class="spinner-border spinner-border-sm me-2" role="status" aria-hidden="true"></span>
-                Creating backup…
-              </span>
-            </button>
+
+            <!-- Direct GET to stream the ZIP -->
+            <a
+              :href="route('settings.backup.run_download')"
+              class="btn btn-outline-primary"
+              @click.prevent="confirmAndRun"
+            >
+              <i class="bi bi-cloud-arrow-down me-2"></i>
+              Run Backup Now
+            </a>
           </div>
 
           <hr class="my-4" />
@@ -170,17 +173,14 @@
 
 <script setup>
 import { ref } from 'vue'
-import { router } from '@inertiajs/vue3'
 import Sidebar from '@/Components/Sidebar.vue'
 
-// ✅ get initial archives from server
 const props = defineProps({
   archives: { type: Array, default: () => [] },
 })
 
 const activeTab = ref('general')
 
-// form (you can later POST these to your settings endpoint)
 const form = ref({
   school_name: 'Rizal Central School',
   language: 'en',
@@ -188,31 +188,20 @@ const form = ref({
   confirm_password: '',
 })
 
-// archives from props
 const archives = ref(props.archives || [])
-
-// ui flags
-const isBackingUp = ref(false)
 
 // helpers
 const mb = (bytes) => (bytes / 1024 / 1024).toFixed(2)
 
 // actions
 const save = (section) => {
-  // hook later (e.g., router.post(route('settings.save'), { ... }))
   alert(`Saving ${section} (wire this to your controller when ready)`)
 }
 
-const runBackup = async () => {
-  if (!confirm('Run a new backup now?')) return
-  isBackingUp.value = true
-  try {
-    await router.post(route('settings.backup.run'), {}, { preserveScroll: true })
-    await refreshArchives()
-  } catch (e) {
-    alert('Backup failed. Please check logs.')
-  } finally {
-    isBackingUp.value = false
+const confirmAndRun = (e) => {
+  if (confirm('Run a new backup now?')) {
+    // normal navigation so the browser can accept the file stream
+    window.location.href = route('settings.backup.run_download')
   }
 }
 

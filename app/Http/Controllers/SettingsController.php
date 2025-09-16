@@ -18,27 +18,44 @@ class SettingsController extends Controller
         ]);
     }
 
+    /**
+     * Old POST endpoint (kept for background/manual use).
+     * Creates a backup then redirects back with a flash message.
+     * Not used for direct download because XHR cannot stream files.
+     */
     public function runBackup(Request $request, BackupService $backup)
     {
-        // 🔒 Only Admin / Admin Staff can run this (handled by middleware in web.php)
+        $name = $backup->make();
+        return back()->with('success', "Backup created: {$name}");
+    }
+
+    /**
+     * NEW: GET endpoint that creates the backup and immediately streams it.
+     * Use this for the "Run Backup Now" button to trigger a real browser download.
+     */
+    public function runAndDownload(Request $request, BackupService $backup)
+    {
         $name = $backup->make();
         $full = storage_path("app/backups/{$name}");
 
-        // Immediately download the freshly created ZIP
-        return response()->download($full, $name, [
+        return response()->streamDownload(function () use ($full) {
+            readfile($full);
+        }, $name, [
             'Content-Type' => 'application/zip',
+            'Content-Disposition' => 'attachment; filename="' . $name . '"',
+            'X-Content-Type-Options' => 'nosniff',
+            'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
+            'Pragma' => 'no-cache',
         ]);
     }
 
     public function archives(Request $request)
     {
-        // 🔒 Only Admin / Admin Staff can access (handled by middleware)
         return response()->json($this->mapArchives());
     }
 
     public function download(Request $request, string $name)
     {
-        // 🔒 Only Admin / Admin Staff can access (handled by middleware)
         $path = "backups/{$name}";
         abort_unless(Storage::disk('local')->exists($path), 404);
 
