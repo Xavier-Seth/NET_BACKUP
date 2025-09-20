@@ -9,7 +9,7 @@ use Inertia\Inertia;
 class UserController extends Controller
 {
     /**
-     * ✅ Render the Users page (Inertia)
+     * Render the Users page (Inertia)
      */
     public function index()
     {
@@ -17,7 +17,7 @@ class UserController extends Controller
     }
 
     /**
-     * ✅ API: Return user list as JSON
+     * API: Return user list as JSON
      * Used for Vue frontend via axios
      */
     public function getUsers()
@@ -28,7 +28,7 @@ class UserController extends Controller
     }
 
     /**
-     * ✅ API: Delete a user
+     * API: Delete a user
      * Called from Vue via axios.delete(`/api/users/${id}`)
      */
     public function destroy($id)

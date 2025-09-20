@@ -366,7 +366,7 @@ onMounted(fetchUsers)
   .users-table td:nth-of-type(5)::before { content: "Actions"; }
 }
 
-/* ✅ Modal Styling */
+/* Modal Styling */
 .modal-backdrop {
   position: fixed;
   top: 0;
@@ -390,7 +390,7 @@ onMounted(fetchUsers)
   text-align: center;
 }
 
-/* ✅ Updated for horizontal button layout */
+/* Updated for horizontal button layout */
 .modal-actions {
   display: flex;
   justify-content: center;

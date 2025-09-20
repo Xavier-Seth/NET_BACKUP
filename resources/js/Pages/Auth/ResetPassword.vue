@@ -39,7 +39,7 @@ const submit = () => {
     <div class="card p-4 text-white shadow-lg border-0"
          style="width: 420px; background: #191645; border-radius: 20px;">
       <div class="text-center">
-        <!-- ✅ Centered logo -->
+        <!-- Centered logo -->
         <img src="/images/school_logo.png" alt="School Logo" width="80" class="mb-3 d-block mx-auto" />
         <h4 class="fw-bold">Reset Password</h4>
         <p class="text-light" style="font-size: 14px;">Create a new password for your account.</p>

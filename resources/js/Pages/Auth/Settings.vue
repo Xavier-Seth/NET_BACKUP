@@ -235,67 +235,185 @@ const refreshArchives = async () => {
   color: var(--text);
 }
 
-.content { flex: 1; padding: 24px; margin-left: 210px; }
+.content {
+  flex: 1;
+  padding: 24px;
+  margin-left: 210px;
+}
 
 /* Header */
 .page-header { margin-bottom: 14px; }
 .title-wrap { display: grid; gap: 6px; }
-.page-title { margin: 0; font-size: 1.45rem; font-weight: 700; letter-spacing: .2px; }
-.page-sub { margin: 0; color: var(--muted); font-size: .95rem; }
+.page-title {
+  margin: 0;
+  font-size: 1.45rem;
+  font-weight: 700;
+  letter-spacing: .2px;
+}
+.page-sub {
+  margin: 0;
+  color: var(--muted);
+  font-size: .95rem;
+}
 
 /* Tabs */
-.tabs { display: flex; gap: 8px; margin: 10px 0 20px; flex-wrap: wrap; }
-.tab {
-  display: inline-flex; align-items: center; gap: 8px;
-  background: transparent; border: 1px solid var(--border);
-  color: var(--text); padding: 10px 14px; border-radius: 10px;
-  font-weight: 600; transition: .2s ease;
+.tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin: 10px 0 20px;
 }
-.tab.active { background: var(--brand); color: #fff; border-color: var(--brand); }
-tab:hover { box-shadow: 0 2px 10px rgba(0,0,0,.04); }
+.tab {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  background: transparent;
+  border: 1px solid var(--border);
+  color: var(--text);
+  padding: 10px 14px;
+  border-radius: 10px;
+  font-weight: 600;
+  transition: .2s ease;
+}
+.tab.active {
+  background: var(--brand);
+  color: #fff;
+  border-color: var(--brand);
+}
+.tab:hover { box-shadow: 0 2px 10px rgba(0,0,0,.04); }
 
 /* Card */
-.card { border: 1px solid var(--border); background: var(--card-bg); border-radius: 14px; overflow: hidden; margin-bottom: 16px; box-shadow: 0 2px 24px rgba(0,0,0,.03); }
-.card-h, .card-f {
-  display: flex; align-items: start; justify-content: space-between;
-  padding: 16px 18px; gap: 16px; background: #fff;
+.card {
+  border: 1px solid var(--border);
+  background: var(--card-bg);
+  border-radius: 14px;
+  overflow: hidden;
+  margin-bottom: 16px;
+  box-shadow: 0 2px 24px rgba(0,0,0,.03);
+}
+.card-h,
+.card-f {
+  display: flex;
+  align-items: start;
+  justify-content: space-between;
+  padding: 16px 18px;
+  gap: 16px;
+  background: #fff;
 }
 .card-h { border-bottom: 1px solid var(--border); }
 .card-f { border-top: 1px solid var(--border); }
-.card-title { margin: 0; font-size: 1.05rem; font-weight: 700; }
-.card-sub { margin: 4px 0 0; color: var(--muted); font-size: .92rem; }
-.inline-help { display: flex; align-items: center; gap: 8px; color: var(--muted); background: var(--brand-50); border-radius: 10px; padding: 8px 12px; }
+.card-title {
+  margin: 0;
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+.card-sub {
+  margin: 4px 0 0;
+  color: var(--muted);
+  font-size: .92rem;
+}
+.inline-help {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  background: var(--brand-50);
+  border-radius: 10px;
+  padding: 8px 12px;
+}
 .card-b { padding: 18px; }
 
 /* Backup CTA */
 .backup-cta {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; padding: 14px 16px; border: 1px dashed var(--border);
-  border-radius: 12px; background: #fafbff;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  background: #fafbff;
 }
-.cta-copy h6 { margin: 0; font-weight: 700; }
+.cta-copy h6 {
+  margin: 0;
+  font-weight: 700;
+}
 
 /* Archives */
-.archive-list { display: grid; gap: 10px; padding: 0; margin: 0; list-style: none; }
-.archive-item {
-  display: flex; align-items: center; justify-content: space-between;
-  gap: 12px; padding: 12px 14px; border: 1px solid var(--border);
-  border-radius: 12px; background: #fff;
+.archive-list {
+  display: grid;
+  gap: 10px;
+  padding: 0;
+  margin: 0;
+  list-style: none;
 }
-.archive-item .meta { display: flex; align-items: center; gap: 12px; }
-.archive-item .ic { width: 40px; height: 40px; display: grid; place-items: center; border-radius: 10px; background: #f1f3fa; color: var(--brand); font-size: 1.05rem; }
-.archive-item .txt .name { font-weight: 700; max-width: 52vw; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.archive-item .txt .sub { display: flex; align-items: center; gap: 8px; color: var(--muted); font-size: .9rem; }
+.archive-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: #fff;
+}
+.archive-item .meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+.archive-item .ic {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border-radius: 10px;
+  background: #f1f3fa;
+  color: var(--brand);
+  font-size: 1.05rem;
+}
+.archive-item .txt .name {
+  font-weight: 700;
+  max-width: 52vw;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.archive-item .txt .sub {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--muted);
+  font-size: .9rem;
+}
 .archive-item .txt .sub .dot { opacity: .6; }
 .archive-item .actions { display: flex; gap: 8px; }
 
 /* Empty */
-.empty { display: grid; place-items: center; gap: 8px; padding: 40px 0; text-align: center; color: var(--muted); }
-.empty-ic { width: 64px; height: 64px; display: grid; place-items: center; border-radius: 14px; background: #f1f3fa; color: var(--brand); font-size: 1.4rem; }
+.empty {
+  display: grid;
+  place-items: center;
+  gap: 8px;
+  padding: 40px 0;
+  text-align: center;
+  color: var(--muted);
+}
+.empty-ic {
+  width: 64px;
+  height: 64px;
+  display: grid;
+  place-items: center;
+  border-radius: 14px;
+  background: #f1f3fa;
+  color: var(--brand);
+  font-size: 1.4rem;
+}
 .empty-txt strong { color: var(--text); }
 
 /* Responsive */
-@media (max-width: 992px) { .archive-item .txt .name { max-width: 46vw; } }
+@media (max-width: 992px) {
+  .archive-item .txt .name { max-width: 46vw; }
+}
 @media (max-width: 768px) {
   .content { margin-left: 0; padding: 16px; }
   .archive-item { align-items: start; }

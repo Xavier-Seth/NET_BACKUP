@@ -16,7 +16,7 @@
             </select>
           </div>
 
-          <!-- 🔍 LRN Search with Suggestions -->
+          <!-- LRN Search with Suggestions -->
           <div class="ms-auto" style="position: relative;">
             <input
               type="text"

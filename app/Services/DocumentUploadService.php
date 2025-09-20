@@ -107,12 +107,12 @@ class DocumentUploadService
                         $data = $response->json();
                         $ocrText = $ocrText ?: ($data['text'] ?? $data['text_preview'] ?? '');
                         $autoCategory = $this->normalizeCategoryName($data['subcategory'] ?? null);
-                        Log::info("✅ OCR + Classification via Flask during upload: {$autoCategory}");
+                        Log::info("OCR + Classification via Flask during upload: {$autoCategory}");
                     } else {
-                        Log::warning("⚠️ Flask responded but failed to classify: " . $response->body());
+                        Log::warning("Flask responded but failed to classify: " . $response->body());
                     }
                 } catch (\Exception $e) {
-                    Log::warning("⚠️ Flask server not reachable during upload: " . $e->getMessage());
+                    Log::warning("Flask server not reachable during upload: " . $e->getMessage());
                 }
             }
 
@@ -128,14 +128,14 @@ class DocumentUploadService
                     foreach (Teacher::all() as $teacher) {
                         if (stripos($ocrText, $teacher->full_name) !== false) {
                             $teacherId = $teacher->id;
-                            Log::info("👨‍🏫 Auto-detected Teacher: '{$teacher->full_name}' (ID: {$teacher->id})");
+                            Log::info("Auto-detected Teacher: '{$teacher->full_name}' (ID: {$teacher->id})");
                             break;
                         }
                     }
                 }
             }
         } catch (\Exception $e) {
-            Log::error('❌ Upload failed: ' . $e->getMessage());
+            Log::error('Upload failed: ' . $e->getMessage());
             throw $e;
         } finally {
             if (file_exists($decryptedPath)) {

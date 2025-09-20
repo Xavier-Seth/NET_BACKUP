@@ -7,7 +7,7 @@ use App\Models\SchoolPropertyDocument;
 use App\Models\Category;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
-use App\Services\LogService; // ✅ Import LogService
+use App\Services\LogService; // Import LogService
 
 class SchoolPropertyDocumentController extends Controller
 {
@@ -92,7 +92,7 @@ class SchoolPropertyDocumentController extends Controller
 
             return redirect()->back()->with('success', 'Document deleted successfully.');
         } catch (\Exception $e) {
-            \Log::error("❌ Delete failed: " . $e->getMessage());
+            \Log::error("Delete failed: " . $e->getMessage());
             return redirect()->back()->with('error', 'Failed to delete document.');
         }
     }

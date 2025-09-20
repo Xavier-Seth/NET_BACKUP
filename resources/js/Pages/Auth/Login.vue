@@ -8,7 +8,7 @@ const form = useForm({
   remember: false,
 });
 
-const showError = ref(false); // ⏱ Control display of error
+const showError = ref(false); 
 
 const submit = () => {
   form.post(route('login'), {
@@ -82,7 +82,7 @@ const clearErrors = () => {
           </div>
         </div>
 
-        <!-- ✅ Error message fades out after 3 seconds -->
+        <!-- Error message fades out after 3 seconds -->
         <div v-if="showError && (form.errors.email || form.errors.password)" class="text-center">
           <small class="text-danger">
             {{ form.errors.email || form.errors.password }}

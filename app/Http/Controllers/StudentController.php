@@ -9,7 +9,7 @@ use App\Services\DocumentUploadService;
 
 class StudentController extends Controller
 {
-    // ✅ Student Records Listing
+    // Student Records Listing
     public function index()
     {
         $students = Student::select(
@@ -27,14 +27,14 @@ class StudentController extends Controller
         ]);
     }
 
-    // ✅ Fetch One Student (no grades)
+    // Fetch One Student (no grades)
     public function show($lrn)
     {
         $student = Student::where('lrn', $lrn)->firstOrFail();
         return response()->json($student);
     }
 
-    // ✅ Register New Student
+    // Register New Student
     public function store(Request $request, DocumentUploadService $uploadService)
     {
         $validated = $request->validate([

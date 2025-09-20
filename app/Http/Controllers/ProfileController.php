@@ -53,30 +53,30 @@ class ProfileController extends Controller
             'photo' => 'nullable|image|max:20480', // 20MB
         ]);
 
-        // ✅ Handle photo upload
+        // Handle photo upload
         if ($request->hasFile('photo')) {
             $validated['photo_path'] = $request->file('photo')->store('user_photos', 'public');
         }
 
-        // ✅ Handle password
+        // Handle password
         if (!empty($validated['password'])) {
             $validated['password'] = Hash::make($validated['password']);
         } else {
             unset($validated['password']);
         }
 
-        // ✅ Update user
+        // Update user
         $user->update($validated);
 
-        // ✅ Refresh to get latest DB values
+        // Refresh to get latest DB values
         $user->refresh();
 
-        // ✅ Include full image URL for Vue
+        // Include full image URL for Vue
         $user->profilePicture = $user->photo_path
             ? asset('storage/' . $user->photo_path)
             : null;
 
-        // ✅ Return with updated props
+        // Return with updated props
         return Inertia::render('Profile/UserProfile', [
             'user' => $user,
         ])->with('success', 'Profile updated successfully.');
@@ -147,7 +147,7 @@ class ProfileController extends Controller
 
         $user->update($validated);
 
-        // ✅ FIXED: Stay on same page so Vue can handle modal + toast
+        // FIXED: Stay on same page so Vue can handle modal + toast
         return back(); // or: return response()->noContent();
     }
 
@@ -160,12 +160,12 @@ class ProfileController extends Controller
         $currentUser = Auth::user();
         $user = User::findOrFail($id);
 
-        // ❌ Prevent deleting your own account
+        // Prevent deleting your own account
         if ($currentUser->id === $user->id) {
             return redirect()->route('users.index')->with('error', 'You cannot delete your own account.');
         }
 
-        // ❌ Prevent deleting the last remaining admin
+        // Prevent deleting the last remaining admin
         if ($user->role === 'Admin' && User::where('role', 'Admin')->count() === 1) {
             return redirect()->route('users.index')->with('error', 'Cannot delete the only remaining Admin account.');
         }

@@ -229,16 +229,15 @@ function confirmDelete(doc) {
 
 <style scoped>
 /* Modal (PC-only, above everything) */
-.modal{
+.modal {
   position: fixed;
-  inset: 0;                 /* full viewport */
-  z-index: 2147483647;      /* higher than any sidebar */
-  display: grid;            /* easy centering */
+  inset: 0; /* full viewport */
+  z-index: 2147483647; /* higher than any sidebar */
+  display: grid; /* easy centering */
   place-items: center;
   background: rgba(0,0,0,.7);
 }
-
-.modal-c{
+.modal-c {
   position: relative;
   display: flex;
   flex-direction: column;
@@ -249,10 +248,8 @@ function confirmDelete(doc) {
   border-radius: 14px;
   box-shadow: 0 20px 60px rgba(0,0,0,.35);
 }
-
-.modal-iframe{ flex: 1; width: 100%; border: 0; }
-
-.modal-x{
+.modal-iframe { flex: 1; width: 100%; border: 0; }
+.modal-x {
   position: absolute;
   top: 12px;
   right: 12px;
@@ -265,54 +262,44 @@ function confirmDelete(doc) {
   cursor: pointer;
 }
 
-/* ─────────────────────────────
-   Headings
-   ───────────────────────────── */
+/* Headings */
 .page-title {
   margin: 0 0 1.25rem;
   font-weight: 800;
   font-size: 1.625rem; /* 26px */
 }
 
-/* ─────────────────────────────
-   Card + Header + Body
-   ───────────────────────────── */
+/* Card + Header + Body */
 .card {
   overflow: hidden;
   border: 1px solid #eef0f5;
-  border-radius: 0.875rem;           /* 14px */
+  border-radius: 0.875rem; /* 14px */
   background: linear-gradient(180deg, #fff 0%, #fbfbff 100%);
   box-shadow: 0 6px 24px rgba(16, 24, 40, .06);
 }
-
 .card-h {
   display: flex;
   gap: 0.75rem;
   justify-content: space-between;
-  padding: 0.875rem 1rem;            /* 14px 16px */
+  padding: 0.875rem 1rem; /* 14px 16px */
   border-bottom: 1px solid #edf0f6;
 }
-
 .card-b {
   height: 68vh;
   background: #f7f8fc;
 }
-
 .preview-iframe {
   width: 100%;
   height: 100%;
   border: 0;
 }
-
 .subline {
   margin-top: 0.125rem;
   color: #64748b;
   font-size: 0.75rem;
 }
 
-/* ─────────────────────────────
-   Action Dock
-   ───────────────────────────── */
+/* Action Dock */
 .action-dock {
   display: flex;
   gap: 0.5rem;
@@ -325,23 +312,20 @@ function confirmDelete(doc) {
   opacity: 1;
   transform: translateY(0);
 }
-
 .dock-btn {
-  width: 2.25rem;                    /* 36px */
+  width: 2.25rem; /* 36px */
   height: 2.25rem;
   display: grid;
   place-items: center;
   border: 0;
-  border-radius: 0.625rem;           /* 10px */
+  border-radius: 0.625rem; /* 10px */
   background: #f3f4f6;
   cursor: pointer;
 }
 .dock-btn:hover { background: #e7eaf0; }
 .dock-btn.danger { color: #dc3545; }
 
-/* ─────────────────────────────
-   Empty State
-   ───────────────────────────── */
+/* Empty State */
 .empty {
   height: 100%;
   display: grid;
@@ -351,132 +335,133 @@ function confirmDelete(doc) {
 .empty-circle {
   display: grid;
   place-items: center;
-  width: 4rem;                       /* 64px */
+  width: 4rem; /* 64px */
   height: 4rem;
   margin: 0 0 0.5rem;
   color: #4f46e5;
-  font-size: 1.625rem;               /* 26px */
+  font-size: 1.625rem; /* 26px */
   background: #eef2ff;
   border-radius: 999px;
 }
 
-/* ─────────────────────────────
-   Tools / Filters (PC-only)
-   ───────────────────────────── */
+/* Tools / Filters (PC-only) */
 .tools {
-  padding: 0.75rem 0.875rem;         /* 12px 14px */
+  padding: 0.75rem 0.875rem; /* 12px 14px */
   border-bottom: 1px solid #edf0f6;
   border-radius: 0.875rem 0.875rem 0 0;
   background: rgba(255,255,255,.9);
   backdrop-filter: blur(4px);
 }
-
 .tool-grid {
   display: grid;
   grid-template-columns: 1fr 1fr auto;
-  gap: 0.625rem;                     /* 10px */
+  gap: 0.625rem; /* 10px */
 }
-
-.tool { display: grid; gap: 0.375rem; }
+.tool {
+  display: grid;
+  gap: 0.375rem;
+}
 .tool input,
 .tool select {
-  padding: 0.5625rem 0.75rem;        /* 9px 12px */
+  padding: 0.5625rem 0.75rem; /* 9px 12px */
   border: 1px solid #d6dae3;
-  border-radius: 0.625rem;           /* 10px */
+  border-radius: 0.625rem; /* 10px */
   background: #fff;
 }
-
 .btn {
-  height: 2.375rem;                  /* 38px */
-  padding: 0 0.875rem;               /* 14px */
+  height: 2.375rem; /* 38px */
+  padding: 0 0.875rem; /* 14px */
   border: 1px solid #19184f;
-  border-radius: 0.625rem;           /* 10px */
+  border-radius: 0.625rem; /* 10px */
   background: #19184f;
   color: #fff;
 }
 
-/* ─────────────────────────────
-   Grid (compact, PC-only)
-   ───────────────────────────── */
+/* Grid (compact, PC-only) */
 .grid-wrap {
   display: grid;
   grid-template-columns: repeat(3, minmax(0, 1fr)); /* fixed 3 cols on desktop */
-  gap: 0.625rem;                     /* 10px */
+  gap: 0.625rem; /* 10px */
   max-height: 58vh;
-  padding: 0.375rem;                 /* 6px */
+  padding: 0.375rem; /* 6px */
   overflow: auto;
 }
-
 .grid-card {
   display: grid;
-  gap: 0.375rem;                     /* 6px */
+  gap: 0.375rem; /* 6px */
   grid-template-rows: auto auto auto auto;
-  padding: 0.5rem;                   /* 8px */
+  padding: 0.5rem; /* 8px */
   border: 1px solid #e5e7eb;
-  border-radius: 0.75rem;            /* 12px */
+  border-radius: 0.75rem; /* 12px */
   background: #fff;
   cursor: pointer;
 }
 .grid-card.active { outline: 2px solid #c7d2fe; outline-offset: 0; }
-
 .g-thumb {
   display: grid;
   place-items: center;
-  height: 6rem;                      /* 96px */
+  height: 6rem; /* 96px */
   overflow: hidden;
   border: 1px solid #eef0f5;
-  border-radius: 0.625rem;           /* 10px */
+  border-radius: 0.625rem; /* 10px */
 }
-.g-thumb img { width: 100%; height: 100%; object-fit: cover; }
-
+.g-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
 .g-fallback { color: #667085; font-size: 1.625rem; }
-
 .g-name {
   font-weight: 600;
-  font-size: 0.8125rem;              /* 13px */
+  font-size: 0.8125rem; /* 13px */
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-
-.g-sub { display: flex; gap: 0.375rem; align-items: center; }
-.g-actions { display: flex; gap: 0.375rem; margin-top: 0.125rem; }
-
+.g-sub {
+  display: flex;
+  gap: 0.375rem;
+  align-items: center;
+}
+.g-actions {
+  display: flex;
+  gap: 0.375rem;
+  margin-top: 0.125rem;
+}
 .icon {
   background: transparent;
   border: 0;
-  font-size: 1.125rem;               /* 18px */
+  font-size: 1.125rem; /* 18px */
   cursor: pointer;
   color: #374151;
 }
 .icon.danger { color: #dc3545; }
 
-/* ─────────────────────────────
-   Chips
-   ───────────────────────────── */
+/* Chips */
 .chip {
   display: inline-block;
-  padding: 0.1875rem 0.625rem;       /* 3px 10px */
+  padding: 0.1875rem 0.625rem; /* 3px 10px */
   font-size: 0.75rem;
   color: #3730a3;
   background: #eef2ff;
   border-radius: 999px;
 }
-.chip-s { font-size: 0.6875rem; padding: 0.125rem 0.5rem; }
+.chip-s {
+  font-size: 0.6875rem;
+  padding: 0.125rem 0.5rem;
+}
 
-/* ─────────────────────────────
-   Pagination
-   ───────────────────────────── */
+/* Pagination */
 .pagination {
   display: flex;
   justify-content: center;
-  gap: 0.375rem;                     /* 6px */
-  margin: 0.75rem 0 0.25rem;         /* 12px 0 4px */
+  gap: 0.375rem; /* 6px */
+  margin: 0.75rem 0 0.25rem; /* 12px 0 4px */
 }
 .page-link {
-  padding: 0.375rem 0.625rem;        /* 6px 10px */
+  padding: 0.375rem 0.625rem; /* 6px 10px */
   border: 1px solid #d1d5db;
-  border-radius: 0.625rem;           /* 10px */
+  border-radius: 0.625rem; /* 10px */
   background: #fff;
   cursor: pointer;
 }

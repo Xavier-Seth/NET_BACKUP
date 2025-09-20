@@ -26,7 +26,7 @@ class Teacher extends Model
         'remarks',
         'pds_file_path',
         'photo_path',
-        'status',        // ✅ newly fillable
+        'status',        // newly fillable
     ];
 
     /**

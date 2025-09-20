@@ -3,13 +3,13 @@
     <Sidebar />
 
     <div class="flex-1 ml-[200px]">
-      <!-- ✅ Toast Alert -->
+      <!-- Toast Alert -->
       <transition name="fade">
         <div
           v-if="showToast"
           class="fixed top-0 left-0 right-0 z-50 bg-green-600 text-white text-center py-2 shadow"
         >
-          ✅ User updated successfully.
+           User updated successfully.
         </div>
       </transition>
 
@@ -32,7 +32,7 @@
         </div>
       </div>
 
-      <!-- ✅ Success Modal -->
+      <!-- Success Modal -->
       <transition name="fade">
         <div v-if="showSuccessModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
           <div class="bg-white p-6 rounded shadow-lg text-center max-w-sm w-full">

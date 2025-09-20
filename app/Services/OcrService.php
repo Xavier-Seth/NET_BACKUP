@@ -44,7 +44,7 @@ class OcrService
         $outputTextFile = $outputPath . '.txt';
 
         if ($exitCode !== 0 || !file_exists($outputTextFile)) {
-            Log::error("❌ Tesseract failed: " . implode("\n", $log));
+            Log::error("Tesseract failed: " . implode("\n", $log));
             return '';
         }
 
@@ -60,7 +60,7 @@ class OcrService
         exec("{$this->pdftoppmPath} -png " . escapeshellarg($pdfPath) . " " . escapeshellarg($outputPrefix) . " 2>&1", $log, $exitCode);
 
         if ($exitCode !== 0) {
-            Log::error("❌ pdftoppm failed: " . implode("\n", $log));
+            Log::error("pdftoppm failed: " . implode("\n", $log));
             return '';
         }
 
@@ -88,7 +88,7 @@ class OcrService
         $convertedPdf = $outputDir . '/' . pathinfo($filePath, PATHINFO_FILENAME) . '.pdf';
 
         if ($exitCode !== 0 || !file_exists($convertedPdf)) {
-            Log::error("❌ LibreOffice conversion failed: " . implode("\n", $log));
+            Log::error("LibreOffice conversion failed: " . implode("\n", $log));
             return '';
         }
 

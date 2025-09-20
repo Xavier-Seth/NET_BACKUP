@@ -460,8 +460,9 @@ export default {
 </script>
 
 <style scoped>
+/* Upload Container */
 .upload-container {
-  background: white;
+  background: #fff;
   padding: 2rem;
   border-radius: 12px;
   border: 3px dashed #ccc;
@@ -472,22 +473,35 @@ export default {
   transition: border-color 0.3s;
 }
 .upload-container.dragging { border-color: #2563eb; }
+
+/* Upload Button */
 .upload-btn {
   margin-top: 1.5rem;
   padding: 0.75rem 1.5rem;
   background: #2563eb;
-  color: white;
+  color: #fff;
   font-weight: bold;
   border-radius: 0.5rem;
   cursor: pointer;
   transition: background 0.3s;
 }
 .upload-btn:hover { background: #1e40af; }
-.upload-btn:disabled { background: #a0aec0; cursor: not-allowed; }
-.spinner {
-  margin-top: 1rem; width: 2.5rem; height: 2.5rem;
-  border: 4px solid #ccc; border-top-color: #2563eb;
-  border-radius: 50%; animation: spin 1s linear infinite;
+.upload-btn:disabled {
+  background: #a0aec0;
+  cursor: not-allowed;
 }
-@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Spinner */
+.spinner {
+  margin-top: 1rem;
+  width: 2.5rem;
+  height: 2.5rem;
+  border: 4px solid #ccc;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin 1s linear infinite;
+}
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
 </style>

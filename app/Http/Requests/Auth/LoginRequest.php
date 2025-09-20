@@ -51,7 +51,7 @@ class LoginRequest extends FormRequest
 
         RateLimiter::clear($this->throttleKey());
 
-        // ✅ Prevent login if user is inactive
+        //Prevent login if user is inactive
         $user = Auth::user();
         if ($user->status !== 'active') {
             Auth::logout();

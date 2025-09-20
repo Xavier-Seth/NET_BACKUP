@@ -37,7 +37,7 @@
             </svg>
           </div>
           <p class="mt-2 mb-0">{{ totalStorage }}</p>
-          <div class="small text-muted">{{ storageBreakdown }}</div>
+          <!-- Removed the breakdown line here -->
         </div>
 
         <!-- Teachers -->
@@ -118,7 +118,7 @@ const totalStorage     = page.props.totalStorage || '0.00 MB'     // e.g., "2.50
 const totalTeachers    = page.props.totalTeachers || 0
 const activeCount      = page.props.activeCount   || 0
 const inactiveCount    = page.props.inactiveCount || 0
-const storageBreakdown = page.props.storageBreakdown || ''        // e.g., "PDF 65% · Images 25% · XLS 10%"
+// storageBreakdown removed from template
 
 /** ------- Quick Actions state (avatars) ------- */
 const qaOpen    = ref(false)
@@ -173,23 +173,83 @@ const percentage = computed(() => {
 
 <style scoped>
 /* Avatar Carousel */
-.fixed-avatar-row { width: auto; flex-wrap: nowrap; gap: 1rem; overflow-x: auto; }
-.avatar-wrapper { flex: 0 0 auto; width: 70px; text-align: center; cursor: pointer; }
-.avatar-img { width: 60px; height: 60px; object-fit: cover; border-radius: 50%; }
-.story-ring { padding: 2px; background: linear-gradient(45deg, #0d6efd, #ffc107); border-radius: 50%; display: inline-block; }
+.fixed-avatar-row {
+  width: auto;
+  flex-wrap: nowrap;
+  gap: 1rem;
+  overflow-x: auto;
+}
+.avatar-wrapper {
+  flex: 0 0 auto;
+  width: 70px;
+  text-align: center;
+  cursor: pointer;
+}
+.avatar-img {
+  width: 60px;
+  height: 60px;
+  object-fit: cover;
+  border-radius: 50%;
+}
+.story-ring {
+  padding: 2px;
+  background: linear-gradient(45deg, #0d6efd, #ffc107);
+  border-radius: 50%;
+  display: inline-block;
+}
 .story-ring img { border: 2px solid #fff; }
-.carousel-arrow { background: none; border: none; font-size: 2rem; font-weight: bold; color: #0d6efd; cursor: pointer; padding: 0 10px; }
-.carousel-arrow:disabled { color: #ccc; cursor: not-allowed; }
+.carousel-arrow {
+  background: none;
+  border: none;
+  font-size: 2rem;
+  font-weight: bold;
+  color: #0d6efd;
+  cursor: pointer;
+  padding: 0 10px;
+}
+.carousel-arrow:disabled {
+  color: #ccc;
+  cursor: not-allowed;
+}
 
 /* Widgets */
-.storage-card, .teacher-widget { width: 180px; background: #fff; }
-.donut-chart { width: 100px; height: 100px; }
-.donut-svg { transform: rotate(-90deg); width: 100%; height: 100%; }
-.donut-bg { fill: none; stroke: #e9ecef; stroke-width: 4; }
-.donut-fg { fill: none; stroke: #28a745; stroke-width: 4; stroke-linecap: round; transition: stroke-dasharray 0.6s ease; }
-.donut-text { font-size: 0.5em; fill: #28a745; font-weight: bold; transform: rotate(90deg); }
+.storage-card,
+.teacher-widget {
+  width: 180px;
+  background: #fff;
+}
+.donut-chart {
+  width: 100px;
+  height: 100px;
+}
+.donut-svg {
+  transform: rotate(-90deg);
+  width: 100%;
+  height: 100%;
+}
+.donut-bg {
+  fill: none;
+  stroke: #e9ecef;
+  stroke-width: 4;
+}
+.donut-fg {
+  fill: none;
+  stroke: #28a745;
+  stroke-width: 4;
+  stroke-linecap: round;
+  transition: stroke-dasharray 0.6s ease;
+}
+.donut-text {
+  font-size: 0.5em;
+  fill: #28a745;
+  font-weight: bold;
+  transform: rotate(90deg);
+}
 
 /* Teacher List */
 .teacher-list { background: #fff; }
-.status-label { font-size: 0.9rem; color: #6c757d; }
+.status-label {
+  font-size: 0.9rem;
+  color: #6c757d;
+}
 </style>
