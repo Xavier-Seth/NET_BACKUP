@@ -6,7 +6,6 @@ use Illuminate\Support\Facades\Storage;
 use Illuminate\Support\Facades\DB;
 use ZipArchive;
 
-// your models + decryptor
 use App\Models\Document;
 use App\Models\SchoolPropertyDocument;
 use App\Services\DocumentUploadService;
@@ -14,69 +13,100 @@ use App\Services\DocumentUploadService;
 class BackupService
 {
     /**
-     * Create a full backup ZIP:
-     *  - database.sql
-     *  - storage_public/documents/*  (DECRYPTED, with original uploaded names)
-     *  - storage_public/* (other folders copied as-is)
+     * Create BOTH archives and return their names as [encrypted, decrypted].
      *
-     * Returns the stored filename (e.g., backup_20250909_151230.zip)
+     * - encrypted file name:   backup_YYYYmmdd_HHMMSS.zip        (as-is)
+     * - decrypted file name:   backupdecrypt_YYYYmmdd_HHMMSS.zip (teacher docs decrypted)
      */
-    public function make(): string
+    public function makeBoth(): array
     {
         @set_time_limit(0);
 
-        // 1) Paths
         $ts = now()->format('Ymd_His');
-        $zipName = "backup_{$ts}.zip";
-        $zipPath = storage_path("app/backups/{$zipName}");
-        $workDir = storage_path("app/backups/tmp_{$ts}");
-        $dbFile = "{$workDir}/database.sql";
 
+        $encName = "backup_{$ts}.zip";
+        $decName = "backupdecrypt_{$ts}.zip";
+
+        $workDir = storage_path("app/backups/tmp_{$ts}");
+        if (!is_dir(dirname($workDir)))
+            @mkdir(dirname($workDir), 0755, true);
+        if (!is_dir($workDir))
+            @mkdir($workDir, 0755, true);
+
+        // dump DB once and reuse in both zips
+        $dbFile = "{$workDir}/database.sql";
+        $this->dumpDatabase($dbFile);
+
+        // build encrypted/as-is archive
+        $this->buildZip(
+            zipPath: storage_path("app/backups/{$encName}"),
+            dbFile: $dbFile,
+            addPublic: function (ZipArchive $zip) {
+                $this->addPublicDirAsIs($zip, 'storage_public');
+            }
+        );
+
+        // build decrypted archive
+        $this->buildZip(
+            zipPath: storage_path("app/backups/{$decName}"),
+            dbFile: $dbFile,
+            addPublic: function (ZipArchive $zip) {
+                $this->addPublicDirDecrypted($zip, 'storage_public');
+            }
+        );
+
+        // cleanup
+        $this->rrmdir($workDir);
+
+        return [$encName, $decName];
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*                     ZIP BUILDERS / ADDERS                           */
+    /* ------------------------------------------------------------------ */
+
+    protected function buildZip(string $zipPath, string $dbFile, callable $addPublic): void
+    {
         if (!is_dir(dirname($zipPath))) {
             @mkdir(dirname($zipPath), 0755, true);
         }
-        if (!is_dir($workDir)) {
-            @mkdir($workDir, 0755, true);
-        }
 
-        // 2) Dump DB
-        $this->dumpDatabase($dbFile);
-
-        // 3) Create ZIP
         $zip = new ZipArchive();
         if ($zip->open($zipPath, ZipArchive::CREATE | ZipArchive::OVERWRITE) !== true) {
-            throw new \RuntimeException('Cannot create backup zip');
+            throw new \RuntimeException('Cannot create backup zip: ' . basename($zipPath));
         }
 
-        // database.sql
+        // add DB
         $zip->addFile($dbFile, 'database.sql');
 
-        // 4) Add storage/app/public — but decrypt files under documents/*
-        $this->addPublicDirDecrypted($zip, 'storage_public');
+        // add storage/app/public
+        $addPublic($zip);
 
         $zip->close();
-
-        // 5) Cleanup
-        $this->rrmdir($workDir);
-
-        return $zipName;
     }
 
-    /* ---------------------------------------------------------------------- */
-    /*                          STORAGE ADDER (DECRYPT)                       */
-    /* ---------------------------------------------------------------------- */
+    /**
+     * AS-IS copy of everything under storage/app/public.
+     * Teacher docs stay encrypted (exact bytes copied).
+     */
+    protected function addPublicDirAsIs(ZipArchive $zip, string $insideRoot): void
+    {
+        foreach (Storage::disk('public')->allFiles() as $relPath) {
+            $zipPath = $insideRoot . '/' . str_replace('\\', '/', $relPath);
+            $full = storage_path('app/public/' . $relPath);
+            if (is_file($full)) {
+                $zip->addFile($full, $zipPath);
+            }
+        }
+    }
 
     /**
-     * Walk the public disk and add files to ZIP.
-     * - For paths starting with "documents/", read base64 blob, decrypt via DocumentUploadService,
-     *   and add using the original uploaded filename from DB (fallback to basename).
-     * - For all other paths, copy bytes as-is.
+     * Decrypt teacher documents into the archive; others copied as-is.
      */
     protected function addPublicDirDecrypted(ZipArchive $zip, string $insideRoot): void
     {
-        // Map "path" => "original uploaded name"
+        // "path" => "original uploaded name"
         $nameMap = [];
-
         foreach (Document::query()->get(['path', 'name']) as $row) {
             if ($row->path)
                 $nameMap[$row->path] = $row->name ?: basename($row->path);
@@ -88,23 +118,21 @@ class BackupService
 
         $crypto = app(DocumentUploadService::class);
 
-        // Iterate everything under storage/app/public via the disk
         foreach (Storage::disk('public')->allFiles() as $relPath) {
             $zipPath = $insideRoot . '/' . str_replace('\\', '/', $relPath);
 
             if (str_starts_with($relPath, 'documents/')) {
-                // Encrypted blob → decrypt
-                $encBase64 = Storage::disk('public')->get($relPath);        // base64( IV || base64(cipher) ) per your code
-                $plain = $crypto->decryptFileContents($encBase64);       // raw bytes (string) or false/null on error
+                // encrypted blob → decrypt into original name
+                $encBase64 = Storage::disk('public')->get($relPath);
+                $plain = $crypto->decryptFileContents($encBase64); // raw bytes or null
 
-                // Use original uploaded filename if known
                 $orig = $nameMap[$relPath] ?? basename($relPath);
                 $orig = $this->safeFilename($orig);
 
-                // Put decrypted bytes (fallback: encrypted) under storage_public/documents/<original_name>
+                // Place under storage_public/documents/<original_name>
                 $zip->addFromString($insideRoot . '/documents/' . $orig, $plain ?? $encBase64);
             } else {
-                // Non-encrypted folders (previews/, converted/, etc.) → copy as-is
+                // others as-is
                 $full = storage_path('app/public/' . $relPath);
                 if (is_file($full)) {
                     $zip->addFile($full, $zipPath);
@@ -113,13 +141,10 @@ class BackupService
         }
     }
 
-    /* ---------------------------------------------------------------------- */
-    /*                              DB DUMPER                                 */
-    /* ---------------------------------------------------------------------- */
+    /* ------------------------------------------------------------------ */
+    /*                              DB DUMP                                */
+    /* ------------------------------------------------------------------ */
 
-    /**
-     * Simple SQL dump (schema + data) using PDO (no external binaries).
-     */
     protected function dumpDatabase(string $outputFile): void
     {
         $pdo = DB::connection()->getPdo();
@@ -134,12 +159,10 @@ class BackupService
         $sql = "-- DocuNet backup\n-- Database: `{$dbName}`\n-- Generated: " . now()->toDateTimeString() . "\n\nSET FOREIGN_KEY_CHECKS=0;\n\n";
 
         foreach ($tables as $table) {
-            // Drop + Create
             $createStmt = $pdo->query("SHOW CREATE TABLE `{$table}`")->fetch(\PDO::FETCH_ASSOC);
             $createSql = $createStmt['Create Table'] ?? '';
             $sql .= "DROP TABLE IF EXISTS `{$table}`;\n{$createSql};\n\n";
 
-            // Data
             $rows = $pdo->query("SELECT * FROM `{$table}`");
             $first = $rows->fetch(\PDO::FETCH_ASSOC);
             $cols = array_keys($first ?: []);
@@ -162,9 +185,9 @@ class BackupService
         file_put_contents($outputFile, $sql);
     }
 
-    /* ---------------------------------------------------------------------- */
-    /*                               HELPERS                                  */
-    /* ---------------------------------------------------------------------- */
+    /* ------------------------------------------------------------------ */
+    /*                               HELPERS                               */
+    /* ------------------------------------------------------------------ */
 
     protected function safeFilename(string $name): string
     {

@@ -80,24 +80,24 @@
               <small class="text-muted">Recommended before big changes or updates.</small>
             </div>
 
-            <!-- Direct GET to stream the ZIP -->
-            <a
-              :href="route('settings.backup.run_download')"
-              class="btn btn-outline-primary"
-              @click.prevent="confirmAndRun"
-            >
-              <i class="bi bi-cloud-arrow-down me-2"></i>
-              Run Backup Now
-            </a>
+            <!-- POST to runBackup and refresh list -->
+            <button class="btn btn-outline-primary" @click="confirmAndRun" :disabled="loading">
+              <i class="bi bi-hdd-stack me-2"></i>
+              <span v-if="!loading">Run Backup Now</span>
+              <span v-else>Working…</span>
+            </button>
           </div>
 
           <hr class="my-4" />
 
           <div class="d-flex align-items-center justify-content-between mb-2">
             <h6 class="mb-0">Backup Archives</h6>
-            <button class="btn btn-sm btn-light" @click="refreshArchives">
-              <i class="bi bi-arrow-clockwise me-1"></i> Refresh
-            </button>
+            <div class="d-flex align-items-center gap-2">
+              <span class="text-muted small">Total: {{ pagination.total }}</span>
+              <button class="btn btn-sm btn-light" @click="refreshArchives()">
+                <i class="bi bi-arrow-clockwise me-1"></i> Refresh
+              </button>
+            </div>
           </div>
 
           <!-- List -->
@@ -130,6 +130,21 @@
               <strong>No backups yet</strong>
               <span>Click “Run Backup Now” to create your first archive.</span>
             </div>
+          </div>
+
+          <!-- Pagination -->
+          <div v-if="pagination.last_page > 1" class="pager">
+            <button class="btn btn-sm btn-light" :disabled="pagination.current_page <= 1" @click="goToPage(pagination.current_page - 1)">
+              <i class="bi bi-chevron-left"></i> Prev
+            </button>
+
+            <span class="pg-info">
+              Page {{ pagination.current_page }} of {{ pagination.last_page }}
+            </span>
+
+            <button class="btn btn-sm btn-light" :disabled="pagination.current_page >= pagination.last_page" @click="goToPage(pagination.current_page + 1)">
+              Next <i class="bi bi-chevron-right"></i>
+            </button>
           </div>
         </div>
       </section>
@@ -169,17 +184,60 @@
       </section>
     </main>
   </div>
+
+  <!-- Success Modal -->
+  <div v-if="showSuccess" class="modal-backdrop" @click.self="closeSuccess">
+    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="backupSuccessTitle">
+      <div class="modal-h">
+        <h5 id="backupSuccessTitle" class="m-0">
+          <i class="bi bi-check-circle-fill me-2 text-success"></i>
+          Backup Successful
+        </h5>
+        <button class="btn-close" @click="closeSuccess" aria-label="Close"></button>
+      </div>
+
+      <div class="modal-b">
+        <p class="mb-2">Successfully backed up. You can download the <strong>encrypted</strong> and <strong>decrypted</strong> files below.</p>
+
+        <ul class="created-list" v-if="createdFiles.length">
+          <li v-for="(fname, idx) in createdFiles" :key="fname" class="created-item">
+            <div class="left">
+              <i class="bi bi-file-zip me-2"></i>
+              <span class="fname" :title="fname">{{ fname }}</span>
+            </div>
+            <div class="right">
+              <span class="badge type" :class="idx === 0 ? 'enc' : 'dec'">{{ idx === 0 ? 'Encrypted' : 'Decrypted' }}</span>
+              <a :href="route('settings.backup.download', fname)" class="btn btn-sm btn-outline-primary">
+                <i class="bi bi-download me-1"></i> Download
+              </a>
+            </div>
+          </li>
+        </ul>
+
+        <div v-else class="text-muted small">No file names returned by the server.</div>
+      </div>
+
+      <div class="modal-f">
+        <button class="btn btn-primary" @click="viewInList">
+          <i class="bi bi-collection me-1"></i> View in Archives
+        </button>
+        <button class="btn btn-light" @click="closeSuccess">Close</button>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, watch, onMounted } from 'vue'
 import Sidebar from '@/Components/Sidebar.vue'
 
-const props = defineProps({
+defineProps({
+  // we ignore server-provided archives on first paint and fetch paginated data instead
   archives: { type: Array, default: () => [] },
 })
 
-const activeTab = ref('general')
+const activeTab = ref('backup') // open Backup by default since you're testing
+const loading = ref(false)
 
 const form = ref({
   school_name: 'Rizal Central School',
@@ -188,7 +246,19 @@ const form = ref({
   confirm_password: '',
 })
 
-const archives = ref(props.archives || [])
+const archives = ref([])
+
+// pagination state (10 per page as requested)
+const pagination = ref({
+  current_page: 1,
+  per_page: 10,
+  total: 0,
+  last_page: 1,
+})
+
+// success modal state
+const showSuccess = ref(false)
+const createdFiles = ref([]) // array of filenames from server: [encrypted, decrypted]
 
 // helpers
 const mb = (bytes) => (bytes / 1024 / 1024).toFixed(2)
@@ -198,24 +268,97 @@ const save = (section) => {
   alert(`Saving ${section} (wire this to your controller when ready)`)
 }
 
-const confirmAndRun = () => {
-  if (confirm('Run a new backup now?')) {
-    // normal navigation so the browser can accept the file stream
-    window.location.href = route('settings.backup.run_download')
+const confirmAndRun = async () => {
+  if (!confirm('Run a new backup now?')) return
+  try {
+    loading.value = true
+    const res = await fetch(route('settings.backup.run'), {
+      method: 'POST',
+      headers: {
+        Accept: 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
+      },
+      credentials: 'same-origin',
+    })
+    if (!res.ok) {
+      const t = await res.text()
+      console.error('runBackup failed', res.status, t)
+      alert(`Backup failed (HTTP ${res.status}).`)
+      return
+    }
+
+    const data = await res.json()
+    // Expecting: { ok: true, created: [encName, decName], message: '...' }
+    createdFiles.value = Array.isArray(data.created) ? data.created.filter(Boolean) : []
+    showSuccess.value = true
+
+    // give the server a brief moment to finish writing the zips, then refresh the list
+    setTimeout(() => refreshArchives(pagination.value.current_page), 1500)
+  } catch (e) {
+    console.error(e)
+    alert('Backup failed.')
+  } finally {
+    loading.value = false
   }
 }
 
-const refreshArchives = async () => {
+const refreshArchives = async (page = 1) => {
   try {
-    const res = await fetch(route('settings.backup.archives'), {
-      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    const url = new URL(route('settings.backup.archives'))
+    url.searchParams.set('page', page)
+    url.searchParams.set('perPage', pagination.value.per_page)
+
+    const res = await fetch(url, {
+      method: 'GET',
+      headers: {
+        Accept: 'application/json',
+        'X-Requested-With': 'XMLHttpRequest',
+      },
+      credentials: 'same-origin',
     })
+    if (!res.ok) {
+      const text = await res.text()
+      console.error('Archives fetch failed', res.status, text)
+      alert(`Unable to refresh archives (HTTP ${res.status}).`)
+      return
+    }
     const data = await res.json()
-    archives.value = Array.isArray(data) ? data : []
+    archives.value = Array.isArray(data.data) ? data.data : []
+    pagination.value.current_page = data.current_page || 1
+    pagination.value.per_page = data.per_page || 10
+    pagination.value.total = data.total || 0
+    pagination.value.last_page = data.last_page || 1
   } catch (e) {
+    console.error(e)
     alert('Unable to refresh archives.')
   }
 }
+
+const goToPage = (p) => {
+  if (p < 1 || p > pagination.value.last_page) return
+  refreshArchives(p)
+}
+
+const closeSuccess = () => {
+  showSuccess.value = false
+}
+
+const viewInList = () => {
+  // Ensure we're on the Backup tab and refresh the first page so users can see the new files
+  activeTab.value = 'backup'
+  refreshArchives(1)
+  closeSuccess()
+}
+
+// keep list in sync when opening the Backup tab
+watch(activeTab, (tab) => {
+  if (tab === 'backup') refreshArchives(pagination.value.current_page)
+})
+
+onMounted(() => {
+  if (activeTab.value === 'backup') refreshArchives(1)
+})
 </script>
 
 <style scoped>
@@ -409,6 +552,102 @@ const refreshArchives = async () => {
   font-size: 1.4rem;
 }
 .empty-txt strong { color: var(--text); }
+
+/* Pagination */
+.pager {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.pg-info {
+  font-size: .9rem;
+  color: var(--muted);
+}
+
+/* Modal */
+.modal-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(13, 18, 33, 0.45);
+  display: grid;
+  place-items: center;
+  z-index: 9999;
+  padding: 16px;
+}
+.modal-card {
+  width: 100%;
+  max-width: 680px;
+  background: #fff;
+  border-radius: 14px;
+  box-shadow: 0 12px 40px rgba(0,0,0,.2);
+  overflow: hidden;
+  animation: pop .15s ease-out;
+}
+@keyframes pop {
+  from { transform: translateY(8px); opacity: .6; }
+  to { transform: translateY(0); opacity: 1; }
+}
+.modal-h, .modal-f {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.modal-f { border-top: 1px solid var(--border); border-bottom: 0; }
+.modal-b {
+  padding: 16px;
+}
+.btn-close {
+  border: 0;
+  background: transparent;
+  font-size: 1.2rem;
+  line-height: 1;
+}
+.created-list {
+  list-style: none;
+  padding: 0;
+  margin: 10px 0 0;
+  display: grid;
+  gap: 10px;
+}
+.created-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+}
+.created-item .left {
+  display: flex;
+  align-items: center;
+  min-width: 0;
+}
+.created-item .fname {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  max-width: 48vw;
+}
+.created-item .right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-shrink: 0;
+}
+.badge.type {
+  padding: 4px 8px;
+  border-radius: 999px;
+  font-size: .75rem;
+  border: 1px solid var(--border);
+  background: #f7f7fb;
+}
+.badge.type.enc { background: #eaf3ff; border-color: #cfe3ff; }
+.badge.type.dec { background: #eaffea; border-color: #cfeccf; }
 
 /* Responsive */
 @media (max-width: 992px) {

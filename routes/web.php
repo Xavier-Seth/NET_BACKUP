@@ -55,10 +55,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    // Settings (available to all authenticated users)
+    // Settings (all users can open Settings page)
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
 
-    // Backup (Admin & Admin Staff only)
+    // Backup (only Admin & Admin Staff)
     Route::middleware('role:Admin,Admin Staff')->group(function () {
         Route::post('/settings/backup/run', [SettingsController::class, 'runBackup'])->name('settings.backup.run');
         Route::get('/settings/backup/run-download', [SettingsController::class, 'runAndDownload'])->name('settings.backup.run_download');
@@ -94,7 +94,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
 
     // Teachers
     Route::get('/teachers', [TeacherController::class, 'index'])->name('teachers.index');
-    Route::get('/teachers/register', fn() => Inertia::render('Teacher/RegisterTeacher'))->middleware('role:Admin,Admin Staff')->name('teachers.register');
+    Route::get('/teachers/register', fn() => Inertia::render('Teacher/RegisterTeacher'))
+        ->middleware('role:Admin,Admin Staff')
+        ->name('teachers.register');
     Route::post('/teachers', [TeacherController::class, 'store'])->name('teachers.store');
     Route::get('/teachers/{teacher}', [TeacherController::class, 'show'])->middleware('role:Admin,Admin Staff')->name('teachers.show');
     Route::get('/teachers/{teacher}/edit', [TeacherController::class, 'edit'])->middleware('role:Admin,Admin Staff')->name('teachers.edit');
