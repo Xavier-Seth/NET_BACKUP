@@ -26,8 +26,8 @@ use App\Models\Category;
    Guest Routes
 ------------------------------ */
 Route::middleware('guest')->group(function () {
-    // Login
-    Route::get('/', fn() => Inertia::render('Auth/Login'))->name('login');
+    // Root → redirect to the real login route defined in auth.php
+    Route::get('/', fn() => redirect()->route('login')); // ← no name here
 
     // Forgot password
     Route::get('/forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
@@ -45,6 +45,7 @@ Route::middleware('guest')->group(function () {
     Route::post('/reset-password', [NewPasswordController::class, 'store'])->name('password.store');
 });
 
+// Includes /login (named 'login'), /register (if present), etc.
 require __DIR__ . '/auth.php';
 
 /* ------------------------------
@@ -58,15 +59,15 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Settings (page visible to all users)
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
 
-    // ✅ Security tab (password update)
+    // Security tab (password update)
     Route::patch('/settings/password', [SettingsController::class, 'updatePassword'])
         ->name('settings.security.update');
 
-    // ✅ Fresh CSRF token for SPA retries
+    // Fresh CSRF token for SPA retries
     Route::get('/csrf-token', fn() => response()->json(['token' => csrf_token()]))
         ->name('csrf.token');
 
-    // ✅ General tab (school name + logo) — limit to Admin & Admin Staff
+    // General tab (school name + logo) — Admin & Admin Staff
     Route::middleware('role:Admin,Admin Staff')->group(function () {
         Route::post('/settings/general', [SettingsController::class, 'updateGeneral'])
             ->name('settings.general.update');
@@ -131,7 +132,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
    Admin-only User Management
 ------------------------------ */
 Route::middleware(['auth', 'role:Admin'])->group(function () {
-    // ✅ Fixed: use different names
+    // Unique names for admin register routes
     Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
     Route::post('/register', [RegisteredUserController::class, 'store'])->name('register.store');
 
