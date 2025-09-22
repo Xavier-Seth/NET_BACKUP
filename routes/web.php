@@ -131,8 +131,9 @@ Route::middleware(['auth', 'verified'])->group(function () {
    Admin-only User Management
 ------------------------------ */
 Route::middleware(['auth', 'role:Admin'])->group(function () {
+    // ✅ Fixed: use different names
     Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
-    Route::post('/register', [RegisteredUserController::class, 'store'])->name('register');
+    Route::post('/register', [RegisteredUserController::class, 'store'])->name('register.store');
 
     Route::get('/users', [UserController::class, 'index'])->name('users.index');
     Route::get('/api/users', [UserController::class, 'getUsers'])->name('api.users');
