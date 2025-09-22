@@ -58,16 +58,20 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Settings (page visible to all users)
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
 
-    // ✅ Password update route (for Settings > Security tab)
+    // ✅ Security tab (password update)
     Route::patch('/settings/password', [SettingsController::class, 'updatePassword'])
         ->name('settings.security.update');
 
-    // ✅ Fresh CSRF token for SPA retries (Fix A)
+    // ✅ Fresh CSRF token for SPA retries
     Route::get('/csrf-token', fn() => response()->json(['token' => csrf_token()]))
         ->name('csrf.token');
 
-    // Backup (only Admin & Admin Staff)
+    // ✅ General tab (school name + logo) — limit to Admin & Admin Staff
     Route::middleware('role:Admin,Admin Staff')->group(function () {
+        Route::post('/settings/general', [SettingsController::class, 'updateGeneral'])
+            ->name('settings.general.update');
+
+        // Backup
         Route::post('/settings/backup/run', [SettingsController::class, 'runBackup'])->name('settings.backup.run');
         Route::get('/settings/backup/run-download', [SettingsController::class, 'runAndDownload'])->name('settings.backup.run_download');
         Route::get('/settings/backup/archives', [SettingsController::class, 'archives'])->name('settings.backup.archives');

@@ -5,7 +5,10 @@ namespace App\Http\Middleware;
 use Illuminate\Http\Request;
 use Inertia\Middleware;
 use Illuminate\Support\Facades\Session;
+
 use App\Services\CategorizationService;
+use App\Models\SystemSetting;              // 👈 add
+use Illuminate\Support\Facades\Storage;    // 👈 add
 
 class HandleInertiaRequests extends Middleware
 {
@@ -27,6 +30,14 @@ class HandleInertiaRequests extends Middleware
      */
     public function share(Request $request): array
     {
+        // Load your single settings row (created by SettingsController@index/updateGeneral)
+        $settings = SystemSetting::first(); // null-safe below
+
+        $branding = [
+            'school_name' => $settings?->school_name ?? 'Rizal Central School',
+            'logo_url' => $settings?->logo_path ? Storage::url($settings->logo_path) : null,
+        ];
+
         return array_merge(parent::share($request), [
             // Authenticated user — now including photo_path
             'auth' => [
@@ -35,7 +46,7 @@ class HandleInertiaRequests extends Middleware
                     'first_name' => $request->user()->first_name,
                     'last_name' => $request->user()->last_name,
                     'role' => $request->user()->role,
-                    'photo_path' => $request->user()->photo_path, // ← add this
+                    'photo_path' => $request->user()->photo_path,
                 ] : null,
             ],
 
@@ -44,6 +55,9 @@ class HandleInertiaRequests extends Middleware
 
             // Teacher document types (global)
             'teacherDocumentTypes' => (new CategorizationService)->getTeacherDocumentTypes(),
+
+            // Global branding (school name + logo URL) for Header/Sidebar/etc.
+            'branding' => $branding,
         ]);
     }
 }

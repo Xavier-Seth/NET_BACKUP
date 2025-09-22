@@ -8,25 +8,63 @@ use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
 use App\Services\BackupService;
 use Illuminate\Support\Facades\Hash;
-
+use App\Models\SystemSetting;
 
 class SettingsController extends Controller
 {
     public function index(Request $request)
     {
-        // Initial page render — the Vue page will fetch paginated data on mount.
+        // Ensure there is always exactly one settings row
+        $settings = SystemSetting::firstOrCreate(
+            ['id' => 1],
+            [
+                'school_name' => 'Rizal Central School',
+                'logo_path' => null,
+            ]
+        );
+
         return Inertia::render('Auth/Settings', [
-            'archives' => [], // client fetches page 1 via /settings/backup/archives
+            'archives' => [],
+            'settings' => array_merge($settings->toArray(), [
+                'logo_path_url' => $settings->logo_path ? Storage::url($settings->logo_path) : null,
+            ]),
         ]);
     }
 
     /**
-     * Create backups (encrypted + decrypted) WITHOUT auto-download.
-     * Returns a small JSON so the UI can refresh the list.
+     * Save General settings (school name + optional logo).
      */
+    public function updateGeneral(Request $request)
+    {
+        $validated = $request->validate([
+            'school_name' => ['required', 'string', 'max:255'],
+            'logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
+        ]);
+
+        $settings = SystemSetting::firstOrFail();
+
+        if ($request->hasFile('logo')) {
+            if ($settings->logo_path && Storage::disk('public')->exists($settings->logo_path)) {
+                Storage::disk('public')->delete($settings->logo_path);
+            }
+            $path = $request->file('logo')->store('branding', 'public');
+            $settings->logo_path = $path;
+        }
+
+        $settings->school_name = trim($validated['school_name']);
+        $settings->save();
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'General settings saved.',
+            'logo_url' => $settings->logo_path ? Storage::url($settings->logo_path) : null,
+            'settings' => $settings,
+        ]);
+    }
+
     public function runBackup(Request $request, BackupService $backup)
     {
-        [$encName, $decName] = $backup->makeBoth(); // creates both variants
+        [$encName, $decName] = $backup->makeBoth();
         return response()->json([
             'ok' => true,
             'created' => [$encName, $decName],
@@ -34,13 +72,10 @@ class SettingsController extends Controller
         ]);
     }
 
-    /**
-     * (Optional) Create and stream-download immediately.
-     */
     public function runAndDownload(Request $request, BackupService $backup)
     {
         $names = $backup->makeBoth();
-        $name = $names[0] ?? null; // default to the first one (encrypted)
+        $name = $names[0] ?? null;
         if (!$name) {
             abort(500, 'Backup was not created.');
         }
@@ -49,24 +84,14 @@ class SettingsController extends Controller
         return $this->streamLocalFile($full, $name);
     }
 
-    /**
-     * List archives as JSON (paginated).
-     * Query params: ?page=1&perPage=10
-     */
     public function archives(Request $request)
     {
-        // pagination inputs
         $page = max((int) $request->query('page', 1), 1);
-        // force 10 per request as asked; still sanitize if someone changes the client
         $perPage = (int) $request->query('perPage', 10);
-        if ($perPage <= 0)
-            $perPage = 10;
-        if ($perPage > 100)
-            $perPage = 100;
+        $perPage = $perPage <= 0 ? 10 : min($perPage, 100);
 
         $result = $this->mapArchives($page, $perPage);
 
-        // Optional debug payload
         if ($request->boolean('debug')) {
             $disk = Storage::disk('local');
             $abs = $disk->path('backups');
@@ -88,12 +113,8 @@ class SettingsController extends Controller
         return response()->json($result);
     }
 
-    /**
-     * Serve /settings/backup/download/{name}
-     */
     public function download(string $name)
     {
-        // prevent path traversal
         $name = basename($name);
         $full = storage_path("app/backups/{$name}");
         if (!is_file($full)) {
@@ -102,43 +123,44 @@ class SettingsController extends Controller
         return $this->streamLocalFile($full, $name);
     }
 
-    /* ── helpers ─────────────────────────────────────────────── */
+    public function updatePassword(Request $request)
+    {
+        $validated = $request->validate([
+            'current_password' => ['required', 'current_password'],
+            'new_password' => ['required', 'string', 'min:8', 'max:64', 'different:current_password'],
+            'confirm_password' => ['required', 'same:new_password'],
+        ]);
 
-    /**
-     * Build a paginated list of backup files, sorted by lastModified DESC (newest first).
-     *
-     * @return array{
-     *   data: array<int, array{name:string,date:string,size:int}>,
-     *   total:int,
-     *   per_page:int,
-     *   current_page:int,
-     *   last_page:int
-     * }
-     */
+        $user = $request->user();
+        $user->password = Hash::make($validated['new_password']);
+        $user->save();
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Password updated successfully.',
+        ]);
+    }
+
+    /* ── Helpers ─────────────────────────────────────────────── */
+
     protected function mapArchives(int $page = 1, int $perPage = 10): array
     {
         $disk = Storage::disk('local');
-        $files = $disk->files('backups'); // array of "backups/filename.zip"
+        $files = $disk->files('backups');
 
-        // sort by lastModified DESC (newest first), independent of filename
-        usort($files, function ($a, $b) use ($disk) {
-            return $disk->lastModified($b) <=> $disk->lastModified($a);
-        });
+        usort($files, fn($a, $b) => $disk->lastModified($b) <=> $disk->lastModified($a));
 
         $total = count($files);
         $lastPage = max(1, (int) ceil($total / $perPage));
         $page = min(max(1, $page), $lastPage);
         $offset = ($page - 1) * $perPage;
+        $slice = array_slice($files, $offset, $perPage);
 
-        $pageSlice = array_slice($files, $offset, $perPage);
-
-        $data = array_values(array_map(function ($f) use ($disk) {
-            return [
-                'name' => basename($f),
-                'date' => date('Y-m-d H:i:s', $disk->lastModified($f)),
-                'size' => $disk->size($f),
-            ];
-        }, $pageSlice));
+        $data = array_map(fn($f) => [
+            'name' => basename($f),
+            'date' => date('Y-m-d H:i:s', $disk->lastModified($f)),
+            'size' => $disk->size($f),
+        ], $slice);
 
         return [
             'data' => $data,
@@ -151,36 +173,12 @@ class SettingsController extends Controller
 
     protected function streamLocalFile(string $full, string $name): Response
     {
-        return response()->streamDownload(function () use ($full) {
-            readfile($full);
-        }, $name, [
+        return response()->streamDownload(fn() => readfile($full), $name, [
             'Content-Type' => 'application/zip',
             'Content-Disposition' => 'attachment; filename="' . $name . '"',
             'X-Content-Type-Options' => 'nosniff',
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
             'Pragma' => 'no-cache',
-        ]);
-    }
-
-
-    public function updatePassword(Request $request)
-    {
-        // Validate inputs
-        $validated = $request->validate([
-            // Validates against the current authenticated user's password
-            'current_password' => ['required', 'current_password'],
-            // You used `confirm_password` in the Vue, so we'll validate it with "same:new_password"
-            'new_password' => ['required', 'string', 'min:8', 'max:64', 'different:current_password'],
-            'confirm_password' => ['required', 'same:new_password'],
-        ]);
-
-        $user = $request->user();
-        $user->password = Hash::make($validated['new_password']);
-        $user->save();
-
-        return response()->json([
-            'ok' => true,
-            'message' => 'Password updated successfully.',
         ]);
     }
 }

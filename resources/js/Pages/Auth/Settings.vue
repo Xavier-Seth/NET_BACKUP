@@ -31,29 +31,53 @@
         <div class="card-h">
           <div>
             <h5 class="card-title"><i class="bi bi-gear me-2"></i>General</h5>
-            <p class="card-sub">Basic system information and preferences.</p>
+            <p class="card-sub">Branding and basic system information.</p>
           </div>
         </div>
 
         <div class="card-b">
           <div class="row g-3">
+            <!-- School name -->
             <div class="col-md-6">
               <label class="form-label">School Name</label>
-              <input type="text" v-model="form.school_name" class="form-control" placeholder="Enter school name" />
+              <input
+                type="text"
+                v-model="form.school_name"
+                class="form-control"
+                placeholder="Enter school name"
+              />
+              <small v-if="errors.school_name" class="text-danger">{{ errors.school_name }}</small>
             </div>
+
+            <!-- Logo upload -->
             <div class="col-md-6">
-              <label class="form-label">System Language</label>
-              <select v-model="form.language" class="form-select">
-                <option value="en">English</option>
-                <option value="fil">Filipino</option>
-              </select>
+              <label class="form-label">School Logo</label>
+              <input
+                type="file"
+                ref="logoInput"
+                class="form-control"
+                accept="image/png,image/jpeg,image/webp"
+                @change="onLogoChange"
+              />
+              <small v-if="errors.logo" class="text-danger">{{ errors.logo }}</small>
+
+              <!-- Preview -->
+              <div v-if="logoPreviewUrl" class="mt-2 d-flex align-items-center gap-2">
+                <img :src="logoPreviewUrl" alt="Logo preview" style="height:56px;width:auto;border:1px solid #ddd;border-radius:8px;" />
+                <button class="btn btn-sm btn-light" @click="clearLogo">Remove</button>
+              </div>
+              <div v-else-if="initialLogoUrl" class="mt-2">
+                <img :src="initialLogoUrl" alt="Current logo" style="height:56px;width:auto;border:1px solid #ddd;border-radius:8px;" />
+              </div>
             </div>
           </div>
         </div>
 
         <div class="card-f">
-          <button class="btn btn-primary" @click="save('general')">
-            <i class="bi bi-check2-circle me-1"></i> Save Changes
+          <button class="btn btn-primary" @click="save('general')" :disabled="loading">
+            <i class="bi bi-check2-circle me-1"></i>
+            <span v-if="!loading">Save Changes</span>
+            <span v-else>Saving…</span>
           </button>
         </div>
       </section>
@@ -79,8 +103,6 @@
               <h6 class="mb-1">Create a new backup</h6>
               <small class="text-muted">Recommended before big changes or updates.</small>
             </div>
-
-            <!-- POST to runBackup and refresh list -->
             <button class="btn btn-outline-primary" @click="confirmAndRun" :disabled="loading">
               <i class="bi bi-hdd-stack me-2"></i>
               <span v-if="!loading">Run Backup Now</span>
@@ -100,7 +122,6 @@
             </div>
           </div>
 
-          <!-- List -->
           <ul v-if="archives.length" class="archive-list">
             <li v-for="b in archives" :key="b.name" class="archive-item">
               <div class="meta">
@@ -123,7 +144,6 @@
             </li>
           </ul>
 
-          <!-- Empty -->
           <div v-else class="empty">
             <div class="empty-ic"><i class="bi bi-archive"></i></div>
             <div class="empty-txt">
@@ -132,16 +152,11 @@
             </div>
           </div>
 
-          <!-- Pagination -->
           <div v-if="pagination.last_page > 1" class="pager">
             <button class="btn btn-sm btn-light" :disabled="pagination.current_page <= 1" @click="goToPage(pagination.current_page - 1)">
               <i class="bi bi-chevron-left"></i> Prev
             </button>
-
-            <span class="pg-info">
-              Page {{ pagination.current_page }} of {{ pagination.last_page }}
-            </span>
-
+            <span class="pg-info">Page {{ pagination.current_page }} of {{ pagination.last_page }}</span>
             <button class="btn btn-sm btn-light" :disabled="pagination.current_page >= pagination.last_page" @click="goToPage(pagination.current_page + 1)">
               Next <i class="bi bi-chevron-right"></i>
             </button>
@@ -162,45 +177,24 @@
           <div class="row g-3">
             <div class="col-md-12">
               <label class="form-label">Current Password</label>
-              <input
-                type="password"
-                v-model="form.current_password"
-                class="form-control"
-                placeholder="Enter current password"
-                autocomplete="current-password"
-              />
+              <input type="password" v-model="form.current_password" class="form-control" placeholder="Enter current password" autocomplete="current-password" />
             </div>
             <div class="col-md-6">
               <label class="form-label">New Password</label>
-              <input
-                type="password"
-                v-model="form.new_password"
-                class="form-control"
-                placeholder="Enter new password"
-                autocomplete="new-password"
-              />
+              <input type="password" v-model="form.new_password" class="form-control" placeholder="Enter new password" autocomplete="new-password" />
             </div>
             <div class="col-md-6">
               <label class="form-label">Confirm New Password</label>
-              <input
-                type="password"
-                v-model="form.confirm_password"
-                class="form-control"
-                placeholder="Confirm new password"
-                autocomplete="new-password"
-              />
+              <input type="password" v-model="form.confirm_password" class="form-control" placeholder="Confirm new password" autocomplete="new-password" />
             </div>
           </div>
 
-          <!-- inline errors -->
           <div v-if="Object.keys(errors).length" class="alert alert-warning mt-3">
             <ul class="mb-0 ps-3">
               <li v-for="(msg, key) in errors" :key="key">{{ msg }}</li>
             </ul>
           </div>
-          <div v-if="successMsg" class="alert alert-success mt-3">
-            {{ successMsg }}
-          </div>
+          <div v-if="successMsg" class="alert alert-success mt-3">{{ successMsg }}</div>
         </div>
 
         <div class="card-f">
@@ -216,18 +210,13 @@
 
   <!-- Success Modal (Backup) -->
   <div v-if="showSuccess" class="modal-backdrop" @click.self="closeSuccess">
-    <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="backupSuccessTitle">
+    <div class="modal-card" role="dialog">
       <div class="modal-h">
-        <h5 id="backupSuccessTitle" class="m-0">
-          <i class="bi bi-check-circle-fill me-2 text-success"></i>
-          Backup Successful
-        </h5>
+        <h5 class="m-0"><i class="bi bi-check-circle-fill me-2 text-success"></i>Backup Successful</h5>
         <button class="btn-close" @click="closeSuccess" aria-label="Close"></button>
       </div>
-
       <div class="modal-b">
-        <p class="mb-2">Successfully backed up. You can download the <strong>encrypted</strong> and <strong>decrypted</strong> files below.</p>
-
+        <p class="mb-2">Successfully backed up. Download files below.</p>
         <ul class="created-list" v-if="createdFiles.length">
           <li v-for="(fname, idx) in createdFiles" :key="fname" class="created-item">
             <div class="left">
@@ -235,21 +224,15 @@
               <span class="fname" :title="fname">{{ fname }}</span>
             </div>
             <div class="right">
-              <span class="badge type" :class="idx === 0 ? 'enc' : 'dec'">{{ idx === 0 ? 'Encrypted' : 'Decrypted' }}</span>
               <a :href="route('settings.backup.download', fname)" class="btn btn-sm btn-outline-primary">
                 <i class="bi bi-download me-1"></i> Download
               </a>
             </div>
           </li>
         </ul>
-
-        <div v-else class="text-muted small">No file names returned by the server.</div>
       </div>
-
       <div class="modal-f">
-        <button class="btn btn-primary" @click="viewInList">
-          <i class="bi bi-collection me-1"></i> View in Archives
-        </button>
+        <button class="btn btn-primary" @click="viewInList"><i class="bi bi-collection me-1"></i> View in Archives</button>
         <button class="btn btn-light" @click="closeSuccess">Close</button>
       </div>
     </div>
@@ -257,44 +240,43 @@
 </template>
 
 <script setup>
-import { ref, watch, onMounted } from 'vue'
+import { ref, watch, onMounted, computed } from 'vue'
+import { usePage, router } from '@inertiajs/vue3'
 import Sidebar from '@/Components/Sidebar.vue'
 
-defineProps({
-  archives: { type: Array, default: () => [] },
-})
+const page = usePage()
 
-const activeTab = ref('backup')
+const activeTab = ref('general')
 const loading = ref(false)
 
-// General + Security forms
 const form = ref({
-  school_name: 'Rizal Central School',
-  language: 'en',
+  school_name: page.props.settings?.school_name ?? '',
   current_password: '',
   new_password: '',
   confirm_password: '',
 })
 
+const logoFile = ref(null)
+const logoPreviewUrl = ref('')
+const logoInput = ref(null)
+const initialLogoUrl = computed(() => page.props.settings?.logo_path_url || null)
+
 const errors = ref({})
 const successMsg = ref('')
 
-// Backups state
-const archives = ref([])
-const pagination = ref({
-  current_page: 1,
-  per_page: 10,
-  total: 0,
-  last_page: 1,
-})
-const showSuccess = ref(false)
-const createdFiles = ref([])
+/* -------- logo handling -------- */
+const onLogoChange = (e) => {
+  const f = e.target.files?.[0]
+  logoFile.value = f || null
+  logoPreviewUrl.value = f ? URL.createObjectURL(f) : ''
+}
+const clearLogo = () => {
+  logoFile.value = null
+  logoPreviewUrl.value = ''
+  if (logoInput.value) logoInput.value.value = ''
+}
 
-const mb = (bytes) => (bytes / 1024 / 1024).toFixed(2)
-
-/* ------------------------------
-   CSRF helpers (Fix A)
------------------------------- */
+/* -------- CSRF helpers -------- */
 const getCsrf = async () => {
   const r = await fetch(route('csrf.token'), { credentials: 'same-origin' })
   const j = await r.json()
@@ -304,13 +286,13 @@ const getCsrf = async () => {
 }
 
 const securedFetch = async (input, init = {}, { retryOn419 = true } = {}) => {
-  const meta = document.querySelector('meta[name="csrf-token"]')
-  const token = meta?.getAttribute('content') || (await getCsrf())
+  const token =
+    document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
+    (await getCsrf())
 
   const headers = new Headers(init.headers || {})
   headers.set('X-CSRF-TOKEN', token)
   headers.set('X-Requested-With', 'XMLHttpRequest')
-  headers.set('Accept', 'application/json')
 
   const res = await fetch(input, { ...init, headers, credentials: 'same-origin' })
   if (res.status === 419 && retryOn419) {
@@ -321,12 +303,55 @@ const securedFetch = async (input, init = {}, { retryOn419 = true } = {}) => {
   return res
 }
 
-/* ------------------------------ */
+/* -------- refresh shared props (branding) -------- */
+const refreshBranding = () => {
+  // Pull only the 'branding' shared prop from HandleInertiaRequests
+  router.reload({ only: ['branding'] })
+}
 
+/* -------- save handlers -------- */
 const save = async (section) => {
   if (section === 'general') {
-    alert('Saving general (wire to controller when ready)')
-    return
+    errors.value = {}
+    successMsg.value = ''
+    try {
+      loading.value = true
+      const fd = new FormData()
+      fd.append('school_name', (form.value.school_name || '').trim())
+      if (logoFile.value) fd.append('logo', logoFile.value)
+
+      const res = await securedFetch(route('settings.general.update'), {
+        method: 'POST',
+        body: fd,
+      })
+
+      if (res.status === 422) {
+        const data = await res.json()
+        errors.value = Object.fromEntries(
+          Object.entries(data.errors || {}).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])
+        )
+        return
+      }
+      if (!res.ok) {
+        const t = await res.text()
+        alert(`Save failed (HTTP ${res.status}). ${t.slice(0, 120)}`)
+        return
+      }
+
+      const data = await res.json()
+      successMsg.value = data.message || 'Saved.'
+      // Update the local preview immediately
+      if (data.logo_url) {
+        logoPreviewUrl.value = `${data.logo_url}?t=${Date.now()}`
+      }
+      logoFile.value = null
+      if (logoInput.value) logoInput.value.value = ''
+
+      // 🔄 AUTO-REFRESH: make Header/Sidebar pick up the new branding
+      refreshBranding()
+    } finally {
+      loading.value = false
+    }
   }
 
   if (section === 'security') {
@@ -346,109 +371,82 @@ const save = async (section) => {
 
       if (res.status === 422) {
         const data = await res.json()
-        const flat = {}
-        Object.entries(data.errors || {}).forEach(([k, v]) => { flat[k] = Array.isArray(v) ? v[0] : v })
-        errors.value = flat
+        errors.value = Object.fromEntries(
+          Object.entries(data.errors || {}).map(([k, v]) => [k, Array.isArray(v) ? v[0] : v])
+        )
         return
       }
-
       if (!res.ok) {
-        const txt = await res.text()
-        errors.value = { general: `Failed (HTTP ${res.status}). ${txt.slice(0, 120)}` }
+        const t = await res.text()
+        alert(`Failed (HTTP ${res.status}). ${t.slice(0, 120)}`)
         return
       }
 
       const data = await res.json()
-      successMsg.value = data.message || 'Password updated successfully.'
+      successMsg.value = data.message || 'Password updated.'
       form.value.current_password = ''
       form.value.new_password = ''
       form.value.confirm_password = ''
-    } catch (e) {
-      errors.value = { general: 'Something went wrong while updating password.' }
-      console.error(e)
     } finally {
       loading.value = false
     }
   }
 }
 
+/* -------- backup list -------- */
+const archives = ref([])
+const pagination = ref({ current_page: 1, per_page: 10, total: 0, last_page: 1 })
+const showSuccess = ref(false)
+const createdFiles = ref([])
+const mb = (bytes) => (bytes / 1024 / 1024).toFixed(2)
+
 const confirmAndRun = async () => {
   if (!confirm('Run a new backup now?')) return
   try {
     loading.value = true
-    const res = await securedFetch(route('settings.backup.run'), {
-      method: 'POST',
-    })
+    const res = await securedFetch(route('settings.backup.run'), { method: 'POST' })
     if (!res.ok) {
-      const t = await res.text()
-      console.error('runBackup failed', res.status, t)
-      alert(`Backup failed (HTTP ${res.status}).`)
+      alert(`Backup failed (HTTP ${res.status})`)
       return
     }
     const data = await res.json()
     createdFiles.value = Array.isArray(data.created) ? data.created.filter(Boolean) : []
     showSuccess.value = true
     setTimeout(() => refreshArchives(pagination.value.current_page), 1500)
-  } catch (e) {
-    console.error(e)
-    alert('Backup failed.')
   } finally {
     loading.value = false
   }
 }
 
 const refreshArchives = async (page = 1) => {
-  try {
-    const url = new URL(route('settings.backup.archives'))
-    url.searchParams.set('page', page)
-    url.searchParams.set('perPage', pagination.value.per_page)
+  const url = new URL(route('settings.backup.archives'))
+  url.searchParams.set('page', page)
+  url.searchParams.set('perPage', pagination.value.per_page)
 
-    const res = await fetch(url, {
-      method: 'GET',
-      headers: {
-        Accept: 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-      },
-      credentials: 'same-origin',
-    })
-    if (!res.ok) {
-      const text = await res.text()
-      console.error('Archives fetch failed', res.status, text)
-      alert(`Unable to refresh archives (HTTP ${res.status}).`)
-      return
-    }
-    const data = await res.json()
-    archives.value = Array.isArray(data.data) ? data.data : []
-    pagination.value.current_page = data.current_page || 1
-    pagination.value.per_page = data.per_page || 10
-    pagination.value.total = data.total || 0
-    pagination.value.last_page = data.last_page || 1
-  } catch (e) {
-    console.error(e)
-    alert('Unable to refresh archives.')
+  const res = await fetch(url, {
+    method: 'GET',
+    headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+    credentials: 'same-origin',
+  })
+  if (!res.ok) return
+  const data = await res.json()
+  archives.value = Array.isArray(data.data) ? data.data : []
+  pagination.value = {
+    current_page: data.current_page || 1,
+    per_page: data.per_page || 10,
+    total: data.total || 0,
+    last_page: data.last_page || 1,
   }
 }
 
-const goToPage = (p) => {
-  if (p < 1 || p > pagination.value.last_page) return
-  refreshArchives(p)
-}
-
+const goToPage = (p) => { if (p >= 1 && p <= pagination.value.last_page) refreshArchives(p) }
 const closeSuccess = () => { showSuccess.value = false }
-const viewInList = () => {
-  activeTab.value = 'backup'
-  refreshArchives(1)
-  closeSuccess()
-}
+const viewInList = () => { activeTab.value = 'backup'; refreshArchives(1); closeSuccess() }
 
-watch(activeTab, (tab) => {
-  if (tab === 'backup') refreshArchives(pagination.value.current_page)
-})
-
-onMounted(() => {
-  if (activeTab.value === 'backup') refreshArchives(1)
-})
+watch(activeTab, (tab) => { if (tab === 'backup') refreshArchives(pagination.value.current_page) })
+onMounted(() => { if (activeTab.value === 'backup') refreshArchives(1) })
 </script>
+
 
 
 <style scoped>
