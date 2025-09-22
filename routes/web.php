@@ -55,8 +55,16 @@ Route::middleware(['auth', 'verified'])->group(function () {
     // Dashboard
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    // Settings (all users can open Settings page)
+    // Settings (page visible to all users)
     Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
+
+    // ✅ Password update route (for Settings > Security tab)
+    Route::patch('/settings/password', [SettingsController::class, 'updatePassword'])
+        ->name('settings.security.update');
+
+    // ✅ Fresh CSRF token for SPA retries (Fix A)
+    Route::get('/csrf-token', fn() => response()->json(['token' => csrf_token()]))
+        ->name('csrf.token');
 
     // Backup (only Admin & Admin Staff)
     Route::middleware('role:Admin,Admin Staff')->group(function () {

@@ -160,32 +160,61 @@
 
         <div class="card-b">
           <div class="row g-3">
-            <div class="col-md-6">
-              <label class="form-label">New Password</label>
-              <input type="password" v-model="form.new_password" class="form-control" placeholder="Enter new password" />
+            <div class="col-md-12">
+              <label class="form-label">Current Password</label>
+              <input
+                type="password"
+                v-model="form.current_password"
+                class="form-control"
+                placeholder="Enter current password"
+                autocomplete="current-password"
+              />
             </div>
             <div class="col-md-6">
-              <label class="form-label">Confirm Password</label>
+              <label class="form-label">New Password</label>
+              <input
+                type="password"
+                v-model="form.new_password"
+                class="form-control"
+                placeholder="Enter new password"
+                autocomplete="new-password"
+              />
+            </div>
+            <div class="col-md-6">
+              <label class="form-label">Confirm New Password</label>
               <input
                 type="password"
                 v-model="form.confirm_password"
                 class="form-control"
                 placeholder="Confirm new password"
+                autocomplete="new-password"
               />
             </div>
+          </div>
+
+          <!-- inline errors -->
+          <div v-if="Object.keys(errors).length" class="alert alert-warning mt-3">
+            <ul class="mb-0 ps-3">
+              <li v-for="(msg, key) in errors" :key="key">{{ msg }}</li>
+            </ul>
+          </div>
+          <div v-if="successMsg" class="alert alert-success mt-3">
+            {{ successMsg }}
           </div>
         </div>
 
         <div class="card-f">
-          <button class="btn btn-danger" @click="save('security')">
-            <i class="bi bi-key me-1"></i> Update Password
+          <button class="btn btn-danger" @click="save('security')" :disabled="loading">
+            <i class="bi bi-key me-1"></i>
+            <span v-if="!loading">Update Password</span>
+            <span v-else>Working…</span>
           </button>
         </div>
       </section>
     </main>
   </div>
 
-  <!-- Success Modal -->
+  <!-- Success Modal (Backup) -->
   <div v-if="showSuccess" class="modal-backdrop" @click.self="closeSuccess">
     <div class="modal-card" role="dialog" aria-modal="true" aria-labelledby="backupSuccessTitle">
       <div class="modal-h">
@@ -232,54 +261,123 @@ import { ref, watch, onMounted } from 'vue'
 import Sidebar from '@/Components/Sidebar.vue'
 
 defineProps({
-  // we ignore server-provided archives on first paint and fetch paginated data instead
   archives: { type: Array, default: () => [] },
 })
 
-const activeTab = ref('backup') // open Backup by default since you're testing
+const activeTab = ref('backup')
 const loading = ref(false)
 
+// General + Security forms
 const form = ref({
   school_name: 'Rizal Central School',
   language: 'en',
+  current_password: '',
   new_password: '',
   confirm_password: '',
 })
 
-const archives = ref([])
+const errors = ref({})
+const successMsg = ref('')
 
-// pagination state (10 per page as requested)
+// Backups state
+const archives = ref([])
 const pagination = ref({
   current_page: 1,
   per_page: 10,
   total: 0,
   last_page: 1,
 })
-
-// success modal state
 const showSuccess = ref(false)
-const createdFiles = ref([]) // array of filenames from server: [encrypted, decrypted]
+const createdFiles = ref([])
 
-// helpers
 const mb = (bytes) => (bytes / 1024 / 1024).toFixed(2)
 
-// actions
-const save = (section) => {
-  alert(`Saving ${section} (wire this to your controller when ready)`)
+/* ------------------------------
+   CSRF helpers (Fix A)
+------------------------------ */
+const getCsrf = async () => {
+  const r = await fetch(route('csrf.token'), { credentials: 'same-origin' })
+  const j = await r.json()
+  const m = document.querySelector('meta[name="csrf-token"]')
+  if (m) m.setAttribute('content', j.token)
+  return j.token
+}
+
+const securedFetch = async (input, init = {}, { retryOn419 = true } = {}) => {
+  const meta = document.querySelector('meta[name="csrf-token"]')
+  const token = meta?.getAttribute('content') || (await getCsrf())
+
+  const headers = new Headers(init.headers || {})
+  headers.set('X-CSRF-TOKEN', token)
+  headers.set('X-Requested-With', 'XMLHttpRequest')
+  headers.set('Accept', 'application/json')
+
+  const res = await fetch(input, { ...init, headers, credentials: 'same-origin' })
+  if (res.status === 419 && retryOn419) {
+    const fresh = await getCsrf()
+    headers.set('X-CSRF-TOKEN', fresh)
+    return fetch(input, { ...init, headers, credentials: 'same-origin' })
+  }
+  return res
+}
+
+/* ------------------------------ */
+
+const save = async (section) => {
+  if (section === 'general') {
+    alert('Saving general (wire to controller when ready)')
+    return
+  }
+
+  if (section === 'security') {
+    errors.value = {}
+    successMsg.value = ''
+    try {
+      loading.value = true
+      const res = await securedFetch(route('settings.security.update'), {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          current_password: form.value.current_password,
+          new_password: form.value.new_password,
+          confirm_password: form.value.confirm_password,
+        }),
+      })
+
+      if (res.status === 422) {
+        const data = await res.json()
+        const flat = {}
+        Object.entries(data.errors || {}).forEach(([k, v]) => { flat[k] = Array.isArray(v) ? v[0] : v })
+        errors.value = flat
+        return
+      }
+
+      if (!res.ok) {
+        const txt = await res.text()
+        errors.value = { general: `Failed (HTTP ${res.status}). ${txt.slice(0, 120)}` }
+        return
+      }
+
+      const data = await res.json()
+      successMsg.value = data.message || 'Password updated successfully.'
+      form.value.current_password = ''
+      form.value.new_password = ''
+      form.value.confirm_password = ''
+    } catch (e) {
+      errors.value = { general: 'Something went wrong while updating password.' }
+      console.error(e)
+    } finally {
+      loading.value = false
+    }
+  }
 }
 
 const confirmAndRun = async () => {
   if (!confirm('Run a new backup now?')) return
   try {
     loading.value = true
-    const res = await fetch(route('settings.backup.run'), {
+    const res = await securedFetch(route('settings.backup.run'), {
       method: 'POST',
-      headers: {
-        Accept: 'application/json',
-        'X-Requested-With': 'XMLHttpRequest',
-        'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').getAttribute('content'),
-      },
-      credentials: 'same-origin',
     })
     if (!res.ok) {
       const t = await res.text()
@@ -287,13 +385,9 @@ const confirmAndRun = async () => {
       alert(`Backup failed (HTTP ${res.status}).`)
       return
     }
-
     const data = await res.json()
-    // Expecting: { ok: true, created: [encName, decName], message: '...' }
     createdFiles.value = Array.isArray(data.created) ? data.created.filter(Boolean) : []
     showSuccess.value = true
-
-    // give the server a brief moment to finish writing the zips, then refresh the list
     setTimeout(() => refreshArchives(pagination.value.current_page), 1500)
   } catch (e) {
     console.error(e)
@@ -340,18 +434,13 @@ const goToPage = (p) => {
   refreshArchives(p)
 }
 
-const closeSuccess = () => {
-  showSuccess.value = false
-}
-
+const closeSuccess = () => { showSuccess.value = false }
 const viewInList = () => {
-  // Ensure we're on the Backup tab and refresh the first page so users can see the new files
   activeTab.value = 'backup'
   refreshArchives(1)
   closeSuccess()
 }
 
-// keep list in sync when opening the Backup tab
 watch(activeTab, (tab) => {
   if (tab === 'backup') refreshArchives(pagination.value.current_page)
 })
@@ -361,7 +450,9 @@ onMounted(() => {
 })
 </script>
 
+
 <style scoped>
+/* Layout aligned to fixed Sidebar (210px) */
 /* Layout aligned to fixed Sidebar (210px) */
 .settings-layout {
   --bg: #f5f6fb;
@@ -437,7 +528,7 @@ onMounted(() => {
 .card-h,
 .card-f {
   display: flex;
-  align-items: start;
+  align-items: flex-start; /* FIX: was `start`; use `flex-start` for cross-browser */
   justify-content: space-between;
   padding: 16px 18px;
   gap: 16px;
@@ -597,15 +688,22 @@ onMounted(() => {
   border-bottom: 1px solid var(--border);
 }
 .modal-f { border-top: 1px solid var(--border); border-bottom: 0; }
-.modal-b {
-  padding: 16px;
-}
+.modal-b { padding: 16px; }
+
+/* Slightly larger hit area for close button without fighting Bootstrap */
 .btn-close {
   border: 0;
   background: transparent;
-  font-size: 1.2rem;
+  width: 32px;
+  height: 32px;
+  padding: 0;
   line-height: 1;
+  display: grid;
+  place-items: center;
+  font-size: 1.2rem;
 }
+
+/* Created list */
 .created-list {
   list-style: none;
   padding: 0;
@@ -625,6 +723,7 @@ onMounted(() => {
 .created-item .left {
   display: flex;
   align-items: center;
+  gap: 8px;
   min-width: 0;
 }
 .created-item .fname {
@@ -655,7 +754,11 @@ onMounted(() => {
 }
 @media (max-width: 768px) {
   .content { margin-left: 0; padding: 16px; }
-  .archive-item { align-items: start; }
-  .archive-item .actions { margin-left: 52px; }
+  .archive-item { align-items: flex-start; }
+  .archive-item .actions {
+    margin-left: 52px;
+    align-items: center; /* small tweak for nicer button alignment on wrap */
+  }
 }
+
 </style>

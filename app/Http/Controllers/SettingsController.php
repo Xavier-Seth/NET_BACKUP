@@ -7,6 +7,8 @@ use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
 use App\Services\BackupService;
+use Illuminate\Support\Facades\Hash;
+
 
 class SettingsController extends Controller
 {
@@ -157,6 +159,28 @@ class SettingsController extends Controller
             'X-Content-Type-Options' => 'nosniff',
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
             'Pragma' => 'no-cache',
+        ]);
+    }
+
+
+    public function updatePassword(Request $request)
+    {
+        // Validate inputs
+        $validated = $request->validate([
+            // Validates against the current authenticated user's password
+            'current_password' => ['required', 'current_password'],
+            // You used `confirm_password` in the Vue, so we'll validate it with "same:new_password"
+            'new_password' => ['required', 'string', 'min:8', 'max:64', 'different:current_password'],
+            'confirm_password' => ['required', 'same:new_password'],
+        ]);
+
+        $user = $request->user();
+        $user->password = Hash::make($validated['new_password']);
+        $user->save();
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Password updated successfully.',
         ]);
     }
 }
