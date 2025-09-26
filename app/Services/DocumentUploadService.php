@@ -48,7 +48,7 @@ class DocumentUploadService
 
         // ── Encrypt & store raw file (hashed filename prevents collisions) ───
         $encryptedContents = $this->encryptFileContents($file->getRealPath());
-        $filename = $file->hashName();
+        $filename = $file->hashName();               // includes extension, e.g. 9a8b...c1.jpg
         $path = "documents/{$filename}";
         Storage::disk('public')->put($path, $encryptedContents, 'public');
 
@@ -58,16 +58,19 @@ class DocumentUploadService
 
         $ocrText = $options['scanned_text'] ?? null;
         $autoCategory = null;
+
+        // this is what your Vue reads; we will also use it for images
         $pdfPreviewPath = null;
 
         try {
-            // Convert Office to PDF for preview
+            // A) Office → PDF (DOC/DOCX/XLS/XLSX)
             if (in_array($extension, ['doc', 'docx', 'xls', 'xlsx'])) {
                 $outputDir = storage_path('app/public/converted');
                 if (!is_dir($outputDir)) {
                     mkdir($outputDir, 0755, true);
                 }
-                $command = "soffice --headless --convert-to pdf --outdir " . escapeshellarg($outputDir) . " " . escapeshellarg($decryptedPath);
+                $command = "soffice --headless --convert-to pdf --outdir " .
+                    escapeshellarg($outputDir) . ' ' . escapeshellarg($decryptedPath);
                 @exec($command);
 
                 $baseName = pathinfo($decryptedPath, PATHINFO_FILENAME);
@@ -87,11 +90,19 @@ class DocumentUploadService
                 }
             }
 
-            // PDFs: copy decrypted as preview (iframe-friendly)
+            // B) PDF → copy decrypted as preview (iframe-friendly)
             if ($extension === 'pdf') {
-                $previewPath = "previews/{$filename}";
+                $previewPath = "previews/{$filename}"; // keep same hashed name
                 Storage::disk('public')->put($previewPath, file_get_contents($decryptedPath));
                 $pdfPreviewPath = $previewPath;
+            }
+
+            // C) IMAGE → copy decrypted as preview (IMPORTANT FIX)
+            // We deliberately also set pdf_preview_path so existing Vue code works.
+            if (in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif'])) {
+                $previewPath = "previews/{$filename}";
+                Storage::disk('public')->put($previewPath, file_get_contents($decryptedPath));
+                $pdfPreviewPath = $previewPath; // 👈 iframe can load images too
             }
 
             // OCR + Classification (only if needed and not skipped)
@@ -121,7 +132,7 @@ class DocumentUploadService
                 $categoryId = Category::whereRaw('LOWER(name) = ?', [strtolower($autoCategory)])->value('id');
             }
 
-            // Auto-detect teacher from OCR text (only for teacher docs)
+            // Auto-detect teacher from OCR text (teacher docs only)
             if (!empty($ocrText) && is_null($teacherId)) {
                 $tmpName = $categoryId ? Category::where('id', $categoryId)->value('name') : null;
                 if (!$this->isSchoolProperty($tmpName)) {
@@ -162,7 +173,7 @@ class DocumentUploadService
                 'path' => $path,
                 'mime_type' => $mime,
                 'size' => $size,
-                'pdf_preview_path' => $pdfPreviewPath,
+                'pdf_preview_path' => $pdfPreviewPath, // now set for images too ✅
                 'extracted_text' => $ocrText,
             ]);
         }
@@ -175,22 +186,18 @@ class DocumentUploadService
         }
 
         // ── Duplicate handling for teacher documents ──────────────────────────
-        // Define duplicate as existing record with same teacher_id & category_id (one per type)
         $existing = Document::query()
             ->where('teacher_id', $teacherId)
             ->where('category_id', $categoryId)
             ->latest('id')
             ->first();
 
-        // If there is an existing doc and UI did NOT allow duplicates → block here.
         if ($existing && !$allowDuplicate) {
             throw ValidationException::withMessages([
                 'duplicate' => "A document of this type already exists for the selected teacher: '{$existing->name}'",
             ]);
         }
 
-        // If ADD ANOTHER but same display name already exists for same teacher/category,
-        // give this new one a unique *display* name (storage path already unique by hash).
         $displayName = $originalName;
         if ($existing && $allowDuplicate) {
             $alreadySameName = Document::where('teacher_id', $teacherId)
@@ -208,11 +215,11 @@ class DocumentUploadService
             'user_id' => $user->id,
             'teacher_id' => $teacherId,
             'category_id' => $categoryId,
-            'name' => $displayName,   // keep original name; add suffix only if needed above
+            'name' => $displayName,
             'path' => $path,
             'mime_type' => $mime,
             'size' => $size,
-            'pdf_preview_path' => $pdfPreviewPath,
+            'pdf_preview_path' => $pdfPreviewPath, // images/pdfs/converted office
             'extracted_text' => $ocrText,
         ]);
     }

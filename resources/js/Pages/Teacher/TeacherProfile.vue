@@ -82,14 +82,18 @@
     </div>
 
     <!-- Preview Modal -->
-    <!-- Preview Modal -->
-<div v-if="previewUrl" class="preview-modal">
-  <div class="preview-content">
-    <button class="close-preview" @click="closePreview">&times;</button>
-    <!-- Let browser show native PDF controls -->
-    <iframe :src="previewUrl" class="preview-frame" frameborder="0"></iframe>
-  </div>
-</div>
+    <div v-if="previewUrl" class="preview-modal">
+      <div class="preview-content">
+        <button class="close-preview" @click="closePreview">&times;</button>
+
+        <template v-if="previewType === 'image'">
+          <img :src="previewUrl" class="preview-img" alt="Preview image" />
+        </template>
+        <template v-else>
+          <iframe :src="previewUrl" class="preview-frame" frameborder="0"></iframe>
+        </template>
+      </div>
+    </div>
 
     <!-- Edit Metadata Modal -->
     <div v-if="editingDoc" class="preview-modal">
@@ -129,11 +133,11 @@ import Sidebar from "@/Components/Sidebar.vue";
 import { ref, computed, watch } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 
-// ✅ Pull all props passed by controller
+// ✅ Props from controller
 const page = usePage().props;
 const documents = ref(page.documents);
 const teachers = ref(page.teachers);
-const categories = ref(page.categories); // ✅ this is required for the category dropdown
+const categories = ref(page.categories);
 
 const currentPage = ref(1);
 const searchQuery = ref("");
@@ -157,9 +161,12 @@ const teacherCategories = [
 
 function previewDocument(doc) {
   const ext = doc.name.split(".").pop().toLowerCase();
-  if (ext === "pdf" || ["jpg", "jpeg", "png"].includes(ext)) {
-    previewType.value = ext === "pdf" ? "pdf" : "image";
+  if (ext === "pdf") {
+    previewType.value = "pdf";
     previewUrl.value = `/documents/${doc.id}/preview`;
+  } else if (["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) {
+    previewType.value = "image";
+    previewUrl.value = `/storage/${doc.pdf_preview_path}`;
   } else if (["doc", "docx", "xls", "xlsx"].includes(ext)) {
     if (doc.pdf_preview_path) {
       previewType.value = "pdf";
@@ -251,6 +258,7 @@ function formatDate(d) {
 
 const goToUpload = () => router.get("/upload");
 </script>
+
 
   
 <style scoped>

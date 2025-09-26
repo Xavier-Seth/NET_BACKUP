@@ -42,8 +42,14 @@
             <!-- Preview body -->
             <div class="card-b">
               <template v-if="selectedDoc && previewSrc(selectedDoc)">
-                <iframe :src="previewSrc(selectedDoc)" class="preview-iframe" frameborder="0"></iframe>
+                <template v-if="isImage(previewSrc(selectedDoc))">
+                  <img :src="previewSrc(selectedDoc)" class="preview-img" alt="Preview image" />
+                </template>
+                <template v-else>
+                  <iframe :src="previewSrc(selectedDoc)" class="preview-iframe" frameborder="0"></iframe>
+                </template>
               </template>
+
               <template v-else>
                 <div class="empty">
                   <div class="empty-circle"><i class="bi bi-file-earmark-text"></i></div>
@@ -141,12 +147,17 @@
     <div v-if="previewUrl" class="modal" @click.self="closePreview">
       <div class="modal-c">
         <button class="modal-x" @click="closePreview">&times;</button>
-        <iframe :src="previewUrl" frameborder="0" class="modal-iframe"></iframe>
+
+        <template v-if="isImage(previewUrl)">
+          <img :src="previewUrl" class="modal-img" alt="Preview" />
+        </template>
+        <template v-else>
+          <iframe :src="previewUrl" frameborder="0" class="modal-iframe"></iframe>
+        </template>
       </div>
     </div>
   </Teleport>
 </template>
-
 
 <script setup>
 import Sidebar from "@/Components/Sidebar.vue";
@@ -154,25 +165,50 @@ import { router } from "@inertiajs/vue3";
 import { ref, watch, onMounted } from "vue";
 
 const props = defineProps({
-  documents: Object,    
+  documents: Object,
   categories: Array,
-  filters: Object,      
+  filters: Object,
 });
 
 const filtersLocal = ref({ ...props.filters });
 const selectedDoc = ref(null);
 const previewUrl = ref(null);
 
+// Initialize selection
 function initSelection() {
-  if (props.filters?.doc) {
-    const found = props.documents.data.find(d => String(d.id) === String(props.filters.doc));
-    selectedDoc.value = found || props.documents.data[0] || null;
-  } else {
-    selectedDoc.value = props.documents.data[0] || null;
+  const list = props.documents?.data || [];
+  if (!list.length) { selectedDoc.value = null; return; }
+
+  const qdoc = new URLSearchParams(window.location.search).get("doc");
+  if (qdoc) {
+    const found = list.find(d => String(d.id) === String(qdoc));
+    if (found) { selectedDoc.value = found; return; }
   }
+  selectedDoc.value = list[0];
 }
 onMounted(initSelection);
-watch(() => props.documents.data, initSelection);
+
+// Watch for data changes and preserve selection
+watch(
+  () => props.documents.data,
+  (list) => {
+    list = list || [];
+    if (!list.length) { selectedDoc.value = null; return; }
+
+    if (selectedDoc.value) {
+      const still = list.find(d => d.id === selectedDoc.value.id);
+      if (still) { selectedDoc.value = still; return; }
+    }
+
+    const qdoc = new URLSearchParams(window.location.search).get("doc");
+    if (qdoc) {
+      const found = list.find(d => String(d.id) === String(qdoc));
+      if (found) { selectedDoc.value = found; return; }
+    }
+
+    selectedDoc.value = list[0];
+  }
+);
 
 function previewSrc(doc) {
   if (!doc) return null;
@@ -187,19 +223,26 @@ function thumbSrc(doc) {
   return null;
 }
 function formatDate(iso) {
-  try { return new Date(iso).toLocaleDateString(); } catch { return ""; }
+  try {
+    return new Date(iso).toLocaleDateString();
+  } catch {
+    return "";
+  }
+}
+function isImage(src) {
+  return /\.(png|jpe?g|gif|bmp|webp)$/i.test(src || "");
 }
 
+// Fixed selectDoc
 function selectDoc(doc) {
   selectedDoc.value = doc;
-  router.get("/documents/school-properties", { ...filtersLocal.value, doc: doc.id }, {
-    preserveState: true, replace: true, preserveScroll: true
-  });
+  const url = new URL(window.location.href);
+  url.searchParams.set("doc", doc.id);
+  window.history.replaceState({}, "", url.toString());
 }
+
 function applyFilters() {
-  router.get("/documents/school-properties", { ...filtersLocal.value }, {
-    preserveState: true, replace: true
-  });
+  router.get("/documents/school-properties", { ...filtersLocal.value }, { preserveState: true, replace: true });
 }
 function goToPage(url) {
   if (url) router.visit(url, { preserveState: true, preserveScroll: true });
@@ -207,7 +250,10 @@ function goToPage(url) {
 
 function previewFile(doc) {
   const src = previewSrc(doc);
-  if (!src) { alert("No preview file available."); return; }
+  if (!src) {
+    alert("No preview file available.");
+    return;
+  }
   previewUrl.value = src;
   document.body.style.overflow = "hidden";
 }
@@ -219,13 +265,17 @@ function closePreview() {
 function confirmDelete(doc) {
   if (confirm(`Delete "${doc.name}"?`)) {
     router.delete(`/documents/school-properties/${doc.id}`, {
-      replace: true, preserveScroll: true,
-      onSuccess: () => { if (selectedDoc.value?.id === doc.id) selectedDoc.value = null; },
+      replace: true,
+      preserveScroll: true,
+      onSuccess: () => {
+        if (selectedDoc.value?.id === doc.id) selectedDoc.value = null;
+      },
       onError: () => alert("Failed to delete the document."),
     });
   }
 }
 </script>
+
 
 <style scoped>
 /* Modal (PC-only, above everything) */
@@ -297,6 +347,18 @@ function confirmDelete(doc) {
   margin-top: 0.125rem;
   color: #64748b;
   font-size: 0.75rem;
+}
+.preview-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #fff;
+}
+.modal-img {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  background: #000;
 }
 
 /* Action Dock */
