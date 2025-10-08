@@ -228,9 +228,11 @@ export default {
       if (this.overrideMode) {
         return this.canonicalCategoryNameById(this.category_id) || "";
       }
-      return (this.detectedCategory && String(this.detectedCategory).trim())
-        || this.canonicalCategoryNameById(this.category_id)
-        || "";
+      return (
+        (this.detectedCategory && String(this.detectedCategory).trim()) ||
+        this.canonicalCategoryNameById(this.category_id) ||
+        ""
+      );
     },
     requiresTeacher() {
       return this.isTeacherDocByName(this.canonicalCategory);
@@ -239,7 +241,10 @@ export default {
   watch: {
     category_id(newVal) {
       this.category_id = newVal === null ? null : Number(newVal);
-      if (this.overrideMode && !this.isTeacherDocByName(this.canonicalCategoryNameById(this.category_id))) {
+      if (
+        this.overrideMode &&
+        !this.isTeacherDocByName(this.canonicalCategoryNameById(this.category_id))
+      ) {
         this.teacher_id = null;
       }
     }
@@ -285,40 +290,54 @@ export default {
       if (this.selectedFiles.length) this.scanFile(this.selectedFiles[0]);
       e.target.value = null;
     },
+
+    // ── Updated Scan File (calls Laravel proxy) ─────────────
     async scanFile(file) {
       this.isScanning = true;
       const formData = new FormData();
       formData.append("file", file);
-      try {
-        const res = await axios.post("/upload/scan", formData);
 
-        this.detectedTeacher = res.data.teacher || null;
-        const serverCat = res.data.category || null;
-        this.detectedCategory = this.normalizeCategoryName(serverCat);
+      try {
+        const res = await axios.post("/api/classify-file", formData, {
+          headers: { "Content-Type": "multipart/form-data" },
+        });
+
+        const data = res.data || {};
+        const serverCat = data.subcategory || data.category || null;
+
+        this.detectedCategory = this.normalizeCategoryName(serverCat) || null;
         this.showCategorySelection = !this.detectedCategory;
 
-        if (res.data.category_id) {
-          this.category_id = Number(res.data.category_id);
-        } else if (this.detectedCategory) {
+        this.detectedTeacher = null;
+        this.teacher_id = this.overrideMode ? this.teacher_id : null;
+
+        if (this.detectedCategory) {
           const c = this.categories.find(
-            x => x.name.trim().toLowerCase() === this.detectedCategory.trim().toLowerCase()
+            x =>
+              x.name.trim().toLowerCase() ===
+              this.detectedCategory.trim().toLowerCase()
           );
-          if (c) this.category_id = c.id;
+          this.category_id = c ? c.id : null;
+        } else {
+          this.category_id = null;
         }
 
-        if (this.detectedTeacher) {
-          const t = this.teachers.find(x => x.full_name === this.detectedTeacher);
-          if (t) this.teacher_id = t.id;
-        }
-
-        this.lastOcrText = res.data.text || "";
-        this.flaskOffline = !!res.data.fallback_used;
+        this.lastOcrText = data.text || "";
+        this.flaskOffline =
+          data.reason === "fallback" || data.fallback_used === true;
       } catch (err) {
         console.error(err);
+        // fallback
+        this.detectedCategory = null;
+        this.category_id = null;
+        this.detectedTeacher = null;
+        this.showCategorySelection = true;
+        this.flaskOffline = true;
       } finally {
         this.isScanning = false;
       }
     },
+
     removeFile(i) {
       this.selectedFiles.splice(i, 1);
       if (this.selectedFiles.length === 0) {
@@ -332,8 +351,13 @@ export default {
         this.showCategorySelection = false;
       }
     },
-    handleDragOver(e) { e.preventDefault(); this.isDragging = true; },
-    handleDragLeave() { this.isDragging = false; },
+    handleDragOver(e) {
+      e.preventDefault();
+      this.isDragging = true;
+    },
+    handleDragLeave() {
+      this.isDragging = false;
+    },
     handleDrop(e) {
       e.preventDefault();
       this.isDragging = false;
@@ -350,7 +374,9 @@ export default {
       this.overrideMode = true;
       if (this.detectedCategory && !this.category_id) {
         const c = this.categories.find(
-          x => x.name.trim().toLowerCase() === this.detectedCategory.trim().toLowerCase()
+          x =>
+            x.name.trim().toLowerCase() ===
+            this.detectedCategory.trim().toLowerCase()
         );
         if (c) this.category_id = c.id;
       }
@@ -359,7 +385,9 @@ export default {
       this.overrideMode = false;
       if (this.detectedCategory) {
         const c = this.categories.find(
-          x => x.name.trim().toLowerCase() === this.detectedCategory.trim().toLowerCase()
+          x =>
+            x.name.trim().toLowerCase() ===
+            this.detectedCategory.trim().toLowerCase()
         );
         this.category_id = c ? c.id : null;
       } else {
@@ -395,7 +423,6 @@ export default {
         const resp = await axios.post("/upload", formData);
 
         if (resp?.data?.duplicate) {
-          // Show prompt with Continue (allow duplicate) or Cancel
           this.duplicateDocName = resp.data.existing_document_name || "";
           this.pendingFormData = formData;
           this.showDuplicateModal = true;
@@ -416,14 +443,12 @@ export default {
     },
 
     async handleContinue() {
-      // Repost with allow_duplicate=1
       if (!this.pendingFormData) return;
       this.pendingFormData.set("allow_duplicate", "1");
       try {
         const resp = await axios.post("/upload", this.pendingFormData);
 
         if (resp?.data?.duplicate) {
-          // Very rare: backend still flags duplicate → let user know
           alert("Server still detected a duplicate. Please try again or contact admin.");
           return;
         }
@@ -458,6 +483,7 @@ export default {
   }
 };
 </script>
+
 
 <style scoped>
 /* Upload Container */
