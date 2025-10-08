@@ -153,7 +153,7 @@ class DocumentController extends Controller
     public function scan(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|mimes:pdf,doc,docx,xlsx,xls,png,jpg,jpeg|max:20480',
+            'file' => 'required|file|mimes:pdf,doc,docx,xlsx,xls,png,jpg,jpeg|max:102400',
         ]);
 
         $file = $request->file('file');
