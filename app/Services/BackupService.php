@@ -8,6 +8,8 @@ use ZipArchive;
 
 use App\Models\Document;
 use App\Models\SchoolPropertyDocument;
+use App\Models\Category;
+use App\Models\Teacher;
 use App\Services\DocumentUploadService;
 
 class BackupService
@@ -15,7 +17,7 @@ class BackupService
     /**
      * Create BOTH archives and return their names as [encrypted, decrypted].
      *
-     * - encrypted file name:   backup_YYYYmmdd_HHMMSS.zip        (as-is)
+     * - encrypted file name:   backup_YYYYmmdd_HHMMSS.zip        (as-is bytes)
      * - decrypted file name:   backupdecrypt_YYYYmmdd_HHMMSS.zip (teacher docs decrypted)
      */
     public function makeBoth(): array
@@ -23,7 +25,6 @@ class BackupService
         @set_time_limit(0);
 
         $ts = now()->format('Ymd_His');
-
         $encName = "backup_{$ts}.zip";
         $decName = "backupdecrypt_{$ts}.zip";
 
@@ -37,21 +38,24 @@ class BackupService
         $dbFile = "{$workDir}/database.sql";
         $this->dumpDatabase($dbFile);
 
-        // build encrypted/as-is archive
+        // Build a single index for all known document paths → (orig name, teacher/category labels, type)
+        $index = $this->buildMetadataIndex();
+
+        // encrypted/as-is archive (organize folders but keep encrypted bytes for teacher docs)
         $this->buildZip(
             zipPath: storage_path("app/backups/{$encName}"),
             dbFile: $dbFile,
-            addPublic: function (ZipArchive $zip) {
-                $this->addPublicDirAsIs($zip, 'storage_public');
+            addPublic: function (ZipArchive $zip) use ($index) {
+                $this->addPublicOrganizedAsIs($zip, 'storage_public', $index);
             }
         );
 
-        // build decrypted archive
+        // decrypted archive (teacher docs decrypted into original filenames; others as-is)
         $this->buildZip(
             zipPath: storage_path("app/backups/{$decName}"),
             dbFile: $dbFile,
-            addPublic: function (ZipArchive $zip) {
-                $this->addPublicDirDecrypted($zip, 'storage_public');
+            addPublic: function (ZipArchive $zip) use ($index) {
+                $this->addPublicOrganizedDecrypted($zip, 'storage_public', $index);
             }
         );
 
@@ -62,7 +66,7 @@ class BackupService
     }
 
     /* ------------------------------------------------------------------ */
-    /*                     ZIP BUILDERS / ADDERS                           */
+    /*                          ZIP BUILDERS                               */
     /* ------------------------------------------------------------------ */
 
     protected function buildZip(string $zipPath, string $dbFile, callable $addPublic): void
@@ -76,23 +80,61 @@ class BackupService
             throw new \RuntimeException('Cannot create backup zip: ' . basename($zipPath));
         }
 
-        // add DB
+        // add DB dump
         $zip->addFile($dbFile, 'database.sql');
 
-        // add storage/app/public
+        // add storage/app/public (organized)
         $addPublic($zip);
 
         $zip->close();
     }
 
     /**
-     * AS-IS copy of everything under storage/app/public.
-     * Teacher docs stay encrypted (exact bytes copied).
+     * Organized copy of storage/app/public with encrypted teacher docs as-is.
+     * Folder layout:
+     *   storage_public/
+     *     teachers/<Teacher>/<Category>/<OriginalName>
+     *     property/<Category>/<OriginalName>
+     *     misc/<original-relative-path>
      */
-    protected function addPublicDirAsIs(ZipArchive $zip, string $insideRoot): void
+    protected function addPublicOrganizedAsIs(ZipArchive $zip, string $insideRoot, array $index): void
     {
-        foreach (Storage::disk('public')->allFiles() as $relPath) {
-            $zipPath = $insideRoot . '/' . str_replace('\\', '/', $relPath);
+        $disk = Storage::disk('public');
+
+        foreach ($disk->allFiles() as $relPath) {
+            $meta = $index[$relPath] ?? null;
+
+            if ($meta && $meta['type'] === 'teacher') {
+                // Encrypted blob stays encrypted, but moved into organized folders
+                $orig = $this->safeFilename($meta['orig'] ?: basename($relPath));
+                $teacher = $this->safePathSegment($meta['teacher'] ?? 'Unknown Teacher');
+                $category = $this->safePathSegment($meta['category'] ?? 'Uncategorized');
+
+                $zipPath = $insideRoot . '/teachers/' . $teacher . '/' . $category . '/' . $orig;
+
+                // copy exact bytes
+                $full = storage_path('app/public/' . $relPath);
+                if (is_file($full)) {
+                    $zip->addFile($full, $zipPath);
+                }
+                continue;
+            }
+
+            if ($meta && $meta['type'] === 'property') {
+                $orig = $this->safeFilename($meta['orig'] ?: basename($relPath));
+                $category = $this->safePathSegment($meta['category'] ?? 'Uncategorized');
+
+                $zipPath = $insideRoot . '/property/' . $category . '/' . $orig;
+
+                $full = storage_path('app/public/' . $relPath);
+                if (is_file($full)) {
+                    $zip->addFile($full, $zipPath);
+                }
+                continue;
+            }
+
+            // Everything else → misc
+            $zipPath = $insideRoot . '/misc/' . str_replace('\\', '/', $relPath);
             $full = storage_path('app/public/' . $relPath);
             if (is_file($full)) {
                 $zip->addFile($full, $zipPath);
@@ -101,48 +143,61 @@ class BackupService
     }
 
     /**
-     * Decrypt teacher documents into the archive; others copied as-is.
+     * Organized copy of storage/app/public with TEACHER documents decrypted
+     * into their original filenames.
+     * Folder layout:
+     *   storage_public/
+     *     teachers/<Teacher>/<Category>/<OriginalName>   (decrypted bytes)
+     *     property/<Category>/<OriginalName>             (as-is)
+     *     misc/<original-relative-path>                  (as-is)
      */
-    protected function addPublicDirDecrypted(ZipArchive $zip, string $insideRoot): void
+    protected function addPublicOrganizedDecrypted(ZipArchive $zip, string $insideRoot, array $index): void
     {
-        // "path" => "original uploaded name"
-        $nameMap = [];
-        foreach (Document::query()->get(['path', 'name']) as $row) {
-            if ($row->path)
-                $nameMap[$row->path] = $row->name ?: basename($row->path);
-        }
-        foreach (SchoolPropertyDocument::query()->get(['path', 'name']) as $row) {
-            if ($row->path)
-                $nameMap[$row->path] = $row->name ?: basename($row->path);
-        }
-
+        $disk = Storage::disk('public');
         $crypto = app(DocumentUploadService::class);
 
-        foreach (Storage::disk('public')->allFiles() as $relPath) {
-            $zipPath = $insideRoot . '/' . str_replace('\\', '/', $relPath);
+        foreach ($disk->allFiles() as $relPath) {
+            $meta = $index[$relPath] ?? null;
 
-            if (str_starts_with($relPath, 'documents/')) {
-                // encrypted blob → decrypt into original name
-                $encBase64 = Storage::disk('public')->get($relPath);
-                $plain = $crypto->decryptFileContents($encBase64); // raw bytes or null
+            if ($meta && $meta['type'] === 'teacher') {
+                $encBase64 = $disk->get($relPath); // stored encrypted blob (base64 or raw—kept from your original)
+                $plain = $crypto->decryptFileContents($encBase64); // raw bytes or null fallback
 
-                $orig = $nameMap[$relPath] ?? basename($relPath);
-                $orig = $this->safeFilename($orig);
+                $orig = $this->safeFilename($meta['orig'] ?: basename($relPath));
+                $teacher = $this->safePathSegment($meta['teacher'] ?? 'Unknown Teacher');
+                $category = $this->safePathSegment($meta['category'] ?? 'Uncategorized');
 
-                // Place under storage_public/documents/<original_name>
-                $zip->addFromString($insideRoot . '/documents/' . $orig, $plain ?? $encBase64);
-            } else {
-                // others as-is
+                $zipPath = $insideRoot . '/teachers/' . $teacher . '/' . $category . '/' . $orig;
+
+                // add decrypted bytes; if decrypt fails, include as-is so backup still complete
+                $zip->addFromString($zipPath, $plain ?? $encBase64);
+                continue;
+            }
+
+            if ($meta && $meta['type'] === 'property') {
+                $orig = $this->safeFilename($meta['orig'] ?: basename($relPath));
+                $category = $this->safePathSegment($meta['category'] ?? 'Uncategorized');
+
+                $zipPath = $insideRoot . '/property/' . $category . '/' . $orig;
+
                 $full = storage_path('app/public/' . $relPath);
                 if (is_file($full)) {
                     $zip->addFile($full, $zipPath);
                 }
+                continue;
+            }
+
+            // Others → misc as-is
+            $zipPath = $insideRoot . '/misc/' . str_replace('\\', '/', $relPath);
+            $full = storage_path('app/public/' . $relPath);
+            if (is_file($full)) {
+                $zip->addFile($full, $zipPath);
             }
         }
     }
 
     /* ------------------------------------------------------------------ */
-    /*                              DB DUMP                                */
+    /*                           DB DUMP                                  */
     /* ------------------------------------------------------------------ */
 
     protected function dumpDatabase(string $outputFile): void
@@ -186,13 +241,76 @@ class BackupService
     }
 
     /* ------------------------------------------------------------------ */
-    /*                               HELPERS                               */
+    /*                         METADATA INDEX                              */
+    /* ------------------------------------------------------------------ */
+
+    /**
+     * Build a map of storage/app/public relative paths to:
+     *   [
+     *     'orig'     => original filename (from DB.name or basename),
+     *     'teacher'  => teacher full name (if any),
+     *     'category' => category name (if any),
+     *     'type'     => 'teacher' | 'property'
+     *   ]
+     */
+    protected function buildMetadataIndex(): array
+    {
+        $index = [];
+
+        // Teacher documents (documents table uses teacher_id & category_id)
+        $teacherDocs = Document::query()
+            ->with(['teacher:id,full_name', 'category:id,name'])
+            ->get(['path', 'name', 'teacher_id', 'category_id']);
+
+        foreach ($teacherDocs as $doc) {
+            if (!$doc->path)
+                continue;
+
+            $index[$doc->path] = [
+                'orig' => $doc->name ?: basename($doc->path),
+                'teacher' => optional($doc->teacher)->full_name ?: 'Unknown Teacher',
+                'category' => optional($doc->category)->name ?: 'Uncategorized',
+                'type' => 'teacher',
+            ];
+        }
+
+        // School property documents (no teacher; group by category)
+        $propDocs = SchoolPropertyDocument::query()
+            ->with(['category:id,name'])
+            ->get(['path', 'name', 'category_id']);
+
+        foreach ($propDocs as $doc) {
+            if (!$doc->path)
+                continue;
+
+            $index[$doc->path] = [
+                'orig' => $doc->name ?: basename($doc->path),
+                'teacher' => null,
+                'category' => optional($doc->category)->name ?: 'Uncategorized',
+                'type' => 'property',
+            ];
+        }
+
+        return $index;
+    }
+
+    /* ------------------------------------------------------------------ */
+    /*                             HELPERS                                 */
     /* ------------------------------------------------------------------ */
 
     protected function safeFilename(string $name): string
     {
         $name = basename(trim($name) ?: 'file');
         return preg_replace('/[\/\\\\:*?"<>|]/', '_', $name);
+    }
+
+    protected function safePathSegment(string $segment): string
+    {
+        $segment = trim($segment) ?: 'Untitled';
+        $segment = preg_replace('/[\/\\\\:*?"<>|]/', '_', $segment);
+        // Avoid weird dot segments
+        $segment = ltrim($segment, '.');
+        return $segment ?: 'Untitled';
     }
 
     protected function rrmdir(string $dir): void
