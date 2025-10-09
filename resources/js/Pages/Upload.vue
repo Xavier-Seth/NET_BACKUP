@@ -168,12 +168,14 @@
       </div>
     </div>
 
-    <!-- Duplicate Modal: Continue / Cancel only -->
+    <!-- Duplicate Modal -->
+    <!-- Pass busy state to disable buttons -->
     <DuplicatePromptModal
       v-if="showDuplicateModal"
       :existing-name="duplicateDocName"
+      :busy="duplicateBusy"
       @continue="handleContinue"
-      @cancel="showDuplicateModal = false"
+      @cancel="handleCancelDuplicate"
     />
   </div>
 </template>
@@ -207,6 +209,7 @@ export default {
       showDuplicateModal: false,
       duplicateDocName: "",
       pendingFormData: null,
+      duplicateBusy: false, // Lock multiple clicks
 
       lastOcrText: "",
       overrideMode: false,
@@ -245,7 +248,6 @@ export default {
     }
   },
   methods: {
-    // ── Helpers ─────────────────────────────────────────────
     normalizeCategoryName(name) {
       if (!name) return null;
       const map = {
@@ -269,7 +271,6 @@ export default {
       return c ? String(c.name).trim() : "";
     },
 
-    // ── UI actions ─────────────────────────────────────────
     browseFile() {
       const el = this.$refs.fileInput;
       if (el) {
@@ -345,7 +346,6 @@ export default {
       return `${(size / 1024).toFixed(2)} KB`;
     },
 
-    // ── Reclassify controls ────────────────────────────────
     startReclassify() {
       this.overrideMode = true;
       if (this.detectedCategory && !this.category_id) {
@@ -373,7 +373,6 @@ export default {
       }
     },
 
-    // Upload
     async uploadFiles() {
       if (this.requiresTeacher && !this.teacher_id) {
         return alert("❌ Please select a teacher.");
@@ -395,10 +394,10 @@ export default {
         const resp = await axios.post("/upload", formData);
 
         if (resp?.data?.duplicate) {
-          // Show prompt with Continue (allow duplicate) or Cancel
           this.duplicateDocName = resp.data.existing_document_name || "";
           this.pendingFormData = formData;
           this.showDuplicateModal = true;
+          this.duplicateBusy = false;
           return;
         }
 
@@ -415,15 +414,27 @@ export default {
       }
     },
 
+    handleCancelDuplicate() {
+      this.showDuplicateModal = false;
+      this.duplicateBusy = false;
+    },
+
     async handleContinue() {
-      // Repost with allow_duplicate=1
-      if (!this.pendingFormData) return;
+      if (this.duplicateBusy) return;
+      this.duplicateBusy = true;
+      this.showDuplicateModal = false;
+
+      if (!this.pendingFormData) {
+        this.duplicateBusy = false;
+        return;
+      }
+
       this.pendingFormData.set("allow_duplicate", "1");
+
       try {
         const resp = await axios.post("/upload", this.pendingFormData);
 
         if (resp?.data?.duplicate) {
-          // Very rare: backend still flags duplicate → let user know
           alert("Server still detected a duplicate. Please try again or contact admin.");
           return;
         }
@@ -437,8 +448,9 @@ export default {
         console.error(err);
         alert("❌ Upload failed.");
       } finally {
-        this.showDuplicateModal = false;
         this.pendingFormData = null;
+        this.duplicateDocName = "";
+        this.duplicateBusy = false;
       }
     },
 
@@ -460,7 +472,6 @@ export default {
 </script>
 
 <style scoped>
-/* Upload Container */
 .upload-container {
   background: #fff;
   padding: 2rem;
@@ -474,7 +485,6 @@ export default {
 }
 .upload-container.dragging { border-color: #2563eb; }
 
-/* Upload Button */
 .upload-btn {
   margin-top: 1.5rem;
   padding: 0.75rem 1.5rem;
@@ -491,7 +501,6 @@ export default {
   cursor: not-allowed;
 }
 
-/* Spinner */
 .spinner {
   margin-top: 1rem;
   width: 2.5rem;
@@ -501,7 +510,5 @@ export default {
   border-radius: 50%;
   animation: spin 1s linear infinite;
 }
-@keyframes spin {
-  to { transform: rotate(360deg); }
-}
+@keyframes spin { to { transform: rotate(360deg); } }
 </style>
