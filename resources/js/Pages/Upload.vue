@@ -373,7 +373,7 @@ export default {
       }
     },
 
-    // ── Upload ─────────────────────────────────────────────
+    // Upload
     async uploadFiles() {
       if (this.requiresTeacher && !this.teacher_id) {
         return alert("❌ Please select a teacher.");

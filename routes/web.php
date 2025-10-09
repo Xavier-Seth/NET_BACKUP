@@ -22,9 +22,7 @@ use App\Http\Controllers\SettingsController;
 use App\Models\Teacher;
 use App\Models\Category;
 
-/* ------------------------------
-   Guest Routes
------------------------------- */
+//Guest Routes
 Route::middleware('guest')->group(function () {
     // Root → redirect to the real login route defined in auth.php
     Route::get('/', fn() => redirect()->route('login')); // ← no name here
@@ -48,9 +46,7 @@ Route::middleware('guest')->group(function () {
 // Includes /login (named 'login'), /register (if present), etc.
 require __DIR__ . '/auth.php';
 
-/* ------------------------------
-   Authenticated Routes
------------------------------- */
+//Authenticated Routes
 Route::middleware(['auth', 'verified'])->group(function () {
 
     // Dashboard
@@ -128,9 +124,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::middleware(['role:Admin'])->delete('/api/users/{id}', [UserController::class, 'destroy']);
 });
 
-/* ------------------------------
-   Admin-only User Management
------------------------------- */
+//Admin-only User Management
 Route::middleware(['auth', 'role:Admin'])->group(function () {
     // Unique names for admin register routes
     Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
@@ -145,9 +139,7 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
     Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware('auth:sanctum');
 });
 
-/* ------------------------------
-   Logout
------------------------------- */
+//Log out
 Route::post('/logout', function (Request $request) {
     Auth::logout();
     $request->session()->invalidate();

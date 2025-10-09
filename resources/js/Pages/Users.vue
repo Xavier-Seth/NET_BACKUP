@@ -195,7 +195,6 @@ onMounted(fetchUsers)
 </template>
 
 <style scoped>
-/* Keep your full CSS as it already looks great */
 .filter-container {
   display: flex;
   flex-wrap: wrap;
