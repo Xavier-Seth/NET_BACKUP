@@ -78,75 +78,123 @@ class DocumentController extends Controller
             ->header('Content-Disposition', 'attachment; filename="' . $document->name . '"');
     }
 
+    /**
+     * New per-file multi-upload with per-file meta & results.
+     * Front-end sends:
+     *   - files[] (binary)
+     *   - meta: JSON array [{name, category_id, teacher_id, override, scanned_text, size, type}, ...]
+     *   - allow_duplicate (optional, for single-file retry flow)
+     *   - skip_ocr (optional)
+     */
     public function upload(Request $request, DocumentUploadService $uploadService)
     {
         $request->validate([
             'files' => 'required|array',
             'files.*' => 'required|file|mimes:pdf,doc,docx,xlsx,xls,png,jpg,jpeg|max:20480',
-            'teacher_id' => 'nullable|integer|exists:teachers,id',
-            'category_id' => 'nullable|integer|exists:categories,id',
-            // removed: 'action'
+            'meta' => 'nullable|string', // JSON; validated structurally below
             'allow_duplicate' => 'nullable|boolean',
             'skip_ocr' => 'nullable|boolean',
-            'scanned_text' => 'nullable|string',
+            'scanned_text' => 'nullable|string', // legacy single-file fallback
+            // legacy optional single-IDs (kept for backward compatibility)
+            'teacher_id' => 'nullable|integer|exists:teachers,id',
+            'category_id' => 'nullable|integer|exists:categories,id',
         ]);
 
-        $user = User::findOrFail(auth()->id());
+        $user = $request->user() ?? User::findOrFail(auth()->id());
 
-        // Normalize incoming IDs (treat "" as null)
-        $teacherId = $request->filled('teacher_id') ? (int) $request->input('teacher_id') : null;
-        $categoryId = $request->filled('category_id') ? (int) $request->input('category_id') : null;
-
-        $allowDuplicate = (bool) $request->boolean('allow_duplicate'); // true when Continue(Add Another)
-
-        // ── Duplicate gate (teacher documents only; by teacher_id + category_id) ─────────
-        // We check once before processing any files. If blocked, UI shows the modal.
-        $existing = null;
-        if ($teacherId && $categoryId) {
-            $existing = Document::where('teacher_id', $teacherId)
-                ->where('category_id', $categoryId)
-                ->latest('id')
-                ->first();
+        // Parse meta (if any)
+        $meta = [];
+        if ($request->filled('meta')) {
+            try {
+                $meta = json_decode($request->input('meta'), true) ?: [];
+                if (!is_array($meta))
+                    $meta = [];
+            } catch (\Throwable $e) {
+                $meta = [];
+            }
         }
 
-        // If duplicate exists and UI did NOT allow duplicate → notify UI
-        if ($existing && !$allowDuplicate) {
-            return response()->json([
-                'duplicate' => true,
-                'existing_document_name' => $existing->name,
-            ]);
+        // Build lookup by original filename for convenience
+        $byName = [];
+        foreach ($meta as $m) {
+            if (!empty($m['name']) && is_string($m['name'])) {
+                $byName[$m['name']] = $m;
+            }
         }
 
-        // ── Save all files ─────────────────────────────────────────────────────
-        $uploadedDocuments = [];
+        $skipOcr = (bool) $request->boolean('skip_ocr');
+        $globalAllowDuplicate = (bool) $request->boolean('allow_duplicate');
+
+        // Legacy fallback input (if meta is empty and UI still posts single IDs)
+        $legacyTeacherId = $request->filled('teacher_id') ? (int) $request->input('teacher_id') : null;
+        $legacyCategoryId = $request->filled('category_id') ? (int) $request->input('category_id') : null;
+        $legacyScannedText = $request->input('scanned_text');
+
+        $results = [];
 
         foreach ($request->file('files') as $file) {
-            $document = $uploadService->handle(
-                $file,
-                $teacherId,
-                $categoryId,
-                $user,
-                [
-                    // removed: 'action'
-                    'allow_duplicate' => $allowDuplicate,
-                    'skip_ocr' => (bool) $request->boolean('skip_ocr'),
-                    'scanned_text' => $request->input('scanned_text'),
-                ]
-            );
+            $orig = $file->getClientOriginalName();
+            $m = $byName[$orig] ?? [];
 
-            $uploadedDocuments[] = [
-                'file_name' => $document->name,
-                'teacher' => optional($document->teacher)->full_name ?? 'N/A',
-                'category' => optional($document->category)->name ?? 'N/A',
-            ];
+            // Effective per-file values (meta > legacy form > null)
+            $categoryId = isset($m['category_id']) ? (int) $m['category_id'] : $legacyCategoryId;
+            $teacherId = isset($m['teacher_id']) ? (int) $m['teacher_id'] : $legacyTeacherId;
+            $override = (bool) ($m['override'] ?? $request->boolean('override'));
+            $scanned = $m['scanned_text'] ?? $legacyScannedText ?? '';
 
-            LogService::record("Uploaded document '{$document->name}'"
-                . ($document->teacher ? " for teacher {$document->teacher->full_name}" : ''));
+            // Duplicate gate (teacher documents: by teacher_id + category_id)
+            if ($teacherId && $categoryId && !$globalAllowDuplicate) {
+                if ($this->isDuplicate($teacherId, $categoryId)) {
+                    $results[] = [
+                        'name' => $orig,
+                        'success' => false,
+                        'duplicate' => true,
+                        'message' => 'Duplicate detected',
+                    ];
+                    continue;
+                }
+            }
+
+            try {
+                // Save file
+                $doc = $uploadService->handle(
+                    $file,
+                    $teacherId,
+                    $categoryId,
+                    $user,
+                    [
+                        'allow_duplicate' => $globalAllowDuplicate,
+                        'skip_ocr' => $skipOcr,
+                        'scanned_text' => $scanned,
+                        'override' => $override,
+                    ]
+                );
+
+                // Log per-file activity
+                LogService::record(
+                    "Uploaded document '{$doc->name}'" .
+                    ($doc->teacher ? " for teacher {$doc->teacher->full_name}" : '')
+                );
+
+                $results[] = [
+                    'name' => $orig,
+                    'success' => true,
+                    'duplicate' => false,
+                    'id' => $doc->id,
+                ];
+            } catch (\Throwable $e) {
+                report($e);
+                $results[] = [
+                    'name' => $orig,
+                    'success' => false,
+                    'duplicate' => false,
+                    'message' => 'Upload error',
+                ];
+            }
         }
 
         return response()->json([
-            'success' => true,
-            'uploadedDocuments' => $uploadedDocuments,
+            'results' => $results,
         ]);
     }
 
@@ -165,6 +213,7 @@ class DocumentController extends Controller
         $matchedCategory = null;
         $belongsToTeacher = false;
         $categoryId = null;
+        $fallbackUsed = false;
 
         try {
             $response = Http::attach('file', file_get_contents($fullPath), $file->getClientOriginalName())
@@ -175,6 +224,7 @@ class DocumentController extends Controller
                 $ocrText = $data['text'] ?? $data['text_preview'] ?? '';
                 $matchedCategory = $data['subcategory'] ?? null;
             } else {
+                $fallbackUsed = true;
                 LaravelLog::error("Flask scan OCR failed: " . $response->body());
             }
 
@@ -203,6 +253,7 @@ class DocumentController extends Controller
                     ->contains(strtolower($matchedCategory));
             }
         } catch (\Exception $e) {
+            $fallbackUsed = true;
             LaravelLog::error("Exception during scan: " . $e->getMessage());
         } finally {
             if (Storage::disk('public')->exists($tempPath)) {
@@ -212,10 +263,11 @@ class DocumentController extends Controller
 
         return response()->json([
             'teacher' => $matchedTeacher,
-            'category' => $matchedCategory,  // normalized canonical name
-            'category_id' => $categoryId,       // helps the UI map directly
+            'category' => $matchedCategory,   // normalized canonical name
+            'category_id' => $categoryId,     // helps the UI map directly
             'belongs_to_teacher' => $belongsToTeacher,
-            'text' => $ocrText,          // expose text for reuse
+            'text' => $ocrText,               // expose text for reuse
+            'fallback_used' => $fallbackUsed, // lets UI show the warning
         ]);
     }
 
@@ -297,5 +349,18 @@ class DocumentController extends Controller
         ];
         $key = trim($name);
         return $map[$key] ?? $map[strtoupper($key)] ?? $key;
+    }
+
+    /**
+     * Duplicate check: teacher-documents keyed by (teacher_id, category_id)
+     */
+    private function isDuplicate(?int $teacherId, ?int $categoryId): bool
+    {
+        if (!$teacherId || !$categoryId) {
+            return false;
+        }
+        return Document::where('teacher_id', $teacherId)
+            ->where('category_id', $categoryId)
+            ->exists();
     }
 }
