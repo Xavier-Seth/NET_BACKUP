@@ -48,14 +48,22 @@
               <td>{{ doc.category?.name || 'N/A' }}</td>
               <td>{{ formatDate(doc.created_at) }}</td>
               <td>
-                <button class="btn-action view" @click="previewFile(doc)">
+                <button class="btn-action view" @click="previewFile(doc)" title="Preview">
                   <i class="bi bi-eye"></i>
                 </button>
-                <a :href="`/documents/${doc.id}/download`" class="btn-action download" target="_blank">
+                <a
+                  :href="`/documents/${doc.id}/download`"
+                  class="btn-action download"
+                  target="_blank"
+                  title="Download"
+                >
                   <i class="bi bi-download"></i>
                 </a>
-                <button class="btn-action" @click="openEditModal(doc)">
+                <button class="btn-action edit" @click="openEditModal(doc)" title="Edit Metadata">
                   <i class="bi bi-pencil"></i>
+                </button>
+                <button class="btn-action delete" @click="openDeleteModal(doc)" title="Delete">
+                  <i class="bi bi-trash"></i>
                 </button>
               </td>
             </tr>
@@ -78,16 +86,16 @@
       </div>
 
       <!-- Preview Modal -->
-      <div v-if="previewUrl" class="preview-modal">
+      <div v-if="previewUrl" class="preview-modal" @click.self="closePreview">
         <div class="preview-content">
-          <button class="close-preview" @click="closePreview">&times;</button>
+          <button class="close-preview" @click="closePreview" aria-label="Close preview">&times;</button>
           <iframe v-if="previewType === 'pdf'" :src="previewUrl" frameborder="0" class="preview-frame"></iframe>
-          <img v-else :src="previewUrl" alt="Preview" />
+          <img v-else :src="previewUrl" alt="Preview" class="h-full w-full object-contain" />
         </div>
       </div>
 
       <!-- Edit Metadata Modal -->
-      <div v-if="editingDoc" class="preview-modal">
+      <div v-if="editingDoc" class="preview-modal" @click.self="editingDoc = null">
         <div class="preview-content p-6">
           <h2 class="font-bold text-lg mb-4">Edit Document Metadata</h2>
 
@@ -112,6 +120,28 @@
           </div>
         </div>
       </div>
+
+      <!-- Delete Confirmation Modal -->
+      <div v-if="deleteTarget" class="preview-modal" @click.self="cancelDelete">
+        <div class="confirm-modal">
+          <h3 class="text-lg font-bold mb-2">Delete Document</h3>
+          <p class="text-sm text-gray-700">
+            Are you sure you want to delete
+            <span class="font-semibold">"{{ deleteTarget.name }}"</span>?
+            This action cannot be undone.
+          </p>
+
+          <div class="flex justify-end gap-2 mt-5">
+            <button @click="confirmDelete" class="bg-red-600 text-white px-4 py-2 rounded">
+              Delete
+            </button>
+            <button @click="cancelDelete" class="bg-gray-300 px-4 py-2 rounded">
+              Cancel
+            </button>
+          </div>
+        </div>
+      </div>
+      <!-- /Delete Confirmation Modal -->
     </div>
   </div>
 </template>
@@ -135,6 +165,9 @@ const previewType = ref("pdf");
 const editingDoc = ref(null);
 const editForm = ref({ name: "", teacher_id: "", category_id: "" });
 
+// DELETE state
+const deleteTarget = ref(null);
+
 const applyFilters = () => {
   router.get("/documents/dtr", filters.value, {
     preserveState: true,
@@ -147,7 +180,7 @@ const goToPage = (url) => {
 };
 
 function previewFile(doc) {
-  const ext = doc.name.split(".").pop().toLowerCase();
+  const ext = (doc.name || "").split(".").pop().toLowerCase();
   if (ext === "pdf") {
     previewUrl.value = `/documents/${doc.id}/preview`;
     previewType.value = "pdf";
@@ -159,6 +192,7 @@ function previewFile(doc) {
     previewType.value = "pdf";
   } else {
     alert("No preview available.");
+    return;
   }
   document.body.style.overflow = "hidden";
 }
@@ -179,17 +213,51 @@ function openEditModal(doc) {
     teacher_id: doc.teacher_id || "",
     category_id: doc.category_id || "",
   };
+  document.body.style.overflow = "hidden";
 }
 
 function submitEdit() {
-  router.patch(`/documents/${editingDoc.value.id}/update-metadata`, {
-    teacher_id: editForm.value.teacher_id,
-    category_id: editForm.value.category_id,
-    name: editForm.value.name,
-  }, {
+  router.patch(
+    `/documents/${editingDoc.value.id}/update-metadata`,
+    {
+      teacher_id: editForm.value.teacher_id,
+      category_id: editForm.value.category_id,
+      name: editForm.value.name,
+    },
+    {
+      preserveScroll: true,
+      onSuccess: () => {
+        editingDoc.value = null;
+        document.body.style.overflow = "";
+      },
+      onFinish: () => {
+        document.body.style.overflow = "";
+      },
+    }
+  );
+}
+
+// Delete modal handlers
+function openDeleteModal(doc) {
+  deleteTarget.value = doc;
+  document.body.style.overflow = "hidden";
+}
+
+function cancelDelete() {
+  deleteTarget.value = null;
+  document.body.style.overflow = "";
+}
+
+function confirmDelete() {
+  if (!deleteTarget.value) return;
+
+  router.delete(`/documents/${deleteTarget.value.id}`, {
     preserveScroll: true,
     onSuccess: () => {
-      editingDoc.value = null;
+      deleteTarget.value = null;
+    },
+    onFinish: () => {
+      document.body.style.overflow = "";
     },
   });
 }
@@ -249,6 +317,7 @@ function submitEdit() {
   color: white;
 }
 
+/* ====== Action Buttons (consistent colors) ====== */
 .btn-action {
   background: none;
   border: none;
@@ -257,16 +326,21 @@ function submitEdit() {
   margin-right: 6px;
 }
 
-.btn-action.view i {
-  color: #0d6efd;
-}
-.btn-action.download i {
-  color: #198754;
-}
+/* View = Blue */
+.btn-action.view i { color: #0d6efd; }
+.btn-action.view:hover i { color: #0a58ca; }
 
-.btn-action:hover i {
-  opacity: 0.8;
-}
+/* Edit = Blue (same as View) */
+.btn-action.edit i { color: #0d6efd; }
+.btn-action.edit:hover i { color: #0a58ca; }
+
+/* Download = Green */
+.btn-action.download i { color: #198754; }
+.btn-action.download:hover i { color: #146c43; }
+
+/* Delete = Red */
+.btn-action.delete i { color: #dc3545; }
+.btn-action.delete:hover i { color: #bb2d3b; }
 
 .pagination {
   display: flex;
@@ -281,15 +355,8 @@ function submitEdit() {
   background: white;
   cursor: pointer;
 }
-.page-link.active {
-  background: #19184f;
-  color: white;
-}
-.page-link.disabled {
-  background: #eee;
-  color: #aaa;
-  cursor: default;
-}
+.page-link.active { background: #19184f; color: white; }
+.page-link.disabled { background: #eee; color: #aaa; cursor: default; }
 
 .preview-modal {
   position: fixed;
@@ -300,6 +367,7 @@ function submitEdit() {
   justify-content: center;
   align-items: center;
 }
+
 .preview-content {
   background: white;
   width: 90vw;
@@ -310,11 +378,13 @@ function submitEdit() {
   display: flex;
   flex-direction: column;
 }
+
 .preview-frame {
   flex: 1;
   width: 100%;
   border-radius: 0 0 10px 10px;
 }
+
 .close-preview {
   position: absolute;
   top: 10px;
@@ -326,5 +396,15 @@ function submitEdit() {
   border-radius: 6px;
   font-size: 18px;
   cursor: pointer;
+}
+
+/* Delete confirmation modal */
+.confirm-modal {
+  background: white;
+  width: 92vw;
+  max-width: 520px;
+  border-radius: 10px;
+  padding: 22px;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.25);
 }
 </style>

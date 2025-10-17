@@ -31,6 +31,7 @@
           />
         </div>
 
+        <!-- Table Section -->
         <div v-if="filteredDocuments.length === 0" class="text-center text-muted py-5 fs-6">
           <i class="bi bi-info-circle"></i> No documents found.
         </div>
@@ -57,21 +58,28 @@
                   <td class="truncate-cell">{{ document.category?.name ?? 'N/A' }}</td>
                   <td>{{ formatDate(document.created_at) }}</td>
                   <td class="action-buttons">
-                    <button @click="previewDocument(document)" class="icon-btn" title="Preview">
+                    <!-- View -->
+                    <button @click="previewDocument(document)" class="icon-btn view" title="Preview">
                       <i class="bi bi-eye"></i>
                     </button>
+
+                    <!-- Download -->
                     <a
                       :href="`/documents/${document.id}/download`"
-                      class="icon-btn"
+                      class="icon-btn download"
                       target="_blank"
                       title="Download"
                     >
                       <i class="bi bi-download"></i>
                     </a>
-                    <button @click="openEditModal(document)" class="icon-btn text-warning" title="Edit">
+
+                    <!-- Edit -->
+                    <button @click="openEditModal(document)" class="icon-btn edit" title="Edit Metadata">
                       <i class="bi bi-pencil"></i>
                     </button>
-                    <button @click="confirmDelete(document)" class="icon-btn text-danger" title="Delete">
+
+                    <!-- Delete -->
+                    <button @click="openDeleteModal(document)" class="icon-btn delete" title="Delete">
                       <i class="bi bi-trash"></i>
                     </button>
                   </td>
@@ -80,6 +88,7 @@
             </table>
           </div>
 
+          <!-- Pagination -->
           <div class="pagination-info">
             Showing {{ paginationRange.start }} to {{ paginationRange.end }} of {{ paginationRange.total }} entries
           </div>
@@ -93,7 +102,7 @@
     </div>
 
     <!-- Preview Modal -->
-    <div v-if="previewUrl" class="preview-modal">
+    <div v-if="previewUrl" class="preview-modal" @click.self="closePreview">
       <div class="preview-content">
         <button class="close-preview" @click="closePreview">&times;</button>
 
@@ -107,7 +116,7 @@
     </div>
 
     <!-- Edit Metadata Modal -->
-    <div v-if="editingDoc" class="preview-modal">
+    <div v-if="editingDoc" class="preview-modal" @click.self="editingDoc = null">
       <div class="preview-content p-6 edit-modal">
         <h2 class="font-bold text-lg mb-4">Edit Document Metadata</h2>
 
@@ -136,8 +145,31 @@
         </div>
       </div>
     </div>
+
+    <!-- Delete Confirmation Modal -->
+    <div v-if="deleteTarget" class="preview-modal" @click.self="cancelDelete">
+      <div class="confirm-modal">
+        <h3 class="text-lg font-bold mb-2">Delete Document</h3>
+        <p class="text-sm text-gray-700">
+          Are you sure you want to delete
+          <span class="font-semibold">"{{ deleteTarget.name }}"</span>?
+          This action cannot be undone.
+        </p>
+
+        <div class="flex justify-end gap-2 mt-5">
+          <button @click="confirmDelete" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded">
+            Delete
+          </button>
+          <button @click="cancelDelete" class="bg-gray-300 hover:bg-gray-400 px-4 py-2 rounded">
+            Cancel
+          </button>
+        </div>
+      </div>
+    </div>
+    <!-- /Delete Confirmation Modal -->
   </div>
 </template>
+
 
 <script setup>
 import Sidebar from "@/Components/Sidebar.vue";
@@ -149,17 +181,20 @@ const documents  = computed(() => usePage().props.documents);
 const teachers   = computed(() => usePage().props.teachers);
 const categories = computed(() => usePage().props.categories);
 
-const currentPage   = ref(1);
-const searchQuery   = ref("");
-const teacherFilter = ref("");
-const categoryFilter = ref("");
-const previewUrl    = ref(null);
-const previewType   = ref("pdf");
+const currentPage     = ref(1);
+const searchQuery     = ref("");
+const teacherFilter   = ref("");
+const categoryFilter  = ref("");
+const previewUrl      = ref(null);
+const previewType     = ref("pdf");
 const ENTRIES_PER_PAGE = 20;
 const isSidebarVisible = ref(true);
 
 const editingDoc = ref(null);
 const editForm = ref({ name: "", teacher_id: "", category_id: "" });
+
+// Delete modal state
+const deleteTarget = ref(null);
 
 const teacherCategories = [
   "Work Experience Sheet",
@@ -177,17 +212,15 @@ function previewDocument(doc) {
     previewUrl.value = `/documents/${doc.id}/preview`;
   } else if (["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) {
     previewType.value = "image";
-    // if you store original images and/or a generated PDF preview, prefer PDF if available:
     previewUrl.value = doc.pdf_preview_path ? `/storage/${doc.pdf_preview_path}` : `/documents/${doc.id}/preview`;
   } else if (["doc", "docx", "xls", "xlsx"].includes(ext)) {
     if (doc.pdf_preview_path) {
       previewType.value = "pdf";
       previewUrl.value = `/storage/${doc.pdf_preview_path}`;
     } else {
-      alert("❗ No PDF preview available for this document.");
+      // No alert modal here—keep preview silent if not available
+      return;
     }
-  } else {
-    alert("❗ Unsupported file format for preview.");
   }
 }
 
@@ -196,15 +229,33 @@ function closePreview() {
   previewType.value = null;
 }
 
-function confirmDelete(doc) {
-  if (!confirm(`Delete "${doc.name}"?`)) return;
-  router.delete(`/documents/${doc.id}`, {
+function openDeleteModal(doc) {
+  deleteTarget.value = doc;
+  document.body.style.overflow = "hidden";
+}
+
+function cancelDelete() {
+  deleteTarget.value = null;
+  document.body.style.overflow = "";
+}
+
+function confirmDelete() {
+  if (!deleteTarget.value) return;
+  router.delete(`/documents/${deleteTarget.value.id}`, {
     preserveScroll: true,
     onSuccess: () => {
-      // documents is computed; reload the server source of truth
+      deleteTarget.value = null;
+      document.body.style.overflow = "";
       router.reload({ only: ["documents"], preserveScroll: true, preserveState: true });
     },
-    onError: () => alert("❗ Failed to delete the document."),
+    onError: () => {
+      // optionally show a toast/snackbar in your app shell
+      deleteTarget.value = null;
+      document.body.style.overflow = "";
+    },
+    onFinish: () => {
+      document.body.style.overflow = "";
+    },
   });
 }
 
@@ -232,7 +283,6 @@ function submitEdit() {
         editingDoc.value = null;
         router.reload({ only: ["documents"], preserveScroll: true, preserveState: true });
       },
-      onError: () => alert("❗ Failed to update metadata."),
     }
   );
 }
@@ -278,14 +328,17 @@ function formatDate(d) {
 }
 </script>
 
+
 <style scoped>
-/* ========== Layout ========== */
+/* ===== Layout ===== */
 html,
 body {
   background: white;
   height: 100%;
   margin: 0;
   overflow: hidden;
+  font-family: system-ui, -apple-system, Segoe UI, Roboto, "Helvetica Neue", Arial, "Noto Sans",
+    "Apple Color Emoji", "Segoe UI Emoji", "Segoe UI Symbol", "Noto Color Emoji";
 }
 
 .layout {
@@ -306,7 +359,7 @@ body {
   padding: 20px;
 }
 
-/* ========== Container ========== */
+/* ===== Container ===== */
 .documents-container {
   background: white;
   display: flex;
@@ -315,7 +368,7 @@ body {
   overflow: hidden;
 }
 
-/* ========== Controls ========== */
+/* ===== Controls (filters + search) ===== */
 .controls {
   align-items: center;
   background: white;
@@ -328,11 +381,11 @@ body {
   z-index: 2;
 }
 
-/* ========== Inputs ========== */
+/* ===== Inputs ===== */
 .form-select {
   appearance: none;
   background-color: white;
-  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg width='14' height='8' viewBox='0 0 14 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l6 6 6-6' stroke='%23666' stroke-width='2' fill='none' fill-rule='evenodd'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml;charset=US-ASCII,%3Csvg width='14' height='8' viewBox='0 0 14 8' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M1 1l6 6 6-6' stroke='%23666' stroke-width='2' fill='none'/%3E%3C/svg%3E");
   background-position: right 10px center;
   background-repeat: no-repeat;
   border: 1px solid #707070;
@@ -354,7 +407,7 @@ body {
   outline: none;
 }
 
-/* ========== Table Wrapper ========== */
+/* ===== Table ===== */
 .table-wrapper {
   background: white;
   border-radius: 10px;
@@ -367,7 +420,6 @@ body {
   width: 100%;
 }
 
-/* ========== Table ========== */
 .documents-table {
   border-collapse: separate;
   border-spacing: 0;
@@ -394,8 +446,6 @@ body {
   word-wrap: break-word;
 }
 
-/* ========== Truncation Helpers ========== */
-.documents-table td:nth-child(2),
 .truncate-cell {
   max-width: 200px;
   overflow: hidden;
@@ -403,14 +453,13 @@ body {
   white-space: nowrap;
 }
 
-/* ========== Scrollable Body ========== */
 .scrollable-body {
   max-height: 600px;
   overflow-x: auto;
   overflow-y: auto;
 }
 
-/* ========== Pagination ========== */
+/* ===== Pagination ===== */
 .pagination-info {
   color: #555;
   font-size: 14px;
@@ -448,7 +497,7 @@ body {
   font-weight: bold;
 }
 
-/* ========== Row Actions ========== */
+/* ===== Row Actions (consistent colors) ===== */
 .action-buttons {
   display: flex;
   flex-wrap: wrap;
@@ -458,30 +507,45 @@ body {
 .icon-btn {
   background: none;
   border: none;
-  color: #0d6efd;
   cursor: pointer;
   font-size: 18px;
   margin-right: 6px;
+  padding: 2px;
 }
 
-.icon-btn i {
+/* View = Blue */
+.icon-btn.view i {
   color: #0d6efd;
-  transition: color 0.15s ease-in-out;
 }
-
-.icon-btn:hover i {
+.icon-btn.view:hover i {
   color: #0a58ca;
 }
 
-.icon-btn:last-child i {
-  color: #198754;
+/* Edit = Blue (same as view) */
+.icon-btn.edit i {
+  color: #0d6efd;
+}
+.icon-btn.edit:hover i {
+  color: #0a58ca;
 }
 
-.icon-btn:last-child:hover i {
+/* Download = Green */
+.icon-btn.download i {
+  color: #198754;
+}
+.icon-btn.download:hover i {
   color: #146c43;
 }
 
-/* ========== Preview Modal ========== */
+/* Delete = Red */
+.icon-btn.delete i {
+  color: #dc3545;
+}
+.icon-btn.delete:hover i {
+  color: #bb2d3b;
+}
+
+/* ===== Modals ===== */
 .preview-modal {
   align-items: center;
   background: rgba(0, 0, 0, 0.7);
@@ -511,15 +575,6 @@ body {
   width: 100%;
 }
 
-.preview-content iframe,
-.preview-content img {
-  border: none;
-  flex: 1;
-  height: 80vh;
-  object-fit: contain;
-  width: 100%;
-}
-
 .close-preview {
   background: #dc3545;
   border: none;
@@ -533,7 +588,7 @@ body {
   top: 10px;
 }
 
-/* ========== Edit Modal ========== */
+/* ===== Edit Modal ===== */
 .edit-modal {
   align-items: flex-start;
   display: flex;
@@ -544,7 +599,17 @@ body {
   width: 90vw;
 }
 
-/* ========== Responsive ========== */
+/* ===== Delete Confirmation Card ===== */
+.confirm-modal {
+  background: white;
+  width: 92vw;
+  max-width: 520px;
+  border-radius: 10px;
+  padding: 22px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
+}
+
+/* ===== Responsive ===== */
 @media (max-width: 768px) {
   .layout {
     flex-direction: column;
@@ -586,6 +651,7 @@ body {
 
   .documents-table td::before {
     color: #333;
+    content: attr(data-label);
     font-weight: bold;
     left: 8px;
     padding-right: 10px;
