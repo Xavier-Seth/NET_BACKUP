@@ -9,7 +9,7 @@
           v-if="showToast"
           class="fixed top-0 left-0 right-0 z-50 bg-green-600 text-white text-center py-2 shadow"
         >
-           User updated successfully.
+          User updated successfully.
         </div>
       </transition>
 
@@ -34,13 +34,33 @@
 
       <!-- Success Modal -->
       <transition name="fade">
-        <div v-if="showSuccessModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div v-if="showSuccessModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div class="bg-white p-6 rounded shadow-lg text-center max-w-sm w-full">
             <h4 class="text-xl font-semibold mb-2">✅ User Updated!</h4>
             <p class="text-gray-700 mb-4">Go back to Users list?</p>
             <div class="d-flex justify-content-center gap-3">
               <button class="btn btn-success" @click="goToUsers">Yes</button>
               <button class="btn btn-secondary" @click="showSuccessModal = false">No</button>
+            </div>
+          </div>
+        </div>
+      </transition>
+
+      <!-- ERROR Modal -->
+      <transition name="fade">
+        <div v-if="showErrorModal" class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div class="bg-white p-6 rounded shadow-lg max-w-md w-full">
+            <div class="flex items-start gap-3">
+              <div class="text-red-600 text-2xl">⚠️</div>
+              <div class="flex-1">
+                <h4 class="text-lg font-semibold mb-2">{{ errorTitle }}</h4>
+                <ul class="list-disc pl-5 space-y-1 text-gray-700">
+                  <li v-for="(msg, i) in errorMessages" :key="i">{{ msg }}</li>
+                </ul>
+              </div>
+            </div>
+            <div class="text-right mt-4">
+              <button class="btn btn-danger" @click="showErrorModal = false">Close</button>
             </div>
           </div>
         </div>
@@ -159,6 +179,11 @@ const photoPreview = ref(null)
 const showSuccessModal = ref(false)
 const showToast = ref(false)
 
+// Error modal state
+const showErrorModal = ref(false)
+const errorTitle = ref('Action blocked')
+const errorMessages = ref([])
+
 const form = useForm({
   first_name: user.first_name ?? '',
   last_name: user.last_name ?? '',
@@ -176,6 +201,12 @@ const form = useForm({
   photo: null,
 })
 
+function openErrorModal(messages, title = 'Action blocked') {
+  errorTitle.value = title
+  errorMessages.value = Array.isArray(messages) ? messages : [messages]
+  showErrorModal.value = true
+}
+
 function handlePhotoUpload(e) {
   const file = e.target.files[0]
   if (file) {
@@ -185,8 +216,9 @@ function handlePhotoUpload(e) {
 }
 
 function submitForm() {
+  // client-side guard for password mismatch
   if (form.password && form.password !== form.password_confirmation) {
-    alert('Passwords do not match!')
+    openErrorModal('Passwords do not match!')
     return
   }
 
@@ -199,8 +231,9 @@ function submitForm() {
       showTemporaryToast()
     },
     onError: (errors) => {
-      const firstError = Object.values(errors)[0]
-      alert(firstError || 'An error occurred while updating the user.')
+      // errors is an object like { role: '...', status: '...' }
+      const msgs = Object.values(errors).filter(Boolean)
+      openErrorModal(msgs.length ? msgs : 'An error occurred while updating the user.')
     }
   })
 }
@@ -229,10 +262,6 @@ function showTemporaryToast() {
   box-shadow: 0 4px 8px rgba(0, 0, 0, 0.08);
   border-radius: 10px;
 }
-.fade-enter-active, .fade-leave-active {
-  transition: opacity 0.3s ease;
-}
-.fade-enter-from, .fade-leave-to {
-  opacity: 0;
-}
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s ease; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>
