@@ -149,7 +149,6 @@
                 <select v-model="form.role" class="form-control" required>
                   <option value="Admin">Admin</option>
                   <option value="Admin Staff">Admin Staff</option>
-                  <option value="User">User</option>
                 </select>
               </div>
             </div>
@@ -216,7 +215,6 @@ function handlePhotoUpload(e) {
 }
 
 function submitForm() {
-  // client-side guard for password mismatch
   if (form.password && form.password !== form.password_confirmation) {
     openErrorModal('Passwords do not match!')
     return
@@ -231,7 +229,6 @@ function submitForm() {
       showTemporaryToast()
     },
     onError: (errors) => {
-      // errors is an object like { role: '...', status: '...' }
       const msgs = Object.values(errors).filter(Boolean)
       openErrorModal(msgs.length ? msgs : 'An error occurred while updating the user.')
     }
