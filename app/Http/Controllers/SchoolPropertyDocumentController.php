@@ -79,21 +79,23 @@ class SchoolPropertyDocumentController extends Controller
     {
         try {
             // Capture details before deletion
-            $docName = $schoolDocument->name;
+            $docName = $schoolDocument->name ?? 'Untitled';
             $categoryName = optional($schoolDocument->category)->name ?? 'N/A';
-            $uploadedBy = optional($schoolDocument->user)->name ?? 'Unknown';
 
-            // Delete file + DB record
-            Storage::disk('public')->delete($schoolDocument->path);
+            // Delete file (if present) then DB record
+            if ($schoolDocument->path) {
+                Storage::disk('public')->delete($schoolDocument->path);
+            }
             $schoolDocument->delete();
 
-            // Log deletion
-            LogService::record("Deleted school property document '{$docName}' under category '{$categoryName}' uploaded by '{$uploadedBy}'");
+            // Log deletion (no uploader mentioned)
+            LogService::record("Deleted school property document '{$docName}' under category '{$categoryName}'.");
 
-            return redirect()->back()->with('success', 'Document deleted successfully.');
-        } catch (\Exception $e) {
-            \Log::error("Delete failed: " . $e->getMessage());
-            return redirect()->back()->with('error', 'Failed to delete document.');
+            return back()->with('success', 'Document deleted successfully.');
+        } catch (\Throwable $e) {
+            \Log::error("Delete failed (SchoolPropertyDocument #{$schoolDocument->id}): " . $e->getMessage());
+            return back()->with('error', 'Failed to delete document.');
         }
     }
+
 }

@@ -79,12 +79,9 @@ class DocumentController extends Controller
     }
 
     /**
-     * New per-file multi-upload with per-file meta & results.
-     * Front-end sends:
-     *   - files[] (binary)
-     *   - meta: JSON array [{name, category_id, teacher_id, override, scanned_text, size, type}, ...]
-     *   - allow_duplicate (optional, for single-file retry flow)
-     *   - skip_ocr (optional)
+     * Multi-upload entry for Teacher docs AND ICS/RIS school-property docs.
+     * Uses DocumentUploadService::handle() which returns either Document
+     * or SchoolPropertyDocument instance. We log safely for both.
      */
     public function upload(Request $request, DocumentUploadService $uploadService)
     {
@@ -101,7 +98,7 @@ class DocumentController extends Controller
 
         $user = $request->user() ?? User::findOrFail(auth()->id());
 
-        // Parse meta (if any)
+        // Parse meta (if posted)
         $meta = [];
         if ($request->filled('meta')) {
             try {
@@ -113,7 +110,7 @@ class DocumentController extends Controller
             }
         }
 
-        // Build lookup by original filename for convenience
+        // Lookup by filename
         $byName = [];
         foreach ($meta as $m) {
             if (!empty($m['name']) && is_string($m['name'])) {
@@ -124,7 +121,7 @@ class DocumentController extends Controller
         $skipOcr = (bool) $request->boolean('skip_ocr');
         $globalAllowDuplicate = (bool) $request->boolean('allow_duplicate');
 
-        // Legacy fallback input (if meta is empty and UI still posts single IDs)
+        // Legacy fallback
         $legacyTeacherId = $request->filled('teacher_id') ? (int) $request->input('teacher_id') : null;
         $legacyCategoryId = $request->filled('category_id') ? (int) $request->input('category_id') : null;
         $legacyScannedText = $request->input('scanned_text');
@@ -135,16 +132,16 @@ class DocumentController extends Controller
             $orig = $file->getClientOriginalName();
             $m = $byName[$orig] ?? [];
 
-            // Effective per-file values (meta > legacy form > null)
+            // Effective per-file values
             $categoryId = isset($m['category_id']) ? (int) $m['category_id'] : $legacyCategoryId;
             $teacherId = isset($m['teacher_id']) ? (int) $m['teacher_id'] : $legacyTeacherId;
             $override = (bool) ($m['override'] ?? $request->boolean('override'));
             $scanned = $m['scanned_text'] ?? $legacyScannedText ?? '';
 
-            // ── Duplicate gates ──────────────────────────────────────────────
+            // Duplicate rules (only matter for teacher docs)
             if ($teacherId && !$globalAllowDuplicate) {
                 $sameCat = $categoryId ? $this->isDuplicate($teacherId, $categoryId) : false;
-                $sameName = $this->hasSameNameForTeacher($teacherId, $orig, $categoryId); // limit to same category by passing $categoryId
+                $sameName = $this->hasSameNameForTeacher($teacherId, $orig, $categoryId);
                 if ($sameCat || $sameName) {
                     $results[] = [
                         'name' => $orig,
@@ -157,7 +154,7 @@ class DocumentController extends Controller
             }
 
             try {
-                // Save file
+                // Save file (service returns Document or SchoolPropertyDocument)
                 $doc = $uploadService->handle(
                     $file,
                     $teacherId,
@@ -171,11 +168,23 @@ class DocumentController extends Controller
                     ]
                 );
 
-                // Log per-file activity
-                LogService::record(
-                    "Uploaded document '{$doc->name}'" .
-                    ($doc->teacher ? " for teacher {$doc->teacher->full_name}" : '')
-                );
+                // --- Safe logging for both models ---
+                $relations = [];
+                if (method_exists($doc, 'teacher'))
+                    $relations[] = 'teacher';
+                if (method_exists($doc, 'category'))
+                    $relations[] = 'category';
+                if ($relations)
+                    $doc->loadMissing($relations);
+
+                $typeLabel = $doc instanceof \App\Models\SchoolPropertyDocument ? 'school property document' : 'document';
+                $teacherPart = (method_exists($doc, 'teacher') && $doc->relationLoaded('teacher') && $doc->teacher)
+                    ? " for teacher {$doc->teacher->full_name}" : '';
+                $categoryPart = (method_exists($doc, 'category') && $doc->relationLoaded('category') && $doc->category)
+                    ? " under category '{$doc->category->name}'" : '';
+
+                LogService::record("Uploaded {$typeLabel} '{$doc->name}'{$teacherPart}{$categoryPart}.");
+                // ------------------------------------
 
                 $results[] = [
                     'name' => $orig,
@@ -229,15 +238,15 @@ class DocumentController extends Controller
                 LaravelLog::error("Flask scan OCR failed: " . $response->body());
             }
 
-            // Normalize category (TOR -> Transcript of Records, etc.)
+            // Normalize to canonical category names
             $matchedCategory = $this->normalizeCategoryName($matchedCategory);
 
-            // Resolve to category_id if possible (case-insensitive)
+            // Map to category_id
             if ($matchedCategory) {
                 $categoryId = Category::whereRaw('LOWER(name) = ?', [strtolower($matchedCategory)])->value('id');
             }
 
-            // Try to find teacher name inside OCR text
+            // Try to detect teacher in OCR text
             if (!empty($ocrText)) {
                 foreach (Teacher::all() as $teacher) {
                     if (Str::contains(strtolower($ocrText), strtolower($teacher->full_name))) {
@@ -264,36 +273,15 @@ class DocumentController extends Controller
 
         return response()->json([
             'teacher' => $matchedTeacher,
-            'category' => $matchedCategory,   // normalized canonical name
-            'category_id' => $categoryId,     // helps the UI map directly
+            'category' => $matchedCategory,
+            'category_id' => $categoryId,
             'belongs_to_teacher' => $belongsToTeacher,
-            'text' => $ocrText,               // expose text for reuse
-            'fallback_used' => $fallbackUsed, // lets UI show the warning
+            'text' => $ocrText,
+            'fallback_used' => $fallbackUsed,
         ]);
     }
 
-    public function destroy(Document $document)
-    {
-        if ($document->path && Storage::disk('public')->exists($document->path)) {
-            Storage::disk('public')->delete($document->path);
-        }
-        if ($document->pdf_preview_path && Storage::disk('public')->exists($document->pdf_preview_path)) {
-            Storage::disk('public')->delete($document->pdf_preview_path);
-        }
-
-        $teacherName = optional($document->teacher)->full_name ?? 'N/A';
-        $docName = $document->name;
-
-        $document->delete();
-
-        LogService::record(
-            "Deleted document '{$docName}'"
-            . ($teacherName !== 'N/A' ? " belonging to teacher {$teacherName}" : '')
-        );
-
-        return back()->with('success', 'Document deleted successfully.');
-    }
-
+    /** DTR page (list & filter) */
     public function dtrIndex(Request $request)
     {
         $query = Document::with(['teacher', 'category'])
@@ -302,6 +290,7 @@ class DocumentController extends Controller
         if ($request->search) {
             $query->where('name', 'like', '%' . $request->search . '%');
         }
+
         if ($request->teacher) {
             $query->whereHas('teacher', fn($q) => $q->where('full_name', $request->teacher));
         }
@@ -314,6 +303,7 @@ class DocumentController extends Controller
         ]);
     }
 
+    /** Edit metadata modal (name, teacher, category) */
     public function updateMetadata(Request $request, Document $document)
     {
         $request->validate([
@@ -328,14 +318,39 @@ class DocumentController extends Controller
             'name' => $request->name ?? $document->name,
         ]);
 
-        LogService::record("Updated metadata for document '{$document->name}'");
+        $document->loadMissing(['teacher', 'category']);
+        $teacherPart = $document->teacher ? " for teacher {$document->teacher->full_name}" : '';
+        $categoryPart = $document->category ? " under category '{$document->category->name}'" : '';
+
+        LogService::record("Updated metadata for document '{$document->name}'{$teacherPart}{$categoryPart}.");
 
         return back()->with('success', 'Document metadata updated.');
     }
 
-    // ─────────────────────────────────────────────────────────────
-    // Helpers
-    // ─────────────────────────────────────────────────────────────
+    public function destroy(Document $document)
+    {
+        if ($document->path && Storage::disk('public')->exists($document->path)) {
+            Storage::disk('public')->delete($document->path);
+        }
+        if ($document->pdf_preview_path && Storage::disk('public')->exists($document->pdf_preview_path)) {
+            Storage::disk('public')->delete($document->pdf_preview_path);
+        }
+
+        $document->loadMissing(['teacher', 'category']);
+
+        $teacherPart = $document->teacher ? " belonging to teacher {$document->teacher->full_name}" : '';
+        $categoryPart = $document->category ? " under category '{$document->category->name}'" : '';
+        $docName = $document->name;
+
+        $document->delete();
+
+        LogService::record("Deleted document '{$docName}'{$teacherPart}{$categoryPart}.");
+
+        return back()->with('success', 'Document deleted successfully.');
+    }
+
+    // ─────────── Helpers ───────────
+
     private function normalizeCategoryName(?string $name): ?string
     {
         if (!$name)
@@ -352,30 +367,24 @@ class DocumentController extends Controller
         return $map[$key] ?? $map[strtoupper($key)] ?? $key;
     }
 
-    /**
-     * Duplicate check: teacher-documents keyed by (teacher_id, category_id)
-     */
+    /** Teacher-doc duplicate check by (teacher_id, category_id) */
     private function isDuplicate(?int $teacherId, ?int $categoryId): bool
     {
-        if (!$teacherId || !$categoryId) {
+        if (!$teacherId || !$categoryId)
             return false;
-        }
+
         return Document::where('teacher_id', $teacherId)
             ->where('category_id', $categoryId)
             ->exists();
     }
 
-    /**
-     * NEW: Same-name check for a teacher (optionally scoped to category).
-     * Pass $categoryId to limit same-name detection within the same category.
-     */
+    /** Same-name check for a teacher (optionally scoped to category) */
     private function hasSameNameForTeacher(int $teacherId, string $originalName, ?int $categoryId = null): bool
     {
         $q = Document::where('teacher_id', $teacherId)
             ->where('name', $originalName);
 
         if (!is_null($categoryId)) {
-            // limit to same category collisions
             $q->where('category_id', $categoryId);
         }
 
