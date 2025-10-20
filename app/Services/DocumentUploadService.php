@@ -92,7 +92,7 @@ class DocumentUploadService
 
             // B) PDF → copy decrypted as preview (iframe-friendly)
             if ($extension === 'pdf') {
-                $previewPath = "previews/{$filename}"; // keep same hashed name
+                $previewPath = "previews/{$filename}";
                 Storage::disk('public')->put($previewPath, file_get_contents($decryptedPath));
                 $pdfPreviewPath = $previewPath;
             }
@@ -102,7 +102,7 @@ class DocumentUploadService
             if (in_array($extension, ['jpg', 'jpeg', 'png', 'webp', 'bmp', 'gif'])) {
                 $previewPath = "previews/{$filename}";
                 Storage::disk('public')->put($previewPath, file_get_contents($decryptedPath));
-                $pdfPreviewPath = $previewPath; // 👈 iframe can load images too
+                $pdfPreviewPath = $previewPath; // iframe can load images too
             }
 
             // OCR + Classification (only if needed and not skipped)
@@ -160,6 +160,9 @@ class DocumentUploadService
 
         // School property path (ICS/RIS) → no teacher gating
         if ($isSchoolProperty) {
+            // Smart "(n)" increment for same-name ICS/RIS documents in this category
+            $finalName = $this->generateIncrementedNameForProperty($originalName, $categoryId);
+
             return SchoolPropertyDocument::create([
                 'user_id' => $user->id,
                 'category_id' => $categoryId,
@@ -169,11 +172,11 @@ class DocumentUploadService
                 'received_by' => null,
                 'received_date' => null,
                 'description' => null,
-                'name' => $originalName,
+                'name' => $finalName,
                 'path' => $path,
                 'mime_type' => $mime,
                 'size' => $size,
-                'pdf_preview_path' => $pdfPreviewPath, // now set for images too ✅
+                'pdf_preview_path' => $pdfPreviewPath, // images/pdfs/converted office
                 'extracted_text' => $ocrText,
             ]);
         }
@@ -198,16 +201,10 @@ class DocumentUploadService
             ]);
         }
 
+        // NEW: smart "(n)" increment for same-name copies when allow_duplicate=1
         $displayName = $originalName;
-        if ($existing && $allowDuplicate) {
-            $alreadySameName = Document::where('teacher_id', $teacherId)
-                ->where('category_id', $categoryId)
-                ->where('name', $originalName)
-                ->exists();
-
-            if ($alreadySameName) {
-                $displayName = $this->suffixDisplayName($originalName, now()->format('Ymd_His'));
-            }
+        if ($allowDuplicate) {
+            $displayName = $this->generateIncrementedNameForTeacher($originalName, $teacherId, $categoryId);
         }
 
         // ── Create final teacher document record ──────────────────────────────
@@ -248,16 +245,106 @@ class DocumentUploadService
         return $map[$key] ?? $map[strtoupper($key)] ?? $key;
     }
 
-    /** Suffix display name (before extension). */
-    private function suffixDisplayName(string $name, string $suffix): string
+    /**
+     * Strip an existing trailing " (n)" from a base name. Example: "file (3)" -> "file"
+     */
+    private function stripParenCounter(string $base): string
     {
-        $dot = strrpos($name, '.');
-        if ($dot === false) {
-            return "{$name} ({$suffix})";
+        return preg_replace('/\s\(\d+\)$/', '', $base);
+    }
+
+    /**
+     * Compute a non-colliding name for TEACHER docs within teacher+category, using " (n)".
+     */
+    private function generateIncrementedNameForTeacher(
+        string $originalName,
+        int $teacherId,
+        int $categoryId
+    ): string {
+        $dot = strrpos($originalName, '.');
+        $base = $dot === false ? $originalName : substr($originalName, 0, $dot);
+        $ext = $dot === false ? '' : substr($originalName, $dot + 1);
+        $cleanBase = $this->stripParenCounter($base);
+
+        $existing = Document::where('teacher_id', $teacherId)
+            ->where('category_id', $categoryId)
+            ->where(function ($q) use ($cleanBase, $ext) {
+                if ($ext !== '') {
+                    $q->where('name', $cleanBase . '.' . $ext)
+                        ->orWhere('name', 'like', $cleanBase . ' (%)' . '.' . $ext);
+                } else {
+                    $q->where('name', $cleanBase)
+                        ->orWhere('name', 'like', $cleanBase . ' (%)');
+                }
+            })
+            ->pluck('name')
+            ->all();
+
+        if (!in_array($originalName, $existing, true)) {
+            return $originalName;
         }
-        $base = substr($name, 0, $dot);
-        $ext = substr($name, $dot + 1);
-        return "{$base} ({$suffix}).{$ext}";
+
+        $max = 0;
+        foreach ($existing as $name) {
+            $pattern = $ext !== ''
+                ? '/^' . preg_quote($cleanBase, '/') . '\s\((\d+)\)\.' . preg_quote($ext, '/') . '$/i'
+                : '/^' . preg_quote($cleanBase, '/') . '\s\((\d+)\)$/i';
+            if (preg_match($pattern, $name, $m)) {
+                $n = (int) $m[1];
+                if ($n > $max)
+                    $max = $n;
+            }
+        }
+        $next = $max + 1;
+
+        return $ext !== ''
+            ? "{$cleanBase} ({$next}).{$ext}"
+            : "{$cleanBase} ({$next})";
+    }
+
+    /**
+     * Compute a non-colliding name for SCHOOL PROPERTY docs within a category (ICS/RIS).
+     */
+    private function generateIncrementedNameForProperty(string $originalName, int $categoryId): string
+    {
+        $dot = strrpos($originalName, '.');
+        $base = $dot === false ? $originalName : substr($originalName, 0, $dot);
+        $ext = $dot === false ? '' : substr($originalName, $dot + 1);
+        $cleanBase = $this->stripParenCounter($base);
+
+        $existing = SchoolPropertyDocument::where('category_id', $categoryId)
+            ->where(function ($q) use ($cleanBase, $ext) {
+                if ($ext !== '') {
+                    $q->where('name', $cleanBase . '.' . $ext)
+                        ->orWhere('name', 'like', $cleanBase . ' (%)' . '.' . $ext);
+                } else {
+                    $q->where('name', $cleanBase)
+                        ->orWhere('name', 'like', $cleanBase . ' (%)');
+                }
+            })
+            ->pluck('name')
+            ->all();
+
+        if (!in_array($originalName, $existing, true)) {
+            return $originalName;
+        }
+
+        $max = 0;
+        foreach ($existing as $name) {
+            $pattern = $ext !== ''
+                ? '/^' . preg_quote($cleanBase, '/') . '\s\((\d+)\)\.' . preg_quote($ext, '/') . '$/i'
+                : '/^' . preg_quote($cleanBase, '/') . '\s\((\d+)\)$/i';
+            if (preg_match($pattern, $name, $m)) {
+                $n = (int) $m[1];
+                if ($n > $max)
+                    $max = $n;
+            }
+        }
+        $next = $max + 1;
+
+        return $ext !== ''
+            ? "{$cleanBase} ({$next}).{$ext}"
+            : "{$cleanBase} ({$next})";
     }
 
     /** Delete stored binary + preview if any. */

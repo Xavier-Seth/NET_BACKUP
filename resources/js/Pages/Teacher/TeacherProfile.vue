@@ -9,7 +9,9 @@
             <label for="category" class="me-2">Category</label>
             <select id="category" v-model="categoryFilter" class="form-select">
               <option value="">All</option>
-              <option v-for="c in categories" :key="c.id" :value="c.name">{{ c.name }}</option>
+              <option v-for="c in categoriesFiltered" :key="c.id" :value="String(c.id)">
+                {{ c.name }}
+              </option>
             </select>
           </div>
 
@@ -18,7 +20,9 @@
             <label for="teacher" class="me-2">Teacher</label>
             <select id="teacher" v-model="teacherFilter" class="form-select">
               <option value="">All</option>
-              <option v-for="t in teachers" :key="t.id" :value="t.full_name">{{ t.full_name }}</option>
+              <option v-for="t in teachers" :key="t.id" :value="String(t.id)">
+                {{ t.full_name }}
+              </option>
             </select>
           </div>
 
@@ -53,17 +57,15 @@
             <table class="documents-table">
               <tbody>
                 <tr v-for="document in paginatedDocuments" :key="document.id">
-                  <td class="truncate-cell">{{ document.name }}</td>
-                  <td>{{ document.teacher?.full_name ?? 'N/A' }}</td>
-                  <td class="truncate-cell">{{ document.category?.name ?? 'N/A' }}</td>
-                  <td>{{ formatDate(document.created_at) }}</td>
-                  <td class="action-buttons">
-                    <!-- View -->
+                  <td class="truncate-cell" data-label="Name">{{ document.name }}</td>
+                  <td data-label="Teacher">{{ document.teacher?.full_name ?? "N/A" }}</td>
+                  <td class="truncate-cell" data-label="Type">{{ document.category?.name ?? "N/A" }}</td>
+                  <td data-label="Date">{{ formatDate(document.created_at) }}</td>
+                  <td class="action-buttons" data-label="Actions">
                     <button @click="previewDocument(document)" class="icon-btn view" title="Preview">
                       <i class="bi bi-eye"></i>
                     </button>
 
-                    <!-- Download -->
                     <a
                       :href="`/documents/${document.id}/download`"
                       class="icon-btn download"
@@ -73,12 +75,10 @@
                       <i class="bi bi-download"></i>
                     </a>
 
-                    <!-- Edit -->
                     <button @click="openEditModal(document)" class="icon-btn edit" title="Edit Metadata">
                       <i class="bi bi-pencil"></i>
                     </button>
 
-                    <!-- Delete -->
                     <button @click="openDeleteModal(document)" class="icon-btn delete" title="Delete">
                       <i class="bi bi-trash"></i>
                     </button>
@@ -90,12 +90,21 @@
 
           <!-- Pagination -->
           <div class="pagination-info">
-            Showing {{ paginationRange.start }} to {{ paginationRange.end }} of {{ paginationRange.total }} entries
+            Showing {{ paginationRange.start }} to {{ paginationRange.end }} of
+            {{ paginationRange.total }} entries
           </div>
           <div class="pagination-container">
-            <button @click="currentPage--" :disabled="currentPage === 1" class="pagination-btn">Previous</button>
+            <button @click="currentPage--" :disabled="currentPage === 1" class="pagination-btn">
+              Previous
+            </button>
             <span class="pagination-text">Page {{ currentPage }} of {{ totalPages }}</span>
-            <button @click="currentPage++" :disabled="currentPage === totalPages" class="pagination-btn">Next</button>
+            <button
+              @click="currentPage++"
+              :disabled="currentPage === totalPages"
+              class="pagination-btn"
+            >
+              Next
+            </button>
           </div>
         </div>
       </div>
@@ -132,11 +141,14 @@
         <label class="block font-semibold mb-1">Category</label>
         <select v-model="editForm.category_id" class="border rounded p-2 w-full mb-4">
           <option value="">-- Select Category --</option>
-          <option v-for="c in categories" :key="c.id" :value="c.id">{{ c.name }}</option>
+          <option v-for="c in categoriesFiltered" :key="c.id" :value="c.id">{{ c.name }}</option>
         </select>
 
         <div class="flex justify-end w-full mt-4">
-          <button @click="submitEdit" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded mr-2">
+          <button
+            @click="submitEdit"
+            class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded mr-2"
+          >
             Save
           </button>
           <button @click="editingDoc = null" class="bg-gray-300 hover:bg-gray-400 px-4 py-2 rounded">
@@ -152,58 +164,57 @@
         <h3 class="text-lg font-bold mb-2">Delete Document</h3>
         <p class="text-sm text-gray-700">
           Are you sure you want to delete
-          <span class="font-semibold">"{{ deleteTarget.name }}"</span>?
-          This action cannot be undone.
+          <span class="font-semibold">"{{ deleteTarget.name }}"</span>? This action cannot be undone.
         </p>
 
         <div class="flex justify-end gap-2 mt-5">
-          <button @click="confirmDelete" class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded">
+          <button
+            @click="confirmDelete"
+            class="bg-red-600 hover:bg-red-700 text-white px-4 py-2 rounded"
+          >
             Delete
           </button>
-          <button @click="cancelDelete" class="bg-gray-300 hover:bg-gray-400 px-4 py-2 rounded">
+          <button
+            @click="cancelDelete"
+            class="bg-gray-300 hover:bg-gray-400 px-4 py-2 rounded"
+          >
             Cancel
           </button>
         </div>
       </div>
     </div>
-    <!-- /Delete Confirmation Modal -->
   </div>
 </template>
-
 
 <script setup>
 import Sidebar from "@/Components/Sidebar.vue";
 import { ref, computed, watch } from "vue";
 import { router, usePage } from "@inertiajs/vue3";
 
-/* reactive page props (no local freezing) */
-const documents  = computed(() => usePage().props.documents);
-const teachers   = computed(() => usePage().props.teachers);
+const documents = computed(() => usePage().props.documents);
+const teachers = computed(() => usePage().props.teachers);
 const categories = computed(() => usePage().props.categories);
 
-const currentPage     = ref(1);
-const searchQuery     = ref("");
-const teacherFilter   = ref("");
-const categoryFilter  = ref("");
-const previewUrl      = ref(null);
-const previewType     = ref("pdf");
+const currentPage = ref(1);
+const searchQuery = ref("");
+const teacherFilter = ref("");
+const categoryFilter = ref("");
+const previewUrl = ref(null);
+const previewType = ref("pdf");
 const ENTRIES_PER_PAGE = 20;
 const isSidebarVisible = ref(true);
 
 const editingDoc = ref(null);
 const editForm = ref({ name: "", teacher_id: "", category_id: "" });
-
-// Delete modal state
 const deleteTarget = ref(null);
 
-const teacherCategories = [
-  "Work Experience Sheet",
-  "Personal Data Sheet",
-  "Oath of Office",
-  "Certification of Assumption to Duty",
-  "Transcript of Records",
-  "Appointment Form",
-];
+// Names of categories to hide from this page
+const EXCLUDED_CATEGORIES = ["Daily Time Record", "DTR", "DTR Reports", "ICS", "RIS"];
+
+// Filter categories to remove excluded ones (for dropdown + modal)
+const categoriesFiltered = computed(() =>
+  (categories.value || []).filter((c) => !EXCLUDED_CATEGORIES.includes(c.name))
+);
 
 function previewDocument(doc) {
   const ext = (doc.name || "").split(".").pop()?.toLowerCase();
@@ -212,13 +223,14 @@ function previewDocument(doc) {
     previewUrl.value = `/documents/${doc.id}/preview`;
   } else if (["jpg", "jpeg", "png", "gif", "webp", "bmp"].includes(ext)) {
     previewType.value = "image";
-    previewUrl.value = doc.pdf_preview_path ? `/storage/${doc.pdf_preview_path}` : `/documents/${doc.id}/preview`;
+    previewUrl.value = doc.pdf_preview_path
+      ? `/storage/${doc.pdf_preview_path}`
+      : `/documents/${doc.id}/preview`;
   } else if (["doc", "docx", "xls", "xlsx"].includes(ext)) {
     if (doc.pdf_preview_path) {
       previewType.value = "pdf";
       previewUrl.value = `/storage/${doc.pdf_preview_path}`;
     } else {
-      // No alert modal here—keep preview silent if not available
       return;
     }
   }
@@ -249,7 +261,6 @@ function confirmDelete() {
       router.reload({ only: ["documents"], preserveScroll: true, preserveState: true });
     },
     onError: () => {
-      // optionally show a toast/snackbar in your app shell
       deleteTarget.value = null;
       document.body.style.overflow = "";
     },
@@ -292,27 +303,36 @@ watch(previewUrl, (val) => {
 });
 watch([searchQuery, teacherFilter, categoryFilter], () => (currentPage.value = 1));
 
-const filteredDocuments = computed(() =>
-  (documents.value || []).filter((doc) => {
-    const n = (doc.name || "").toLowerCase();
-    const t = doc.teacher?.full_name ?? "";
-    const c = doc.category?.name ?? "";
+const filteredDocuments = computed(() => {
+  const q = searchQuery.value.toLowerCase().trim();
+  const teacherId = teacherFilter.value;
+  const categoryId = categoryFilter.value;
 
-    return (
-      teacherCategories.includes(c) &&
-      n.includes(searchQuery.value.toLowerCase()) &&
-      (teacherFilter.value === "" || t === teacherFilter.value) &&
-      (categoryFilter.value === "" || c === categoryFilter.value)
-    );
-  })
-);
+  return (documents.value || []).filter((doc) => {
+    const name = (doc.name || "").toLowerCase();
+    const docTeacherId = String(doc.teacher_id ?? "");
+    const docCategoryId = String(doc.category_id ?? "");
+    const docCategoryName = doc.category?.name ?? "";
+
+    // Hide excluded categories (DTR, ICS, RIS)
+    if (EXCLUDED_CATEGORIES.includes(docCategoryName)) return false;
+
+    const matchesSearch = !q || name.includes(q);
+    const matchesTeacher = !teacherId || docTeacherId === teacherId;
+    const matchesCategory = !categoryId || docCategoryId === categoryId;
+
+    return matchesSearch && matchesTeacher && matchesCategory;
+  });
+});
 
 const paginatedDocuments = computed(() => {
   const start = (currentPage.value - 1) * ENTRIES_PER_PAGE;
   return filteredDocuments.value.slice(start, start + ENTRIES_PER_PAGE);
 });
 
-const totalPages = computed(() => Math.max(1, Math.ceil(filteredDocuments.value.length / ENTRIES_PER_PAGE)));
+const totalPages = computed(() =>
+  Math.max(1, Math.ceil(filteredDocuments.value.length / ENTRIES_PER_PAGE))
+);
 
 const paginationRange = computed(() => {
   const total = filteredDocuments.value.length;
@@ -327,7 +347,6 @@ function formatDate(d) {
   return isNaN(dt) ? "-" : dt.toLocaleDateString();
 }
 </script>
-
 
 <style scoped>
 /* ===== Layout ===== */

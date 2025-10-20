@@ -91,11 +91,10 @@ class DocumentController extends Controller
         $request->validate([
             'files' => 'required|array',
             'files.*' => 'required|file|mimes:pdf,doc,docx,xlsx,xls,png,jpg,jpeg|max:20480',
-            'meta' => 'nullable|string', // JSON; validated structurally below
+            'meta' => 'nullable|string',
             'allow_duplicate' => 'nullable|boolean',
             'skip_ocr' => 'nullable|boolean',
-            'scanned_text' => 'nullable|string', // legacy single-file fallback
-            // legacy optional single-IDs (kept for backward compatibility)
+            'scanned_text' => 'nullable|string',
             'teacher_id' => 'nullable|integer|exists:teachers,id',
             'category_id' => 'nullable|integer|exists:categories,id',
         ]);
@@ -142,14 +141,16 @@ class DocumentController extends Controller
             $override = (bool) ($m['override'] ?? $request->boolean('override'));
             $scanned = $m['scanned_text'] ?? $legacyScannedText ?? '';
 
-            // Duplicate gate (teacher documents: by teacher_id + category_id)
-            if ($teacherId && $categoryId && !$globalAllowDuplicate) {
-                if ($this->isDuplicate($teacherId, $categoryId)) {
+            // ── Duplicate gates ──────────────────────────────────────────────
+            if ($teacherId && !$globalAllowDuplicate) {
+                $sameCat = $categoryId ? $this->isDuplicate($teacherId, $categoryId) : false;
+                $sameName = $this->hasSameNameForTeacher($teacherId, $orig, $categoryId); // limit to same category by passing $categoryId
+                if ($sameCat || $sameName) {
                     $results[] = [
                         'name' => $orig,
                         'success' => false,
                         'duplicate' => true,
-                        'message' => 'Duplicate detected',
+                        'message' => $sameName ? 'Duplicate filename detected' : 'Duplicate document type detected',
                     ];
                     continue;
                 }
@@ -363,5 +364,21 @@ class DocumentController extends Controller
             ->where('category_id', $categoryId)
             ->exists();
     }
+
+    /**
+     * NEW: Same-name check for a teacher (optionally scoped to category).
+     * Pass $categoryId to limit same-name detection within the same category.
+     */
+    private function hasSameNameForTeacher(int $teacherId, string $originalName, ?int $categoryId = null): bool
+    {
+        $q = Document::where('teacher_id', $teacherId)
+            ->where('name', $originalName);
+
+        if (!is_null($categoryId)) {
+            // limit to same category collisions
+            $q->where('category_id', $categoryId);
+        }
+
+        return $q->exists();
+    }
 }
-    

@@ -1,6 +1,6 @@
 <script setup>
 import { Head, useForm, router, Link } from '@inertiajs/vue3';
-import { ref, watch } from 'vue';
+import { ref, computed } from 'vue';
 
 const form = useForm({
   email: '',
@@ -8,29 +8,54 @@ const form = useForm({
   remember: false,
 });
 
-const showError = ref(false); 
+const localErrors = ref({ email: null, password: null });
+const showError = ref(false);
+
+const mergedErrors = computed(() => ({
+  email: localErrors.value.email || form.errors.email || null,
+  password: localErrors.value.password || form.errors.password || null,
+}));
+
+const triggerFadeOut = () => {
+  showError.value = true;
+  setTimeout(() => {
+    showError.value = false;
+    localErrors.value = { email: null, password: null };
+  }, 3000);
+};
 
 const submit = () => {
+  // clear previous client errors
+  localErrors.value = { email: null, password: null };
+
+  // client-side validation
+  if (!form.email) localErrors.value.email = 'The email field is required.';
+  if (!form.password) localErrors.value.password = 'The password field is required.';
+
+  if (localErrors.value.email || localErrors.value.password) {
+    triggerFadeOut();
+    return;
+  }
+
+  // server request
   form.post(route('login'), {
     onSuccess: () => {
       router.visit(route('dashboard'));
     },
     onError: () => {
-      showError.value = true;
-
-      // Auto-hide after 3 seconds
-      setTimeout(() => {
-        showError.value = false;
-        form.clearErrors();
-      }, 3000);
+      triggerFadeOut();
     },
     onFinish: () => form.reset('password'),
   });
 };
 
-const clearErrors = () => {
-  form.clearErrors();
-  showError.value = false;
+const clearErrors = (field) => {
+  if (field in localErrors.value) localErrors.value[field] = null;
+  if (field in form.errors) delete form.errors[field];
+
+  if (!mergedErrors.value.email && !mergedErrors.value.password) {
+    showError.value = false;
+  }
 };
 </script>
 
@@ -49,8 +74,16 @@ const clearErrors = () => {
         <p class="text-light" style="font-size: 14px;">Document Archiving System</p>
       </div>
 
-      <form @submit.prevent="submit">
-        <div class="mb-3">
+      <!-- General backend login error -->
+      <div v-if="showError && form.errors.email && !localErrors.email && !localErrors.password"
+           class="alert alert-danger py-2 px-3 mb-3" role="alert" style="font-size: 13px;">
+        {{ form.errors.email }}
+      </div>
+
+      <!-- Disable native HTML validation -->
+      <form @submit.prevent="submit" novalidate>
+        <!-- Email field -->
+        <div class="mb-2">
           <div class="input-group">
             <span class="input-group-text bg-dark text-white border-0">
               <i class="bi bi-person-fill"></i>
@@ -58,15 +91,18 @@ const clearErrors = () => {
             <input
               type="email"
               v-model="form.email"
-              @input="clearErrors"
+              @input="clearErrors('email')"
               class="form-control bg-dark text-white border-0 placeholder-light"
               placeholder="Email"
-              required
             />
           </div>
+          <small v-if="showError && mergedErrors.email" class="text-danger">
+            {{ mergedErrors.email }}
+          </small>
         </div>
 
-        <div class="mb-3">
+        <!-- Password field -->
+        <div class="mb-2">
           <div class="input-group">
             <span class="input-group-text bg-dark text-white border-0">
               <i class="bi bi-lock-fill"></i>
@@ -74,18 +110,13 @@ const clearErrors = () => {
             <input
               type="password"
               v-model="form.password"
-              @input="clearErrors"
+              @input="clearErrors('password')"
               class="form-control bg-dark text-white border-0 placeholder-light"
               placeholder="Password"
-              required
             />
           </div>
-        </div>
-
-        <!-- Error message fades out after 3 seconds -->
-        <div v-if="showError && (form.errors.email || form.errors.password)" class="text-center">
-          <small class="text-danger">
-            {{ form.errors.email || form.errors.password }}
+          <small v-if="showError && mergedErrors.password" class="text-danger">
+            {{ mergedErrors.password }}
           </small>
         </div>
 
@@ -134,5 +165,9 @@ input:-webkit-autofill:active {
 
 .card {
   backdrop-filter: blur(10px);
+}
+
+.alert {
+  border-radius: 10px;
 }
 </style>
