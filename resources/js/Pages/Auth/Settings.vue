@@ -74,7 +74,7 @@
         </div>
 
         <div class="card-f">
-          <button class="btn btn-primary" @click="save('general')" :disabled="loading">
+          <button class="btn btn-primary" @click="save('general')" :disabled="loading || restoring">
             <i class="bi bi-check2-circle me-1"></i>
             <span v-if="!loading">Save Changes</span>
             <span v-else>Saving…</span>
@@ -98,12 +98,13 @@
         </div>
 
         <div class="card-b">
+          <!-- Create backup -->
           <div class="backup-cta">
             <div class="cta-copy">
               <h6 class="mb-1">Create a new backup</h6>
               <small class="text-muted">Recommended before big changes or updates.</small>
             </div>
-            <button class="btn btn-outline-primary" @click="confirmAndRun" :disabled="loading">
+            <button class="btn btn-outline-primary" @click="confirmAndRun" :disabled="loading || restoring">
               <i class="bi bi-hdd-stack me-2"></i>
               <span v-if="!loading">Run Backup Now</span>
               <span v-else>Working…</span>
@@ -112,16 +113,18 @@
 
           <hr class="my-4" />
 
+          <!-- Archives header -->
           <div class="d-flex align-items-center justify-content-between mb-2">
             <h6 class="mb-0">Backup Archives</h6>
             <div class="d-flex align-items-center gap-2">
               <span class="text-muted small">Total: {{ pagination.total }}</span>
-              <button class="btn btn-sm btn-light" @click="refreshArchives()">
+              <button class="btn btn-sm btn-light" @click="refreshArchives()" :disabled="restoring">
                 <i class="bi bi-arrow-clockwise me-1"></i> Refresh
               </button>
             </div>
           </div>
 
+          <!-- List -->
           <ul v-if="archives.length" class="archive-list">
             <li v-for="b in archives" :key="b.name" class="archive-item">
               <div class="meta">
@@ -135,11 +138,25 @@
                   </div>
                 </div>
               </div>
+
               <div class="actions">
-                <a :href="route('settings.backup.download', b.name)" class="btn btn-sm btn-outline-secondary">
+                <a :href="route('settings.backup.download', b.name)" class="btn btn-sm btn-outline-secondary" :class="{ disabled: restoring }" @click.prevent="!restoring && (window.location.href = route('settings.backup.download', b.name))">
                   <i class="bi bi-download"></i>
                   <span class="d-none d-sm-inline ms-1">Download</span>
                 </a>
+                <!-- Restore existing archive (same-server, no upload) -->
+                <button
+                  class="btn btn-sm btn-outline-danger"
+                  @click="restoreExisting(b.name)"
+                  :disabled="restoring"
+                  title="Restore from this archive"
+                >
+                  <i v-if="restoring && restoringName === b.name" class="bi bi-arrow-repeat spin"></i>
+                  <i v-else class="bi bi-arrow-counterclockwise"></i>
+                  <span class="d-none d-sm-inline ms-1">
+                    {{ restoring && restoringName === b.name ? 'Restoring…' : 'Restore' }}
+                  </span>
+                </button>
               </div>
             </li>
           </ul>
@@ -152,14 +169,54 @@
             </div>
           </div>
 
+          <!-- Pagination -->
           <div v-if="pagination.last_page > 1" class="pager">
-            <button class="btn btn-sm btn-light" :disabled="pagination.current_page <= 1" @click="goToPage(pagination.current_page - 1)">
+            <button class="btn btn-sm btn-light" :disabled="pagination.current_page <= 1 || restoring" @click="goToPage(pagination.current_page - 1)">
               <i class="bi bi-chevron-left"></i> Prev
             </button>
             <span class="pg-info">Page {{ pagination.current_page }} of {{ pagination.last_page }}</span>
-            <button class="btn btn-sm btn-light" :disabled="pagination.current_page >= pagination.last_page" @click="goToPage(pagination.current_page + 1)">
+            <button class="btn btn-sm btn-light" :disabled="pagination.current_page >= pagination.last_page || restoring" @click="goToPage(pagination.current_page + 1)">
               Next <i class="bi bi-chevron-right"></i>
             </button>
+          </div>
+
+          <!-- Restore from uploaded archive -->
+          <hr class="my-4" />
+          <div class="backup-restore">
+            <h6 class="mb-2">Restore from archive (upload)</h6>
+
+            <div class="row g-2 align-items-center">
+              <div class="col-md-6">
+                <input type="file" ref="restoreInput" class="form-control" accept=".zip" @change="onRestoreFile" :disabled="restoring" />
+                <small class="text-muted d-block mt-1">
+                  Upload a ZIP created by this system (encrypted or decrypted).
+                </small>
+              </div>
+
+              <div class="col-md-3">
+                <select v-model="restoreOpts.is_encrypted" class="form-select" :disabled="restoring">
+                  <option :value="false">Decrypted (.zip)</option>
+                  <option :value="true">Encrypted (-enc.zip)</option>
+                </select>
+              </div>
+
+              <div class="col-md-3 d-flex gap-2">
+                <select v-model="restoreOpts.mode" class="form-select" :disabled="restoring">
+                  <option value="replace">Replace (drop tables)</option>
+                  <option value="merge">Merge (no drop)</option>
+                </select>
+
+                <button class="btn btn-danger" :disabled="!restoreFile || loading || restoring" @click="runRestoreUpload">
+                  <i v-if="restoring && restoringSource === 'upload'" class="bi bi-arrow-repeat me-1 spin"></i>
+                  <i v-else class="bi bi-arrow-counterclockwise me-1"></i>
+                  {{ restoring && restoringSource === 'upload' ? 'Restoring…' : 'Restore' }}
+                </button>
+              </div>
+            </div>
+
+            <div v-if="restoreMsg" class="alert mt-3" :class="restoreOk ? 'alert-success' : 'alert-warning'">
+              {{ restoreMsg }}
+            </div>
           </div>
         </div>
       </section>
@@ -198,7 +255,7 @@
         </div>
 
         <div class="card-f">
-          <button class="btn btn-danger" @click="save('security')" :disabled="loading">
+          <button class="btn btn-danger" @click="save('security')" :disabled="loading || restoring">
             <i class="bi bi-key me-1"></i>
             <span v-if="!loading">Update Password</span>
             <span v-else>Working…</span>
@@ -237,6 +294,22 @@
       </div>
     </div>
   </div>
+
+  <!-- Restoring Overlay -->
+  <div v-if="restoring" class="restore-overlay" @click.stop>
+    <div class="restore-box">
+      <div class="spinner"></div>
+      <div class="txts">
+        <h6 class="m-0">Restoring…</h6>
+        <small class="text-muted">
+          {{ restoreStep || 'Unpacking and replacing data. Please keep this tab open.' }}
+        </small>
+        <div v-if="restoringName" class="mt-1 small">
+          <i class="bi bi-file-zip me-1"></i><strong>{{ restoringName }}</strong>
+        </div>
+      </div>
+    </div>
+  </div>
 </template>
 
 <script setup>
@@ -263,6 +336,12 @@ const initialLogoUrl = computed(() => page.props.settings?.logo_path_url || null
 
 const errors = ref({})
 const successMsg = ref('')
+
+/* -------- restoring UI state -------- */
+const restoring = ref(false)
+const restoringName = ref('')
+const restoringSource = ref('') // 'existing' | 'upload'
+const restoreStep = ref('')
 
 /* -------- logo handling -------- */
 const onLogoChange = (e) => {
@@ -305,7 +384,6 @@ const securedFetch = async (input, init = {}, { retryOn419 = true } = {}) => {
 
 /* -------- refresh shared props (branding) -------- */
 const refreshBranding = () => {
-  // Pull only the 'branding' shared prop from HandleInertiaRequests
   router.reload({ only: ['branding'] })
 }
 
@@ -340,14 +418,12 @@ const save = async (section) => {
 
       const data = await res.json()
       successMsg.value = data.message || 'Saved.'
-      // Update the local preview immediately
       if (data.logo_url) {
         logoPreviewUrl.value = `${data.logo_url}?t=${Date.now()}`
       }
       logoFile.value = null
       if (logoInput.value) logoInput.value.value = ''
 
-      // 🔄 AUTO-REFRESH: make Header/Sidebar pick up the new branding
       refreshBranding()
     } finally {
       loading.value = false
@@ -443,14 +519,97 @@ const goToPage = (p) => { if (p >= 1 && p <= pagination.value.last_page) refresh
 const closeSuccess = () => { showSuccess.value = false }
 const viewInList = () => { activeTab.value = 'backup'; refreshArchives(1); closeSuccess() }
 
+/* -------- Restore logic -------- */
+const restoreInput = ref(null)
+const restoreFile = ref(null)
+const restoreOpts = ref({ is_encrypted: false, mode: 'replace' })
+const restoreMsg = ref('')
+const restoreOk = ref(false)
+
+const onRestoreFile = (e) => {
+  restoreFile.value = e.target.files?.[0] || null
+}
+
+const runRestoreUpload = async () => {
+  if (!restoreFile.value) return
+  if (!confirm('This will overwrite current data/files. Continue?')) return
+  const confirmText = prompt('Type RESTORE to confirm:')
+  if (confirmText !== 'RESTORE') return
+
+  try {
+    loading.value = true
+    restoring.value = true
+    restoringSource.value = 'upload'
+    restoringName.value = restoreFile.value?.name || ''
+    restoreStep.value = 'Uploading archive…'
+
+    // Allow overlay to paint before heavy work
+    await new Promise(r => setTimeout(r, 50))
+
+    restoreStep.value = 'Processing restore on server…'
+    const fd = new FormData()
+    fd.append('archive', restoreFile.value)
+    fd.append('is_encrypted', restoreOpts.value.is_encrypted ? '1' : '0')
+    fd.append('mode', restoreOpts.value.mode)
+    fd.append('confirm', 'RESTORE')
+
+    const res = await securedFetch(route('settings.backup.restore.upload'), {
+      method: 'POST',
+      body: fd,
+    })
+    const data = await res.json()
+    restoreOk.value = res.ok && !!data.ok
+    restoreMsg.value = data.message || (res.ok ? 'Restore completed.' : 'Restore failed.')
+  } finally {
+    restoreStep.value = ''
+    restoring.value = false
+    restoringSource.value = ''
+    restoringName.value = ''
+    loading.value = false
+  }
+}
+
+const restoreExisting = async (name) => {
+  if (!name) return
+  if (!confirm(`Restore from ${name}? This may overwrite current data/files.`)) return
+  const confirmText = prompt('Type RESTORE to confirm:')
+  if (confirmText !== 'RESTORE') return
+
+  try {
+    loading.value = true
+    restoring.value = true
+    restoringSource.value = 'existing'
+    restoringName.value = name
+    restoreStep.value = 'Preparing restore…'
+
+    await new Promise(r => setTimeout(r, 50)) // let UI render
+
+    restoreStep.value = 'Processing restore on server…'
+    const res = await securedFetch(route('settings.backup.restore.existing', name), {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        is_encrypted: name.toLowerCase().endsWith('-enc.zip'),
+        mode: 'replace',
+        confirm: 'RESTORE',
+      }),
+    })
+    const data = await res.json()
+    alert(data.message || (res.ok ? 'Restore completed.' : 'Restore failed.'))
+  } finally {
+    restoreStep.value = ''
+    restoring.value = false
+    restoringSource.value = ''
+    restoringName.value = ''
+    loading.value = false
+  }
+}
+
 watch(activeTab, (tab) => { if (tab === 'backup') refreshArchives(pagination.value.current_page) })
 onMounted(() => { if (activeTab.value === 'backup') refreshArchives(1) })
 </script>
 
-
-
 <style scoped>
-/* Layout aligned to fixed Sidebar (210px) */
 /* Layout aligned to fixed Sidebar (210px) */
 .settings-layout {
   --bg: #f5f6fb;
@@ -526,7 +685,7 @@ onMounted(() => { if (activeTab.value === 'backup') refreshArchives(1) })
 .card-h,
 .card-f {
   display: flex;
-  align-items: flex-start; /* FIX: was `start`; use `flex-start` for cross-browser */
+  align-items: flex-start;
   justify-content: space-between;
   padding: 16px 18px;
   gap: 16px;
@@ -746,6 +905,39 @@ onMounted(() => { if (activeTab.value === 'backup') refreshArchives(1) })
 .badge.type.enc { background: #eaf3ff; border-color: #cfe3ff; }
 .badge.type.dec { background: #eaffea; border-color: #cfeccf; }
 
+/* Global restoring overlay */
+.restore-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(13, 18, 33, 0.45);
+  display: grid;
+  place-items: center;
+  z-index: 10000;
+  padding: 16px;
+  backdrop-filter: blur(1px);
+}
+.restore-box {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: #fff;
+  border-radius: 12px;
+  padding: 14px 16px;
+  min-width: 280px;
+  box-shadow: 0 10px 38px rgba(0,0,0,.18);
+  border: 1px solid var(--border);
+}
+.restore-box .spinner {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: 2px solid #e3e7f0;
+  border-top-color: var(--brand);
+  animation: spin 0.8s linear infinite;
+}
+.spin { animation: spin 0.9s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
 /* Responsive */
 @media (max-width: 992px) {
   .archive-item .txt .name { max-width: 46vw; }
@@ -755,8 +947,7 @@ onMounted(() => { if (activeTab.value === 'backup') refreshArchives(1) })
   .archive-item { align-items: flex-start; }
   .archive-item .actions {
     margin-left: 52px;
-    align-items: center; /* small tweak for nicer button alignment on wrap */
+    align-items: center;
   }
 }
-
 </style>

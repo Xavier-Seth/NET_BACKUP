@@ -164,18 +164,21 @@
                         :disabled="busy"
                       >
                         <option disabled :value="null">Select Category</option>
+
+                        <!-- use filtered lists provided by the script -->
                         <optgroup label="📚 Teacher-Related Documents">
                           <option
-                            v-for="c in categories.filter(c => isTeacherDocByName(c.name))"
+                            v-for="c in filteredTeacherCategories"
                             :key="'t-'+c.id"
                             :value="c.id"
                           >
                             {{ c.name }}
                           </option>
                         </optgroup>
+
                         <optgroup label="🏫 School Property Documents">
                           <option
-                            v-for="c in categories.filter(c => !isTeacherDocByName(c.name))"
+                            v-for="c in filteredSchoolCategories"
                             :key="'s-'+c.id"
                             :value="c.id"
                           >
@@ -315,7 +318,9 @@ export default {
   name: "Upload",
   props: {
     teachers: { type: Array, required: true },
-    categories: { type: Array, required: true }
+    categories: { type: Array, required: true },
+    // NEW: provided by backend (CategorizationService->getTeacherDocumentTypes)
+    teacherDocumentTypes: { type: Array, required: true }
   },
   components: { Sidebar, DuplicatePromptModal },
   data() {
@@ -337,21 +342,21 @@ export default {
       // Missing-teacher modal
       showTeacherReqModal: false,
       teacherRequiredList: [],
-      // Teacher-doc types
-      teacherDocumentTypes: [
-        "Work Experience Sheet",
-        "Personal Data Sheet",
-        "Oath of Office",
-        "Certification of Assumption to Duty",
-        "Transcript of Records",
-        "TOR",
-        "Appointment Form",
-        "Daily Time Record"
+
+      // categories to hide (case-insensitive)
+      hiddenCategoryNames: [
+        "SAL-N",
+        "Service credit ledgers",
+        "IPCRF",
+        "IPCRF (Individual chuchu)",
+        "NOSI",
+        "NOSA",
+        "Travel order"
       ],
 
       // ---------- Pagination ----------
-      pageSize: 10,     // show 10 per page
-      currentPage: 1,   // starts at page 1
+      pageSize: 10,
+      currentPage: 1,
     };
   },
   computed: {
@@ -371,10 +376,24 @@ export default {
       const end = Math.min(this.currentPage * this.pageSize, this.files.length);
       return `${start}–${end} of ${this.files.length}`;
     },
+
+    // ---------- Filtered category lists (hiddenCategoryNames applied) ----------
+    filteredTeacherCategories() {
+      const hidden = new Set(this.hiddenCategoryNames.map(n => String(n).trim().toLowerCase()));
+      return (this.categories || [])
+        .filter(c => this.isTeacherDocByName(c.name))
+        .filter(c => !hidden.has(String(c.name).trim().toLowerCase()));
+    },
+
+    filteredSchoolCategories() {
+      const hidden = new Set(this.hiddenCategoryNames.map(n => String(n).trim().toLowerCase()));
+      return (this.categories || [])
+        .filter(c => !this.isTeacherDocByName(c.name))
+        .filter(c => !hidden.has(String(c.name).trim().toLowerCase()));
+    },
   },
   watch: {
     files() {
-      // keep currentPage valid if items are removed
       if (this.currentPage > this.totalPages) {
         this.currentPage = this.totalPages;
       }
@@ -390,7 +409,6 @@ export default {
     },
     nextPage() { this.setPage(this.currentPage + 1); },
     prevPage() { this.setPage(this.currentPage - 1); },
-    // convert "local index within current page" -> "global index in files[]"
     localToGlobalIndex(iLocal) {
       return (this.currentPage - 1) * this.pageSize + iLocal;
     },
@@ -412,14 +430,12 @@ export default {
     addFiles(fileList) {
       const added = [];
       Array.from(fileList || []).forEach(f => {
-        // simple de-dupe by name + size
         const exists = this.files.some(it => it.file.name === f.name && it.file.size === f.size);
         if (!exists) added.push(this.makeItem(f));
       });
       if (added.length) {
         this.files.push(...added);
         this.successMessage = "";
-        // jump to last page so user sees newest selections
         this.$nextTick(() => {
           this.setPage(this.totalPages);
           this.scanQueued();
@@ -434,7 +450,7 @@ export default {
     },
     handleFileUpload(e) {
       this.addFiles(e.target.files);
-      e.target.value = null; // allow re-picking the same filename later
+      e.target.value = null;
     },
     handleDragOver(evt) { evt.preventDefault(); this.isDragging = true; },
     handleDragLeave() { this.isDragging = false; },
@@ -444,7 +460,6 @@ export default {
       this.addFiles(evt.dataTransfer.files);
     },
 
-    // use *local index* from the current page in the template
     removeLocal(iLocal) {
       if (this.busy) return;
       const index = this.localToGlobalIndex(iLocal);
@@ -460,12 +475,27 @@ export default {
     normalizeCategoryName(name) {
       if (!name) return null;
       const map = {
+        // existing
         TOR: "Transcript of Records",
         PDS: "Personal Data Sheet",
         COAD: "Certification of Assumption to Duty",
         WES: "Work Experience Sheet",
         DTR: "Daily Time Record",
         APPOINTMENT: "Appointment Form",
+        // new categories / aliases
+        SALN: "SAL-N",
+        "SAL-N": "SAL-N",
+        "STATEMENT OF ASSETS, LIABILITIES AND NET WORTH": "SAL-N",
+        "SERVICE CREDIT": "Service credit ledgers",
+        "SERVICE CREDITS": "Service credit ledgers",
+        "CREDIT LEDGER": "Service credit ledgers",
+        "LEDGER OF CREDITS": "Service credit ledgers",
+        "LEAVE CREDITS": "Service credit ledgers",
+        IPCRF: "IPCRF",
+        NOSI: "NOSI",
+        NOSA: "NOSA",
+        "TRAVEL ORDER": "Travel order",
+        "AUTHORITY TO TRAVEL": "Travel order",
       };
       const raw = String(name).trim();
       return map[raw] || map[raw.toUpperCase()] || raw;
@@ -572,7 +602,7 @@ export default {
       if (uncats.length) {
         this.uncategorizedList = uncats;
         this.showUncatModal = true;
-        return; // block upload
+        return;
       }
 
       // (2) Missing teacher
@@ -596,7 +626,7 @@ export default {
       if (missingTeacher.length) {
         this.teacherRequiredList = missingTeacher;
         this.showTeacherReqModal = true;
-        return; // block upload
+        return;
       }
 
       // (3) Proceed with upload
@@ -741,7 +771,6 @@ export default {
     // Uncategorized modal actions
     closeUncatModal() { this.showUncatModal = false; },
     reclassifyUncategorized() {
-      // auto-toggle override for all that need category
       this.files.forEach(it => {
         const catName = it.override
           ? this.canonicalCategoryNameById(it.category_id)
@@ -758,6 +787,8 @@ export default {
   }
 };
 </script>
+
+
 
 
 

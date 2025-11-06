@@ -22,14 +22,20 @@ use App\Http\Controllers\SettingsController;
 use App\Models\Teacher;
 use App\Models\Category;
 
-//Guest Routes
+/*
+|--------------------------------------------------------------------------
+| Guest Routes
+|--------------------------------------------------------------------------
+*/
 Route::middleware('guest')->group(function () {
     // Root → redirect to the real login route defined in auth.php
-    Route::get('/', fn() => redirect()->route('login')); // ← no name here
+    Route::get('/', fn() => redirect()->route('login'));
 
     // Forgot password
-    Route::get('/forgot-password', [PasswordResetLinkController::class, 'create'])->name('password.request');
-    Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])->name('password.email');
+    Route::get('/forgot-password', [PasswordResetLinkController::class, 'create'])
+        ->name('password.request');
+    Route::post('/forgot-password', [PasswordResetLinkController::class, 'store'])
+        ->name('password.email');
 
     // Reset password form (from email link)
     Route::get('/reset-password/{token}', function (Request $request, string $token) {
@@ -40,13 +46,18 @@ Route::middleware('guest')->group(function () {
     })->name('password.reset');
 
     // Reset password (submit new password)
-    Route::post('/reset-password', [NewPasswordController::class, 'store'])->name('password.store');
+    Route::post('/reset-password', [NewPasswordController::class, 'store'])
+        ->name('password.store');
 });
 
-// Includes /login (named 'login'), /register (if present), etc.
+// Includes /login (named 'login'), etc.
 require __DIR__ . '/auth.php';
 
-//Authenticated Routes
+/*
+|--------------------------------------------------------------------------
+| Authenticated Routes
+|--------------------------------------------------------------------------
+*/
 Route::middleware(['auth', 'verified'])->group(function () {
 
     // Dashboard
@@ -63,30 +74,61 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::get('/csrf-token', fn() => response()->json(['token' => csrf_token()]))
         ->name('csrf.token');
 
-    // General tab (school name + logo) — Admin & Admin Staff
+    /*
+    |--------------------------------------------------------------------------
+    | General & Backup (Admin & Admin Staff)
+    |--------------------------------------------------------------------------
+    */
     Route::middleware('role:Admin,Admin Staff')->group(function () {
+        // General (school name + logo)
         Route::post('/settings/general', [SettingsController::class, 'updateGeneral'])
             ->name('settings.general.update');
 
-        // Backup
-        Route::post('/settings/backup/run', [SettingsController::class, 'runBackup'])->name('settings.backup.run');
-        Route::get('/settings/backup/run-download', [SettingsController::class, 'runAndDownload'])->name('settings.backup.run_download');
-        Route::get('/settings/backup/archives', [SettingsController::class, 'archives'])->name('settings.backup.archives');
-        Route::get('/settings/backup/download/{name}', [SettingsController::class, 'download'])->name('settings.backup.download');
+        // Backups
+        Route::post('/settings/backup/run', [SettingsController::class, 'runBackup'])
+            ->name('settings.backup.run');
+
+        Route::get('/settings/backup/run-download', [SettingsController::class, 'runAndDownload'])
+            ->name('settings.backup.run_download');
+
+        Route::get('/settings/backup/archives', [SettingsController::class, 'archives'])
+            ->name('settings.backup.archives');
+
+        Route::get('/settings/backup/download/{name}', [SettingsController::class, 'download'])
+            ->name('settings.backup.download');
+
+        // ✅ Restore from an existing ZIP already on the server (matches Vue name)
+        Route::post('/settings/backup/restore/existing/{name}', [SettingsController::class, 'restoreFromExisting'])
+            ->name('settings.backup.restore.existing');
+
+        // ✅ Restore from an uploaded ZIP file (matches Vue name)
+        Route::post('/settings/backup/restore/upload', [SettingsController::class, 'restoreFromUpload'])
+            ->name('settings.backup.restore.upload');
     });
 
-    // Upload (document upload page)
+    /*
+    |--------------------------------------------------------------------------
+    | Upload (document upload page)
+    |--------------------------------------------------------------------------
+    */
     Route::get('/upload', fn() => Inertia::render('Upload', [
         'teachers' => Teacher::orderBy('full_name')->get(),
         'categories' => Category::orderBy('name')->get(),
     ]))->name('upload');
+
     Route::post('/upload', [DocumentController::class, 'upload'])->name('documents.upload');
     Route::post('/upload/scan', [DocumentController::class, 'scan'])->name('documents.scan');
 
-    // Documents
+    /*
+    |--------------------------------------------------------------------------
+    | Documents
+    |--------------------------------------------------------------------------
+    */
     Route::get('/documents', [DocumentController::class, 'index'])->name('documents.index');
     Route::get('/documents/dtr', [DocumentController::class, 'dtrIndex'])->name('documents.dtr');
-    Route::patch('/documents/{document}/update-metadata', [DocumentController::class, 'updateMetadata'])->name('documents.update-metadata');
+
+    Route::patch('/documents/{document}/update-metadata', [DocumentController::class, 'updateMetadata'])
+        ->name('documents.update-metadata');
 
     // Preview / Download / Delete
     Route::get('/documents/{document}/preview', [DocumentController::class, 'preview'])->name('documents.preview');
@@ -94,37 +136,84 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::delete('/documents/{document}', [DocumentController::class, 'destroy'])->name('documents.destroy');
 
     // Teacher Profile alias
-    Route::get('/documents/teachers-profile', [DocumentController::class, 'index'])->name('documents.teachers-profile');
+    Route::get('/documents/teachers-profile', [DocumentController::class, 'index'])
+        ->name('documents.teachers-profile');
 
-    // School Property Documents (ICS / RIS)
-    Route::get('/documents/school-properties', [SchoolPropertyDocumentController::class, 'index'])->name('school_properties.index');
-    Route::get('/documents/school-properties/{schoolDocument}/download', [SchoolPropertyDocumentController::class, 'download'])->name('school_properties.download');
-    Route::delete('/documents/school-properties/{schoolDocument}', [SchoolPropertyDocumentController::class, 'destroy'])->name('school_properties.destroy');
+    /*
+    |--------------------------------------------------------------------------
+    | School Property Documents (ICS / RIS)
+    |--------------------------------------------------------------------------
+    */
+    Route::get('/documents/school-properties', [SchoolPropertyDocumentController::class, 'index'])
+        ->name('school_properties.index');
 
-    // Teachers
+    Route::get('/documents/school-properties/{schoolDocument}/download', [SchoolPropertyDocumentController::class, 'download'])
+        ->name('school_properties.download');
+
+    Route::delete('/documents/school-properties/{schoolDocument}', [SchoolPropertyDocumentController::class, 'destroy'])
+        ->name('school_properties.destroy');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Teachers
+    |--------------------------------------------------------------------------
+    */
     Route::get('/teachers', [TeacherController::class, 'index'])->name('teachers.index');
+
     Route::get('/teachers/register', fn() => Inertia::render('Teacher/RegisterTeacher'))
         ->middleware('role:Admin,Admin Staff')
         ->name('teachers.register');
-    Route::post('/teachers', [TeacherController::class, 'store'])->name('teachers.store');
-    Route::get('/teachers/{teacher}', [TeacherController::class, 'show'])->middleware('role:Admin,Admin Staff')->name('teachers.show');
-    Route::get('/teachers/{teacher}/edit', [TeacherController::class, 'edit'])->middleware('role:Admin,Admin Staff')->name('teachers.edit');
-    Route::patch('/teachers/{teacher}', [TeacherController::class, 'update'])->middleware('role:Admin,Admin Staff')->name('teachers.update');
-    Route::post('/teachers/{teacher}/update', [TeacherController::class, 'update'])->middleware('role:Admin,Admin Staff')->name('teachers.update.post');
-    Route::delete('/teachers/{teacher}', [TeacherController::class, 'destroy'])->middleware('role:Admin,Admin Staff')->name('teachers.destroy');
 
-    // Profile (self)
+    Route::post('/teachers', [TeacherController::class, 'store'])->name('teachers.store');
+
+    Route::get('/teachers/{teacher}', [TeacherController::class, 'show'])
+        ->middleware('role:Admin,Admin Staff')
+        ->name('teachers.show');
+
+    Route::get('/teachers/{teacher}/edit', [TeacherController::class, 'edit'])
+        ->middleware('role:Admin,Admin Staff')
+        ->name('teachers.edit');
+
+    Route::patch('/teachers/{teacher}', [TeacherController::class, 'update'])
+        ->middleware('role:Admin,Admin Staff')
+        ->name('teachers.update');
+
+    Route::post('/teachers/{teacher}/update', [TeacherController::class, 'update'])
+        ->middleware('role:Admin,Admin Staff')
+        ->name('teachers.update.post');
+
+    Route::delete('/teachers/{teacher}', [TeacherController::class, 'destroy'])
+        ->middleware('role:Admin,Admin Staff')
+        ->name('teachers.destroy');
+
+    /*
+    |--------------------------------------------------------------------------
+    | Profile (self)
+    |--------------------------------------------------------------------------
+    */
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::post('/profile', [ProfileController::class, 'update'])->name('profile.update');
 
-    // Logs
+    /*
+    |--------------------------------------------------------------------------
+    | Logs
+    |--------------------------------------------------------------------------
+    */
     Route::get('/logs', [LogController::class, 'index'])->name('logs.index');
 
-    // Admin-only API for user delete self-protection
+    /*
+    |--------------------------------------------------------------------------
+    | Admin-only API for user delete self-protection
+    |--------------------------------------------------------------------------
+    */
     Route::middleware(['role:Admin'])->delete('/api/users/{id}', [UserController::class, 'destroy']);
 });
 
-//Admin-only User Management
+/*
+|--------------------------------------------------------------------------
+| Admin-only User Management
+|--------------------------------------------------------------------------
+*/
 Route::middleware(['auth', 'role:Admin'])->group(function () {
     // Unique names for admin register routes
     Route::get('/register', [RegisteredUserController::class, 'create'])->name('register');
@@ -136,10 +225,15 @@ Route::middleware(['auth', 'role:Admin'])->group(function () {
     Route::get('/admin/edit-user/{id}', [ProfileController::class, 'editAdmin'])->name('admin.edit-user');
     Route::patch('/admin/edit-user/{id}', [ProfileController::class, 'updateAdmin'])->name('admin.update-user');
     Route::post('/admin/edit-user/{id}/update', [ProfileController::class, 'updateAdmin'])->name('admin.update-user.post');
+
     Route::delete('/users/{id}', [UserController::class, 'destroy'])->middleware('auth:sanctum');
 });
 
-//Log out
+/*
+|--------------------------------------------------------------------------
+| Logout
+|--------------------------------------------------------------------------
+*/
 Route::post('/logout', function (Request $request) {
     Auth::logout();
     $request->session()->invalidate();

@@ -6,12 +6,17 @@ use Illuminate\Http\Request;
 use Inertia\Inertia;
 use Illuminate\Support\Facades\Storage;
 use Symfony\Component\HttpFoundation\Response;
+use Illuminate\Validation\Rules\File;
 use App\Services\BackupService;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Artisan;
 use App\Models\SystemSetting;
 
 class SettingsController extends Controller
 {
+    /**
+     * Display the Settings page.
+     */
     public function index(Request $request)
     {
         // Ensure there is always exactly one settings row
@@ -26,7 +31,9 @@ class SettingsController extends Controller
         return Inertia::render('Auth/Settings', [
             'archives' => [],
             'settings' => array_merge($settings->toArray(), [
-                'logo_path_url' => $settings->logo_path ? Storage::url($settings->logo_path) : null,
+                'logo_path_url' => $settings->logo_path
+                    ? asset('storage/' . $settings->logo_path)
+                    : null,
             ]),
         ]);
     }
@@ -41,12 +48,21 @@ class SettingsController extends Controller
             'logo' => ['nullable', 'image', 'mimes:png,jpg,jpeg,webp', 'max:2048'],
         ]);
 
-        $settings = SystemSetting::firstOrFail();
+        // Ensure record always exists
+        $settings = SystemSetting::firstOrCreate(
+            ['id' => 1],
+            [
+                'school_name' => 'Rizal Central School',
+                'logo_path' => null,
+            ]
+        );
 
+        // Handle logo upload
         if ($request->hasFile('logo')) {
             if ($settings->logo_path && Storage::disk('public')->exists($settings->logo_path)) {
                 Storage::disk('public')->delete($settings->logo_path);
             }
+
             $path = $request->file('logo')->store('branding', 'public');
             $settings->logo_path = $path;
         }
@@ -57,14 +73,20 @@ class SettingsController extends Controller
         return response()->json([
             'ok' => true,
             'message' => 'General settings saved.',
-            'logo_url' => $settings->logo_path ? Storage::url($settings->logo_path) : null,
+            'logo_url' => $settings->logo_path
+                ? asset('storage/' . $settings->logo_path)
+                : null,
             'settings' => $settings,
         ]);
     }
 
+    /**
+     * Run backup (creates encrypted & decrypted ZIPs).
+     */
     public function runBackup(Request $request, BackupService $backup)
     {
         [$encName, $decName] = $backup->makeBoth();
+
         return response()->json([
             'ok' => true,
             'created' => [$encName, $decName],
@@ -72,6 +94,9 @@ class SettingsController extends Controller
         ]);
     }
 
+    /**
+     * Run backup and immediately download.
+     */
     public function runAndDownload(Request $request, BackupService $backup)
     {
         $names = $backup->makeBoth();
@@ -84,6 +109,9 @@ class SettingsController extends Controller
         return $this->streamLocalFile($full, $name);
     }
 
+    /**
+     * Return paginated list of backup archives.
+     */
     public function archives(Request $request)
     {
         $page = max((int) $request->query('page', 1), 1);
@@ -113,6 +141,9 @@ class SettingsController extends Controller
         return response()->json($result);
     }
 
+    /**
+     * Download a specific backup.
+     */
     public function download(string $name)
     {
         $name = basename($name);
@@ -120,9 +151,85 @@ class SettingsController extends Controller
         if (!is_file($full)) {
             abort(404, 'Backup not found.');
         }
+
         return $this->streamLocalFile($full, $name);
     }
 
+    /**
+     * Restore from a ZIP already on the server (storage/app/backups/{name})
+     */
+    public function restoreFromExisting(Request $request, string $name, BackupService $backup)
+    {
+        $validated = $request->validate([
+            'is_encrypted' => ['nullable', 'boolean'],
+            'confirm' => ['required', 'in:RESTORE'],
+            'mode' => ['nullable', 'in:replace,merge'],
+        ]);
+
+        $name = basename($name);
+        $full = storage_path("app/backups/{$name}");
+        if (!is_file($full)) {
+            abort(404, 'Backup not found.');
+        }
+
+        // ✅ Always trust server-side filename detection to avoid double encryption
+        $opts = [
+            'encrypted' => $this->guessEncrypted($name),
+            'mode' => $validated['mode'] ?? 'replace',
+        ];
+
+        [$ok, $msg, $report] = $backup->restoreFromArchive($full, $opts);
+
+        // 🔧 post-restore fixes to prevent 403 and preview issues
+        $this->postRestoreFixes();
+
+        return response()->json([
+            'ok' => $ok,
+            'message' => $msg,
+            'report' => $report,
+        ], $ok ? 200 : 422);
+    }
+
+    /**
+     * Restore from an uploaded ZIP (encrypted or decrypted)
+     */
+    public function restoreFromUpload(Request $request, BackupService $backup)
+    {
+        $validated = $request->validate([
+            'archive' => ['required', File::types(['zip'])->max(512000)], // ~500MB cap
+            'is_encrypted' => ['nullable', 'boolean'],
+            'confirm' => ['required', 'in:RESTORE'],
+            'mode' => ['nullable', 'in:replace,merge'],
+        ]);
+
+        // Store temporary uploaded file
+        $tmp = $request->file('archive')->store('backups/tmp', 'local');
+        $full = storage_path("app/{$tmp}");
+
+        $opts = [
+            // For uploads, we still honor the user's choice (cannot infer from name reliably)
+            'encrypted' => (bool) ($validated['is_encrypted'] ?? false),
+            'mode' => $validated['mode'] ?? 'replace',
+        ];
+
+        [$ok, $msg, $report] = $backup->restoreFromArchive($full, $opts);
+
+        // Cleanup temporary file
+        @unlink($full);
+
+        // 🔧 post-restore fixes to prevent 403 and preview issues
+        $this->postRestoreFixes();
+
+        return response()->json([
+            'ok' => $ok,
+            'message' => $msg,
+            'report' => $report,
+        ], $ok ? 200 : 422);
+    }
+
+    /**
+     * Update password for the logged-in user.
+     */
     public function updatePassword(Request $request)
     {
         $validated = $request->validate([
@@ -141,7 +248,7 @@ class SettingsController extends Controller
         ]);
     }
 
-    /* ── Helpers ─────────────────────────────────────────────── */
+    /* ──────────────────────────────── Helpers ─────────────────────────────── */
 
     protected function mapArchives(int $page = 1, int $perPage = 10): array
     {
@@ -180,5 +287,102 @@ class SettingsController extends Controller
             'Cache-Control' => 'no-store, no-cache, must-revalidate, max-age=0',
             'Pragma' => 'no-cache',
         ]);
+    }
+
+    /**
+     * Guess encryption type based on filename.
+     * - backupdecrypt_*.zip → decrypted
+     * - backup_*.zip        → encrypted
+     * - *-enc.zip           → encrypted
+     */
+    protected function guessEncrypted(string $name): bool
+    {
+        $n = strtolower($name);
+        if (str_starts_with($n, 'backupdecrypt_')) {
+            return false;
+        }
+        if (str_ends_with($n, '-enc.zip')) {
+            return true;
+        }
+        return str_starts_with($n, 'backup_'); // default encrypted/as-is archive
+    }
+
+    /**
+     * Do all the environment fixes you typically need after restoring files/db.
+     * Prevents 403 on /storage/* and broken preview temp writes.
+     */
+    protected function postRestoreFixes(): void
+    {
+        // 1) Ensure public/storage symlink exists
+        try {
+            // If symlink exists but is broken, re-link anyway
+            if (!is_link(public_path('storage')) || !file_exists(public_path('storage'))) {
+                // Try to unlink silently (works for both files and broken links)
+                @unlink(public_path('storage'));
+            }
+        } catch (\Throwable $e) {
+            // ignore
+        }
+        try {
+            Artisan::call('storage:link');
+        } catch (\Throwable $e) {
+            // ignore on shared hosts that already link it
+        }
+
+        // 2) Ensure preview temp dir exists and is public
+        try {
+            Storage::disk('public')->makeDirectory('tmp_previews');
+            // touch a placeholder to ensure visibility flips the directory mapping
+            Storage::disk('public')->put('tmp_previews/.keep', '');
+            Storage::disk('public')->setVisibility('tmp_previews/.keep', 'public');
+        } catch (\Throwable $e) {
+            // ignore
+        }
+
+        // 3) Normalize permissions (safe defaults)
+        $this->chmodRecursive(storage_path(), 0755, 0644);
+        $this->chmodRecursive(public_path('storage'), 0755, 0644);
+
+        // 4) Clear caches so route/guard/config state isn't stale post-restore
+        try {
+            Artisan::call('route:clear');
+        } catch (\Throwable $e) {
+        }
+        try {
+            Artisan::call('config:clear');
+        } catch (\Throwable $e) {
+        }
+        try {
+            Artisan::call('view:clear');
+        } catch (\Throwable $e) {
+        }
+    }
+
+    /**
+     * Recursively chmod directories/files (best-effort; ignores errors).
+     */
+    protected function chmodRecursive(string $path, int $dirPerm = 0755, int $filePerm = 0644): void
+    {
+        if (!is_dir($path)) {
+            return;
+        }
+
+        try {
+            $iterator = new \RecursiveIteratorIterator(
+                new \RecursiveDirectoryIterator($path, \RecursiveDirectoryIterator::SKIP_DOTS),
+                \RecursiveIteratorIterator::SELF_FIRST
+            );
+
+            foreach ($iterator as $item) {
+                /** @var \SplFileInfo $item */
+                if ($item->isDir()) {
+                    @chmod($item->getPathname(), $dirPerm);
+                } else {
+                    @chmod($item->getPathname(), $filePerm);
+                }
+            }
+        } catch (\Throwable $e) {
+            // ignore permission errors
+        }
     }
 }

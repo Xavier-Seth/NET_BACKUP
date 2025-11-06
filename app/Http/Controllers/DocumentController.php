@@ -20,6 +20,7 @@ use App\Services\LogService;
 
 class DocumentController extends Controller
 {
+    /** 📂 Main Teacher Documents Page */
     public function index()
     {
         $documents = Document::with(['teacher', 'category', 'user'])
@@ -40,8 +41,41 @@ class DocumentController extends Controller
         ]);
     }
 
+    /** 📤 Upload Page */
+    public function create()
+    {
+        $teachers = Teacher::orderBy('full_name')->get();
+        $categories = Category::orderBy('name')->get();
+        $teacherDocumentTypes = (new CategorizationService())->getTeacherDocumentTypes();
+
+        return Inertia::render('Upload', [
+            'teachers' => $teachers,
+            'categories' => $categories,
+            'teacherDocumentTypes' => $teacherDocumentTypes,
+        ]);
+    }
+
+    /** 🧩 Helper: best-effort decrypt; if it fails, fall back to original bytes */
+    private function safeDecrypt(string $cipherOrPlain, DocumentUploadService $crypto): string
+    {
+        try {
+            // Try normal decrypt (encrypted teacher docs are stored as base64(iv+cipher))
+            $plain = $crypto->decryptFileContents($cipherOrPlain);
+            if (is_string($plain) && $plain !== '') {
+                return $plain;
+            }
+        } catch (\Throwable $e) {
+            // ignore and fall back below
+        }
+
+        // If not decryptable, assume it's already plain (e.g., after odd restores)
+        return $cipherOrPlain;
+    }
+
+    /** 🖼 Preview decrypted or converted document */
     public function preview(Document $document)
     {
+        // 1) Serve existing PDF preview (if present after restore)
         if ($document->pdf_preview_path && Storage::disk('public')->exists($document->pdf_preview_path)) {
             $fullPath = Storage::disk('public')->path($document->pdf_preview_path);
             return response()->file($fullPath, [
@@ -50,44 +84,51 @@ class DocumentController extends Controller
             ]);
         }
 
-        $path = storage_path("app/public/{$document->path}");
-        if (!file_exists($path)) {
+        // 2) Fallback: decrypt original and stream inline
+        if (!$document->path || !Storage::disk('public')->exists($document->path)) {
             abort(404, 'File not found.');
         }
 
-        $encrypted = file_get_contents($path);
-        $decrypted = (new DocumentUploadService)->decryptFileContents($encrypted);
+        $crypto = new DocumentUploadService();
+        $cipherOrPlain = Storage::disk('public')->get($document->path);
+        $bytes = $this->safeDecrypt($cipherOrPlain, $crypto);
 
-        return response($decrypted)
-            ->header('Content-Type', $document->mime_type)
-            ->header('Content-Disposition', 'inline; filename="' . $document->name . '"');
+        // If mime is missing, pick a safe default
+        $mime = $document->mime_type ?: 'application/octet-stream';
+
+        return response($bytes, 200, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => 'inline; filename="' . $document->name . '"',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
+    /** 📥 Download decrypted file */
     public function download(Document $document)
     {
-        $path = storage_path("app/public/{$document->path}");
-        if (!file_exists($path)) {
+        if (!$document->path || !Storage::disk('public')->exists($document->path)) {
             abort(404, 'File not found.');
         }
 
-        $encrypted = file_get_contents($path);
-        $decrypted = (new DocumentUploadService)->decryptFileContents($encrypted);
+        $crypto = new DocumentUploadService();
+        $cipherOrPlain = Storage::disk('public')->get($document->path);
+        $bytes = $this->safeDecrypt($cipherOrPlain, $crypto);
 
-        return response($decrypted)
-            ->header('Content-Type', $document->mime_type)
-            ->header('Content-Disposition', 'attachment; filename="' . $document->name . '"');
+        $mime = $document->mime_type ?: 'application/octet-stream';
+
+        return response($bytes, 200, [
+            'Content-Type' => $mime,
+            'Content-Disposition' => 'attachment; filename="' . $document->name . '"',
+            'X-Content-Type-Options' => 'nosniff',
+        ]);
     }
 
-    /**
-     * Multi-upload entry for Teacher docs AND ICS/RIS school-property docs.
-     * Uses DocumentUploadService::handle() which returns either Document
-     * or SchoolPropertyDocument instance. We log safely for both.
-     */
+    /** 🗂 Multi-upload entry for Teacher + Property Docs */
     public function upload(Request $request, DocumentUploadService $uploadService)
     {
         $request->validate([
             'files' => 'required|array',
-            'files.*' => 'required|file|mimes:pdf,doc,docx,xlsx,xls,png,jpg,jpeg|max:20480',
+            'files.*' => 'required|file|mimes:pdf,doc,docx,xlsx,xls,png,jpg,jpeg,webp,bmp,gif|max:20480',
             'meta' => 'nullable|string',
             'allow_duplicate' => 'nullable|boolean',
             'skip_ocr' => 'nullable|boolean',
@@ -98,7 +139,7 @@ class DocumentController extends Controller
 
         $user = $request->user() ?? User::findOrFail(auth()->id());
 
-        // Parse meta (if posted)
+        // Parse meta JSON from Upload.vue
         $meta = [];
         if ($request->filled('meta')) {
             try {
@@ -110,7 +151,6 @@ class DocumentController extends Controller
             }
         }
 
-        // Lookup by filename
         $byName = [];
         foreach ($meta as $m) {
             if (!empty($m['name']) && is_string($m['name'])) {
@@ -121,7 +161,6 @@ class DocumentController extends Controller
         $skipOcr = (bool) $request->boolean('skip_ocr');
         $globalAllowDuplicate = (bool) $request->boolean('allow_duplicate');
 
-        // Legacy fallback
         $legacyTeacherId = $request->filled('teacher_id') ? (int) $request->input('teacher_id') : null;
         $legacyCategoryId = $request->filled('category_id') ? (int) $request->input('category_id') : null;
         $legacyScannedText = $request->input('scanned_text');
@@ -132,13 +171,11 @@ class DocumentController extends Controller
             $orig = $file->getClientOriginalName();
             $m = $byName[$orig] ?? [];
 
-            // Effective per-file values
             $categoryId = isset($m['category_id']) ? (int) $m['category_id'] : $legacyCategoryId;
             $teacherId = isset($m['teacher_id']) ? (int) $m['teacher_id'] : $legacyTeacherId;
             $override = (bool) ($m['override'] ?? $request->boolean('override'));
             $scanned = $m['scanned_text'] ?? $legacyScannedText ?? '';
 
-            // Duplicate rules (only matter for teacher docs)
             if ($teacherId && !$globalAllowDuplicate) {
                 $sameCat = $categoryId ? $this->isDuplicate($teacherId, $categoryId) : false;
                 $sameName = $this->hasSameNameForTeacher($teacherId, $orig, $categoryId);
@@ -154,7 +191,6 @@ class DocumentController extends Controller
             }
 
             try {
-                // Save file (service returns Document or SchoolPropertyDocument)
                 $doc = $uploadService->handle(
                     $file,
                     $teacherId,
@@ -168,7 +204,6 @@ class DocumentController extends Controller
                     ]
                 );
 
-                // --- Safe logging for both models ---
                 $relations = [];
                 if (method_exists($doc, 'teacher'))
                     $relations[] = 'teacher';
@@ -184,7 +219,6 @@ class DocumentController extends Controller
                     ? " under category '{$doc->category->name}'" : '';
 
                 LogService::record("Uploaded {$typeLabel} '{$doc->name}'{$teacherPart}{$categoryPart}.");
-                // ------------------------------------
 
                 $results[] = [
                     'name' => $orig,
@@ -203,15 +237,14 @@ class DocumentController extends Controller
             }
         }
 
-        return response()->json([
-            'results' => $results,
-        ]);
+        return response()->json(['results' => $results]);
     }
 
+    /** 🔍 Scan via Flask (OCR + Classification) */
     public function scan(Request $request)
     {
         $request->validate([
-            'file' => 'required|file|mimes:pdf,doc,docx,xlsx,xls,png,jpg,jpeg|max:102400',
+            'file' => 'required|file|mimes:pdf,doc,docx,xlsx,xls,png,jpg,jpeg,webp,bmp,gif|max:102400',
         ]);
 
         $file = $request->file('file');
@@ -238,15 +271,12 @@ class DocumentController extends Controller
                 LaravelLog::error("Flask scan OCR failed: " . $response->body());
             }
 
-            // Normalize to canonical category names
             $matchedCategory = $this->normalizeCategoryName($matchedCategory);
 
-            // Map to category_id
             if ($matchedCategory) {
                 $categoryId = Category::whereRaw('LOWER(name) = ?', [strtolower($matchedCategory)])->value('id');
             }
 
-            // Try to detect teacher in OCR text
             if (!empty($ocrText)) {
                 foreach (Teacher::all() as $teacher) {
                     if (Str::contains(strtolower($ocrText), strtolower($teacher->full_name))) {
@@ -281,7 +311,7 @@ class DocumentController extends Controller
         ]);
     }
 
-    /** DTR page (list & filter) */
+    /** 📋 DTR page (filter + list) */
     public function dtrIndex(Request $request)
     {
         $query = Document::with(['teacher', 'category'])
@@ -303,7 +333,7 @@ class DocumentController extends Controller
         ]);
     }
 
-    /** Edit metadata modal (name, teacher, category) */
+    /** ✏️ Edit document metadata */
     public function updateMetadata(Request $request, Document $document)
     {
         $request->validate([
@@ -327,6 +357,7 @@ class DocumentController extends Controller
         return back()->with('success', 'Document metadata updated.');
     }
 
+    /** 🗑 Delete document (with log) */
     public function destroy(Document $document)
     {
         if ($document->path && Storage::disk('public')->exists($document->path)) {
@@ -351,42 +382,54 @@ class DocumentController extends Controller
 
     // ─────────── Helpers ───────────
 
+    /** 🧠 Normalize OCR / Flask category output */
     private function normalizeCategoryName(?string $name): ?string
     {
         if (!$name)
             return null;
         $map = [
+            // existing
             'TOR' => 'Transcript of Records',
             'PDS' => 'Personal Data Sheet',
             'COAD' => 'Certification of Assumption to Duty',
             'WES' => 'Work Experience Sheet',
             'DTR' => 'Daily Time Record',
             'APPOINTMENT' => 'Appointment Form',
+            // new categories
+            'SALN' => 'SAL-N',
+            'SAL-N' => 'SAL-N',
+            'STATEMENT OF ASSETS, LIABILITIES AND NET WORTH' => 'SAL-N',
+            'SERVICE CREDIT' => 'Service credit ledgers',
+            'SERVICE CREDITS' => 'Service credit ledgers',
+            'CREDIT LEDGER' => 'Service credit ledgers',
+            'LEDGER OF CREDITS' => 'Service credit ledgers',
+            'LEAVE CREDITS' => 'Service credit ledgers',
+            'IPCRF' => 'IPCRF',
+            'NOSI' => 'NOSI',
+            'NOSA' => 'NOSA',
+            'TRAVEL ORDER' => 'Travel order',
+            'AUTHORITY TO TRAVEL' => 'Travel order',
         ];
         $key = trim($name);
         return $map[$key] ?? $map[strtoupper($key)] ?? $key;
     }
 
-    /** Teacher-doc duplicate check by (teacher_id, category_id) */
     private function isDuplicate(?int $teacherId, ?int $categoryId): bool
     {
         if (!$teacherId || !$categoryId)
             return false;
-
         return Document::where('teacher_id', $teacherId)
             ->where('category_id', $categoryId)
             ->exists();
     }
 
-    /** Same-name check for a teacher (optionally scoped to category) */
     private function hasSameNameForTeacher(int $teacherId, string $originalName, ?int $categoryId = null): bool
     {
         $q = Document::where('teacher_id', $teacherId)
             ->where('name', $originalName);
 
-        if (!is_null($categoryId)) {
+        if (!is_null($categoryId))
             $q->where('category_id', $categoryId);
-        }
 
         return $q->exists();
     }

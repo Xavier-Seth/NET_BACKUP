@@ -208,12 +208,34 @@ const editingDoc = ref(null);
 const editForm = ref({ name: "", teacher_id: "", category_id: "" });
 const deleteTarget = ref(null);
 
-// Names of categories to hide from this page
-const EXCLUDED_CATEGORIES = ["Daily Time Record", "DTR", "DTR Reports", "ICS", "RIS"];
+// ===== Excluded category NAMES (case-insensitive) =====
+// combine your DTR/ICS/RIS exclusions with the SAL-N / Service credit / IPCRF / NOSI / NOSA / Travel order set
+const EXCLUDED_CATEGORY_NAMES = [
+  "Daily Time Record",
+  "DTR",
+  "DTR Reports",
+  "ICS",
+  "RIS",
+
+  // additional ones to hide
+  "SAL-N",
+  "Service credit ledgers",
+  "IPCRF",
+  "IPCRF (Individual chuchu)",
+  "NOSI",
+  "NOSA",
+  "Travel order"
+];
+
+// normalize and make a Set for fast lookups (case-insensitive)
+const EXCLUDED_SET = new Set(EXCLUDED_CATEGORY_NAMES.map(n => String(n || "").trim().toLowerCase()));
 
 // Filter categories to remove excluded ones (for dropdown + modal)
 const categoriesFiltered = computed(() =>
-  (categories.value || []).filter((c) => !EXCLUDED_CATEGORIES.includes(c.name))
+  (categories.value || []).filter((c) => {
+    const name = String(c.name || "").trim().toLowerCase();
+    return !EXCLUDED_SET.has(name);
+  })
 );
 
 function previewDocument(doc) {
@@ -312,10 +334,10 @@ const filteredDocuments = computed(() => {
     const name = (doc.name || "").toLowerCase();
     const docTeacherId = String(doc.teacher_id ?? "");
     const docCategoryId = String(doc.category_id ?? "");
-    const docCategoryName = doc.category?.name ?? "";
+    const docCategoryName = String(doc.category?.name ?? "").trim().toLowerCase();
 
-    // Hide excluded categories (DTR, ICS, RIS)
-    if (EXCLUDED_CATEGORIES.includes(docCategoryName)) return false;
+    // Hide excluded categories (case-insensitive)
+    if (EXCLUDED_SET.has(docCategoryName)) return false;
 
     const matchesSearch = !q || name.includes(q);
     const matchesTeacher = !teacherId || docTeacherId === teacherId;
@@ -347,6 +369,7 @@ function formatDate(d) {
   return isNaN(dt) ? "-" : dt.toLocaleDateString();
 }
 </script>
+
 
 <style scoped>
 /* ===== Layout ===== */

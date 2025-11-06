@@ -231,16 +231,35 @@ class DocumentUploadService
     /** Map shorthands/aliases to canonical DB names. */
     private function normalizeCategoryName(?string $name): ?string
     {
-        if (!$name)
+        if (!$name) {
             return null;
+        }
+
         $map = [
+            // Existing
             'TOR' => 'Transcript of Records',
             'PDS' => 'Personal Data Sheet',
             'COAD' => 'Certification of Assumption to Duty',
             'WES' => 'Work Experience Sheet',
             'DTR' => 'Daily Time Record',
             'APPOINTMENT' => 'Appointment Form',
+
+            // NEW categories & common aliases
+            'SALN' => 'SAL-N',
+            'SAL-N' => 'SAL-N',
+            'STATEMENT OF ASSETS, LIABILITIES AND NET WORTH' => 'SAL-N',
+            'SERVICE CREDIT' => 'Service credit ledgers',
+            'SERVICE CREDITS' => 'Service credit ledgers',
+            'CREDIT LEDGER' => 'Service credit ledgers',
+            'LEDGER OF CREDITS' => 'Service credit ledgers',
+            'LEAVE CREDITS' => 'Service credit ledgers',
+            'IPCRF' => 'IPCRF',
+            'NOSI' => 'NOSI',
+            'NOSA' => 'NOSA',
+            'TRAVEL ORDER' => 'Travel order',
+            'AUTHORITY TO TRAVEL' => 'Travel order',
         ];
+
         $key = trim($name);
         return $map[$key] ?? $map[strtoupper($key)] ?? $key;
     }
@@ -291,8 +310,9 @@ class DocumentUploadService
                 : '/^' . preg_quote($cleanBase, '/') . '\s\((\d+)\)$/i';
             if (preg_match($pattern, $name, $m)) {
                 $n = (int) $m[1];
-                if ($n > $max)
+                if ($n > $max) {
                     $max = $n;
+                }
             }
         }
         $next = $max + 1;
@@ -336,8 +356,9 @@ class DocumentUploadService
                 : '/^' . preg_quote($cleanBase, '/') . '\s\((\d+)\)$/i';
             if (preg_match($pattern, $name, $m)) {
                 $n = (int) $m[1];
-                if ($n > $max)
+                if ($n > $max) {
                     $max = $n;
+                }
             }
         }
         $next = $max + 1;
@@ -360,6 +381,7 @@ class DocumentUploadService
 
     // ── Encryption ────────────────────────────────────────────────────────────
 
+    /** Encrypt a file from disk, returning base64(iv+cipher). */
     public function encryptFileContents(string $filePath): string
     {
         $key = base64_decode(env('FILE_ENCRYPTION_KEY'));
@@ -369,6 +391,7 @@ class DocumentUploadService
         return base64_encode($iv . $encrypted);
     }
 
+    /** Decrypt base64(iv+cipher) back to raw bytes. */
     public function decryptFileContents(string $base64): string
     {
         $key = base64_decode(env('FILE_ENCRYPTION_KEY'));
@@ -376,5 +399,20 @@ class DocumentUploadService
         $iv = substr($data, 0, 16);
         $enc = substr($data, 16);
         return openssl_decrypt($enc, 'aes-256-cbc', $key, 0, $iv);
+    }
+
+    /** ✅ Encrypt raw bytes already in memory (used by restore from decrypted ZIP). */
+    public function encryptBytes(string $plainBytes): string
+    {
+        $key = base64_decode(env('FILE_ENCRYPTION_KEY'));
+        $iv = random_bytes(16);
+        $enc = openssl_encrypt($plainBytes, 'aes-256-cbc', $key, 0, $iv);
+        return base64_encode($iv . $enc);
+    }
+
+    /** Optional alias if you want symmetry. */
+    public function decryptBytes(string $base64Cipher): string
+    {
+        return $this->decryptFileContents($base64Cipher);
     }
 }
