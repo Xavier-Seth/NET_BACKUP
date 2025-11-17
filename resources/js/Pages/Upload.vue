@@ -904,4 +904,24 @@ export default {
   background: #f3f4f6; color: #111827; font-weight: 600; border-radius: 8px; padding: 8px 12px;
 }
 .btn-secondary:hover { background:#e5e7eb; }
+
+.link-btn {
+  background: transparent;
+  border: none;
+  padding: 0.15rem 0.25rem;
+  font-weight: 700;
+  font-size: 0.85rem;
+  color: #2563eb;                  /* default color */
+  cursor: pointer;
+  transition: color 150ms ease, background 150ms ease, transform 120ms ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.link-btn:hover {
+  color: #1e40af;                  /* hover color */
+  transform: translateY(-1px);
+  text-decoration: underline;
+}
 </style>
