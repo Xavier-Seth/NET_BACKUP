@@ -164,21 +164,18 @@
                         :disabled="busy"
                       >
                         <option disabled :value="null">Select Category</option>
-
-                        <!-- use filtered lists provided by the script -->
                         <optgroup label="📚 Teacher-Related Documents">
                           <option
-                            v-for="c in filteredTeacherCategories"
+                            v-for="c in categories.filter(c => isTeacherDocByName(c.name))"
                             :key="'t-'+c.id"
                             :value="c.id"
                           >
                             {{ c.name }}
                           </option>
                         </optgroup>
-
                         <optgroup label="🏫 School Property Documents">
                           <option
-                            v-for="c in filteredSchoolCategories"
+                            v-for="c in categories.filter(c => !isTeacherDocByName(c.name))"
                             :key="'s-'+c.id"
                             :value="c.id"
                           >
@@ -308,7 +305,6 @@
   </div>
 </template>
 
-
 <script>
 import Sidebar from "@/Components/Sidebar.vue";
 import DuplicatePromptModal from "@/Components/DuplicatePromptModal.vue";
@@ -342,18 +338,6 @@ export default {
       // Missing-teacher modal
       showTeacherReqModal: false,
       teacherRequiredList: [],
-
-      // categories to hide (case-insensitive)
-      hiddenCategoryNames: [
-        "SAL-N",
-        "Service credit ledgers",
-        "IPCRF",
-        "IPCRF (Individual chuchu)",
-        "NOSI",
-        "NOSA",
-        "Travel order"
-      ],
-
       // ---------- Pagination ----------
       pageSize: 10,
       currentPage: 1,
@@ -375,21 +359,6 @@ export default {
       const start = (this.currentPage - 1) * this.pageSize + 1;
       const end = Math.min(this.currentPage * this.pageSize, this.files.length);
       return `${start}–${end} of ${this.files.length}`;
-    },
-
-    // ---------- Filtered category lists (hiddenCategoryNames applied) ----------
-    filteredTeacherCategories() {
-      const hidden = new Set(this.hiddenCategoryNames.map(n => String(n).trim().toLowerCase()));
-      return (this.categories || [])
-        .filter(c => this.isTeacherDocByName(c.name))
-        .filter(c => !hidden.has(String(c.name).trim().toLowerCase()));
-    },
-
-    filteredSchoolCategories() {
-      const hidden = new Set(this.hiddenCategoryNames.map(n => String(n).trim().toLowerCase()));
-      return (this.categories || [])
-        .filter(c => !this.isTeacherDocByName(c.name))
-        .filter(c => !hidden.has(String(c.name).trim().toLowerCase()));
     },
   },
   watch: {
@@ -791,7 +760,6 @@ export default {
 
 
 
-
 <style scoped>
 /* Container */
 .upload-container {
@@ -919,6 +887,7 @@ export default {
   gap: 6px;
 }
 
+/* Hover state: change color (and optionally subtle lift) */
 .link-btn:hover {
   color: #1e40af;                  /* hover color */
   transform: translateY(-1px);
