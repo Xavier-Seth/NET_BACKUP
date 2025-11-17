@@ -140,7 +140,13 @@
               </div>
 
               <div class="actions">
-                <a :href="route('settings.backup.download', b.name)" class="btn btn-sm btn-outline-secondary" :class="{ disabled: restoring }" @click.prevent="!restoring && (window.location.href = route('settings.backup.download', b.name))">
+                <a
+                  :href="downloadUrl(b.name)"
+                  class="btn btn-sm btn-outline-secondary"
+                  :class="{ disabled: restoring }"
+                  @click.prevent="onDownloadClick($event, b.name)"
+                  role="button"
+                >
                   <i class="bi bi-download"></i>
                   <span class="d-none d-sm-inline ms-1">Download</span>
                 </a>
@@ -281,7 +287,8 @@
               <span class="fname" :title="fname">{{ fname }}</span>
             </div>
             <div class="right">
-              <a :href="route('settings.backup.download', fname)" class="btn btn-sm btn-outline-primary">
+              <!-- use same safe handler for modal downloads -->
+              <a :href="downloadUrl(fname)" class="btn btn-sm btn-outline-primary" @click.prevent="onDownloadClick($event, fname)">
                 <i class="bi bi-download me-1"></i> Download
               </a>
             </div>
@@ -312,6 +319,7 @@
   </div>
 </template>
 
+
 <script setup>
 import { ref, watch, onMounted, computed } from 'vue'
 import { usePage, router } from '@inertiajs/vue3'
@@ -340,7 +348,7 @@ const successMsg = ref('')
 /* -------- restoring UI state -------- */
 const restoring = ref(false)
 const restoringName = ref('')
-const restoringSource = ref('') // 'existing' | 'upload'
+const restoringSource = ref('')
 const restoreStep = ref('')
 
 /* -------- logo handling -------- */
@@ -353,6 +361,52 @@ const clearLogo = () => {
   logoFile.value = null
   logoPreviewUrl.value = ''
   if (logoInput.value) logoInput.value.value = ''
+}
+
+/* -------- Safe Route URL Helpers (defensive) -------- */
+const downloadUrl = (name) => {
+  if (!name) return '#'
+  try {
+    if (typeof route === 'function') {
+      const r = route('settings.backup.download', name)
+      if (r && typeof r === 'string') return r
+    }
+  } catch (e) {
+    console.error('downloadUrl: route() error', e)
+  }
+
+  // Try to build absolute URL only when window.location is available
+  try {
+    if (typeof window !== 'undefined' && window.location && window.location.origin) {
+      return `${window.location.origin}/settings/backup/download/${encodeURIComponent(name)}`
+    }
+  } catch (e) {}
+
+  // fallback relative
+  return `/settings/backup/download/${encodeURIComponent(name)}`
+}
+
+const archivesUrl = (page = 1, perPage = 10) => {
+  try {
+    if (typeof route === 'function') {
+      const r = route('settings.backup.archives')
+      if (r && typeof r === 'string') {
+        // If window.location is available prefer URL for proper base resolution
+        if (typeof window !== 'undefined' && window.location && window.location.origin) {
+          const u = new URL(r, window.location.origin)
+          u.searchParams.set('page', String(page))
+          u.searchParams.set('perPage', String(perPage))
+          return u.toString()
+        }
+        // If route returned relative string, append query
+        return `${r}?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`
+      }
+    }
+  } catch (e) {
+    console.error('archivesUrl: route() error', e)
+  }
+
+  return `/settings/backup/archives?page=${encodeURIComponent(page)}&perPage=${encodeURIComponent(perPage)}`
 }
 
 /* -------- CSRF helpers -------- */
@@ -495,16 +549,19 @@ const confirmAndRun = async () => {
 }
 
 const refreshArchives = async (page = 1) => {
-  const url = new URL(route('settings.backup.archives'))
-  url.searchParams.set('page', page)
-  url.searchParams.set('perPage', pagination.value.per_page)
+  page = Math.max(1, Number(page) || 1)
+  const per = pagination.value.per_page || 10
+
+  const url = archivesUrl(page, per)
 
   const res = await fetch(url, {
     method: 'GET',
     headers: { Accept: 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
     credentials: 'same-origin',
   })
+
   if (!res.ok) return
+
   const data = await res.json()
   archives.value = Array.isArray(data.data) ? data.data : []
   pagination.value = {
@@ -543,7 +600,6 @@ const runRestoreUpload = async () => {
     restoringName.value = restoreFile.value?.name || ''
     restoreStep.value = 'Uploading archive…'
 
-    // Allow overlay to paint before heavy work
     await new Promise(r => setTimeout(r, 50))
 
     restoreStep.value = 'Processing restore on server…'
@@ -582,7 +638,7 @@ const restoreExisting = async (name) => {
     restoringName.value = name
     restoreStep.value = 'Preparing restore…'
 
-    await new Promise(r => setTimeout(r, 50)) // let UI render
+    await new Promise(r => setTimeout(r, 50))
 
     restoreStep.value = 'Processing restore on server…'
     const res = await securedFetch(route('settings.backup.restore.existing', name), {
@@ -605,9 +661,30 @@ const restoreExisting = async (name) => {
   }
 }
 
+/* -------- Download click handler (safe) -------- */
+const onDownloadClick = (e, name) => {
+  if (restoring.value) {
+    e.preventDefault()
+    return
+  }
+  const url = downloadUrl(name)
+  if (!url || url === '#') {
+    e.preventDefault()
+    console.warn('Download URL missing for', name)
+    return
+  }
+  // Use assign for predictable navigation and better history behavior
+  if (typeof window !== 'undefined' && window.location && typeof window.location.assign === 'function') {
+    window.location.assign(url)
+  } else {
+    window.location.href = url
+  }
+}
+
 watch(activeTab, (tab) => { if (tab === 'backup') refreshArchives(pagination.value.current_page) })
 onMounted(() => { if (activeTab.value === 'backup') refreshArchives(1) })
 </script>
+
 
 <style scoped>
 /* Layout aligned to fixed Sidebar (210px) */

@@ -159,13 +159,13 @@ onMounted(() => {
             </a>
           </li>
 
-          <li>
+          <li v-if="user.role === 'Admin'">
             <a @click="go('logs.index')" :class="['nav-link', { active: isActive('logs.index') }]">
               <i class="bi bi-clock-history"></i> Logs
             </a>
           </li>
 
-          <li>
+          <li v-if="user.role === 'Admin'">
             <a
               @click="go('settings.index')"
               :class="['nav-link', { active: isActive('settings.index') || props.activeMenu === 'settings' }]"

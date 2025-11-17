@@ -81,7 +81,7 @@ function closeOnBackdrop(e) {
           <li>
             <Link class="dropdown-item" :href="route('profile.edit')">Profile Settings</Link>
           </li>
-          <li>
+          <li v-if="user.role === 'Admin'">
             <button @click="checkRole" class="dropdown-item">Register New User</button>
           </li>
           <li>
