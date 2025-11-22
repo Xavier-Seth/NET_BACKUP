@@ -134,17 +134,37 @@ class DocumentUploadService
 
             // Auto-detect teacher from OCR text (teacher docs only)
             if (!empty($ocrText) && is_null($teacherId)) {
+
                 $tmpName = $categoryId ? Category::where('id', $categoryId)->value('name') : null;
+
+                // Only try teacher-matching if this is NOT ICS/RIS
                 if (!$this->isSchoolProperty($tmpName)) {
+
                     foreach (Teacher::all() as $teacher) {
-                        if (stripos($ocrText, $teacher->full_name) !== false) {
-                            $teacherId = $teacher->id;
-                            Log::info("Auto-detected Teacher: '{$teacher->full_name}' (ID: {$teacher->id})");
-                            break;
+
+                        // Build all possible name order variants
+                        $variants = [
+                            $teacher->full_name,
+                            "{$teacher->last_name} {$teacher->first_name} {$teacher->middle_name}",
+                            "{$teacher->last_name} {$teacher->first_name}",
+                            "{$teacher->first_name} {$teacher->last_name}",
+                            "{$teacher->first_name} {$teacher->middle_name} {$teacher->last_name}",
+                        ];
+
+                        foreach ($variants as $nameVariant) {
+
+                            if ($this->isNameMatch($nameVariant, $ocrText)) {
+                                $teacherId = $teacher->id;
+
+                                Log::info("Auto-detected Teacher (Robust): '{$teacher->full_name}' via variant '{$nameVariant}'");
+
+                                break 2; // Exit BOTH loops (teacher + variant loop)
+                            }
                         }
                     }
                 }
             }
+
         } catch (\Exception $e) {
             Log::error('Upload failed: ' . $e->getMessage());
             throw $e;
@@ -415,4 +435,64 @@ class DocumentUploadService
     {
         return $this->decryptFileContents($base64Cipher);
     }
+
+    /* ----------------------------------------------------------
+ |  ROBUST TEACHER NAME MATCHING (NEW)
+ * ----------------------------------------------------------*/
+
+    private function normalizeName($name)
+    {
+        $name = strtolower($name);
+        $name = preg_replace('/[^\p{L}\s]/u', '', $name); // remove punctuation
+        $name = preg_replace('/\s+/', ' ', trim($name)); // normalize spaces
+        return $name;
+    }
+
+    private function tokenizeName($name)
+    {
+        return array_values(array_filter(explode(' ', $name)));
+    }
+
+    private function scoreNameMatch($expectedTokens, $ocrTokens)
+    {
+        $score = 0;
+
+        foreach ($expectedTokens as $e) {
+            foreach ($ocrTokens as $o) {
+
+                if ($e === $o) {                    // exact match
+                    $score += 3;
+                } elseif (strlen($e) == 1 && str_starts_with($o, $e)) { // initial vs fullname
+                    $score += 2;
+                } elseif (strlen($o) == 1 && str_starts_with($e, $o)) {
+                    $score += 2;
+                } elseif (similar_text($e, $o, $pct) && $pct >= 70) {   // partial match
+                    $score += 1;
+                }
+            }
+        }
+
+        return $score;
+    }
+
+    public function isNameMatch($expectedName, $ocrName)
+    {
+        $expected = $this->normalizeName($expectedName);
+        $ocr = $this->normalizeName($ocrName);
+
+        $expectedTokens = $this->tokenizeName($expected);
+        $ocrTokens = $this->tokenizeName($ocr);
+
+        if (empty($expectedTokens) || empty($ocrTokens)) {
+            return false;
+        }
+
+        $score = $this->scoreNameMatch($expectedTokens, $ocrTokens);
+        $max = count($expectedTokens) * 3;
+
+        $confidence = ($score / $max) * 100;
+
+        return $confidence >= 65;   // threshold
+    }
+
 }

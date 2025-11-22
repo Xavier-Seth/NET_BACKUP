@@ -486,6 +486,90 @@ export default {
       return this.isTeacherDocByName(catName);
     },
 
+    // ---------- Name matching helpers (new) ----------
+    // Normalize: lowercase, remove punctuation, collapse spaces.
+    normalizeNameJS(s) {
+      if (!s) return "";
+      // Use Unicode-aware punctuation removal if supported; fallback to ASCII-safe regex
+      try {
+        return String(s)
+          .toLowerCase()
+          .replace(/[^\p{L}\s]/gu, "")   // remove punctuation (unicode letters preserved)
+          .replace(/\s+/g, " ")
+          .trim();
+      } catch (err) {
+        // Fallback for environments without \p{L}
+        return String(s)
+          .toLowerCase()
+          .replace(/[^\w\s]|_/g, "")
+          .replace(/\s+/g, " ")
+          .trim();
+      }
+    },
+
+    // Tokenize into word tokens
+    tokenizeNameJS(s) {
+      const n = this.normalizeNameJS(s);
+      return n ? n.split(" ").filter(Boolean) : [];
+    },
+
+    // Score expectedTokens vs ocrTokens
+    // exact token match: +2, prefix/startsWith match: +1
+    scoreNameMatchJS(expectedTokens, ocrTokens) {
+      let score = 0;
+      for (const et of expectedTokens) {
+        for (const ot of ocrTokens) {
+          if (et === ot) {
+            score += 2;
+            break;
+          }
+          if (ot.startsWith(et) || et.startsWith(ot)) {
+            score += 1;
+            break;
+          }
+        }
+      }
+      return score;
+    },
+
+    // Find best teacher by OCR text (returns teacher object or null)
+    findTeacherByText(ocrText) {
+      if (!ocrText) return null;
+      const ocrTokens = this.tokenizeNameJS(ocrText);
+      if (!ocrTokens.length) return null;
+
+      let best = null;
+      let bestNormalizedScore = 0;
+      let bestAbsoluteScore = 0;
+
+      for (const t of this.teachers) {
+        const fullName = t.full_name || `${t.first_name || ""} ${t.middle_name || ""} ${t.last_name || ""}`;
+        const expectedTokens = this.tokenizeNameJS(fullName);
+        if (!expectedTokens.length) continue;
+
+        // quick prefilter: require at least one token present (or prefix)
+        const anyPresent = expectedTokens.some(et => ocrTokens.includes(et) || ocrTokens.some(ot => ot.startsWith(et)));
+        if (!anyPresent) continue;
+
+        const absoluteScore = this.scoreNameMatchJS(expectedTokens, ocrTokens);
+        const normalizedScore = absoluteScore / (expectedTokens.length * 2); // max 2 per token
+
+        // prefer higher normalized score; break ties by absolute score
+        if (normalizedScore > bestNormalizedScore || (normalizedScore === bestNormalizedScore && absoluteScore > bestAbsoluteScore)) {
+          best = t;
+          bestNormalizedScore = normalizedScore;
+          bestAbsoluteScore = absoluteScore;
+        }
+      }
+
+      // Accept candidate only if above conservative thresholds to avoid false positives
+      if (!best) return null;
+      if (bestNormalizedScore >= 0.65 || bestAbsoluteScore >= 3) {
+        return best;
+      }
+      return null;
+    },
+
     // ---------- Scanning ----------
     async scanQueued() {
       const toScan = this.files
@@ -512,29 +596,45 @@ export default {
       fd.append("file", it.file);
       try {
         const res = await axios.post("/upload/scan", fd);
+
         const serverCat = this.normalizeCategoryName(res?.data?.category || null);
         it.detectedCategory = serverCat || null;
         it.detectedTeacher = res?.data?.teacher || null;
         it.scanned_text = res?.data?.text || "";
+
         this.flaskOffline = !!res?.data?.fallback_used;
 
+        // Map category -> id if found
         if (serverCat) {
           const c = this.categories.find(x => x.name.trim().toLowerCase() === serverCat.trim().toLowerCase());
           if (c) it.category_id = c.id;
         }
-        if (it.detectedTeacher) {
-          const t = this.teachers.find(x => x.full_name === it.detectedTeacher);
-          if (t) it.teacher_id = t.id;
+
+        // Robust teacher matching: prefer controller-provided teacher string, but run fuzzy search
+        const candidateText = (res?.data?.teacher || it.scanned_text || res?.data?.text || "");
+        const matched = this.findTeacherByText(candidateText);
+
+        if (matched) {
+          it.detectedTeacher = matched.full_name;
+          it.teacher_id = matched.id;
+        } else if (it.detectedTeacher) {
+          // fallback: normalized direct-equality (handles punctuation/casing differences)
+          const dt = this.normalizeNameJS(it.detectedTeacher);
+          const direct = this.teachers.find(x => this.normalizeNameJS(x.full_name) === dt);
+          if (direct) it.teacher_id = direct.id;
         }
 
+        // If still missing teacher but category was chosen and category requires teacher, leave unset (UI will prompt)
         const catName = it.detectedCategory || this.canonicalCategoryNameById(it.category_id);
         it.requiresTeacher = this.requiresTeacherFor(catName);
+
         it.state = "ready";
       } catch (e) {
         console.error("scanOne failed", e);
         it.state = "error";
       }
     },
+
     resetItemToDetected(it) {
       it.override = false;
       if (it.detectedCategory) {
@@ -546,7 +646,9 @@ export default {
         it.category_id = null;
       }
       if (it.detectedTeacher) {
-        const t = this.teachers.find(x => x.full_name === it.detectedTeacher);
+        // use normalized comparison rather than strict equality
+        const dt = this.normalizeNameJS(it.detectedTeacher);
+        const t = this.teachers.find(x => this.normalizeNameJS(x.full_name) === dt);
         it.teacher_id = t ? t.id : null;
       } else {
         it.teacher_id = null;
@@ -718,7 +820,9 @@ export default {
     },
     teacherIdFromName(fullName) {
       if (!fullName) return null;
-      const t = this.teachers.find(x => x.full_name === fullName);
+      // use normalized comparison
+      const norm = this.normalizeNameJS(fullName);
+      const t = this.teachers.find(x => this.normalizeNameJS(x.full_name) === norm);
       return t ? t.id : null;
     },
     formatFileSize(size) { return `${(size / 1024).toFixed(2)} KB`; },
@@ -756,6 +860,7 @@ export default {
   }
 };
 </script>
+
 
 
 
