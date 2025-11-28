@@ -75,7 +75,52 @@ class DocumentController extends Controller
     /** 🖼 Preview decrypted or converted document */
     public function preview(Document $document)
     {
-        // 1) Serve existing PDF preview (if present after restore)
+        // 1) Validate file existence
+        if (!$document->path || !Storage::disk('public')->exists($document->path)) {
+            abort(404, 'File not found.');
+        }
+
+        $path = Storage::disk('public')->path($document->path);
+
+        // ---------------------------------------------------------
+        // ROBUST IMAGE DETECTION
+        // ---------------------------------------------------------
+        // Check Mime Type from DB or File
+        $mime = $document->mime_type ?: mime_content_type($path);
+
+        // Check Extension as fallback
+        $extension = strtolower(pathinfo($document->path, PATHINFO_EXTENSION));
+        $imageExtensions = ['png', 'jpg', 'jpeg', 'gif', 'webp', 'bmp'];
+
+        // Is it an image?
+        $isImage = ($mime && str_starts_with($mime, 'image/')) || in_array($extension, $imageExtensions);
+
+        // Ensure we have a valid MIME for the header if it is an image
+        if ($isImage && (!$mime || !str_starts_with($mime, 'image/'))) {
+            $mime = 'image/' . ($extension === 'jpg' ? 'jpeg' : $extension);
+        }
+
+        // ---------------------------------------------------------
+        // 2) PRIORITY: Handle Images (DECRYPTED)
+        // ---------------------------------------------------------
+        if ($isImage) {
+            // Get the encrypted content
+            $content = Storage::disk('public')->get($document->path);
+
+            // Decrypt it
+            $crypto = new DocumentUploadService();
+            $bytes = $this->safeDecrypt($content, $crypto);
+
+            return response($bytes, 200, [
+                'Content-Type' => $mime,
+                'Content-Disposition' => 'inline; filename="' . $document->name . '"',
+                'X-Content-Type-Options' => 'nosniff',
+            ]);
+        }
+
+        // ---------------------------------------------------------
+        // 3) Then Check for PDF Preview (For Word/Excel/PPT)
+        // ---------------------------------------------------------
         if ($document->pdf_preview_path && Storage::disk('public')->exists($document->pdf_preview_path)) {
             $fullPath = Storage::disk('public')->path($document->pdf_preview_path);
             return response()->file($fullPath, [
@@ -84,20 +129,15 @@ class DocumentController extends Controller
             ]);
         }
 
-        // 2) Fallback: decrypt original and stream inline
-        if (!$document->path || !Storage::disk('public')->exists($document->path)) {
-            abort(404, 'File not found.');
-        }
-
+        // ---------------------------------------------------------
+        // 4) Fallback: Decrypt original (PDFs, etc)
+        // ---------------------------------------------------------
         $crypto = new DocumentUploadService();
         $cipherOrPlain = Storage::disk('public')->get($document->path);
         $bytes = $this->safeDecrypt($cipherOrPlain, $crypto);
 
-        // If mime is missing, pick a safe default
-        $mime = $document->mime_type ?: 'application/octet-stream';
-
         return response($bytes, 200, [
-            'Content-Type' => $mime,
+            'Content-Type' => $mime ?: 'application/octet-stream',
             'Content-Disposition' => 'inline; filename="' . $document->name . '"',
             'X-Content-Type-Options' => 'nosniff',
         ]);
