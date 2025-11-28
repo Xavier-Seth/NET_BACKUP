@@ -717,4 +717,20 @@ body {
     padding: 10px;
   }
 }
+
+/* Make the modal scrollable and allow viewing full-size images */
+.preview-content {
+  overflow: auto; /* allow scrolling inside the modal */
+  /* keep other styles (height, max-width) as you have them */
+}
+
+.preview-img {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: 95vw;    /* limit to viewport width */
+  max-height: 85vh;   /* limit to viewport height (so it fits the modal) */
+  margin: 12px auto;
+}
+
 </style>
