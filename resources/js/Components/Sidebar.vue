@@ -1,5 +1,5 @@
 <script setup>
-import { ref, onMounted, computed, defineProps, nextTick } from 'vue'
+import { ref, onMounted, computed, defineProps, nextTick, watch } from 'vue'
 import { usePage, router } from '@inertiajs/vue3'
 
 const props = defineProps({
@@ -12,41 +12,73 @@ const user = page.props.auth.user
 
 const isOpen = ref(true)
 const isMobile = window.innerWidth < 768
-const openDocs = ref(false)
+
+// manual state for dropdown and route-aware current path
+const openDocs = ref(false) // used only as a manual "open" hint (not the single source of truth)
+const manualDocsToggle = ref(null) // null = follow route; true/false = user override
 const currentPath = computed(() => usePage().url)
 
-// ===== Logout modal state =====
+// ----- Logout modal -----
 const showLogoutModal = ref(false)
 const cancelBtn = ref(null)
 
+// route-aware computed: should we keep docs open automatically based on URL?
+const shouldKeepDocsOpen = computed(() => {
+  const url = currentPath.value || ''
+  return url.startsWith('/documents') || route().current('documents.teachers-profile')
+})
+
+// Final visible state for the Documents dropdown:
+// - If manualDocsToggle is null => follow shouldKeepDocsOpen
+// - Else follow manualDocsToggle
+const isDocsOpen = computed(() => {
+  return manualDocsToggle.value === null ? shouldKeepDocsOpen.value : manualDocsToggle.value
+})
+
+// Toggle function for parent menu. This now always toggles visibility regardless of route.
 const toggle = (section) => {
-  if (section === 'Documents') openDocs.value = !openDocs.value
+  if (section === 'Documents') {
+    // If manual override exists, just flip it; otherwise set manual override opposite of current visibility.
+    manualDocsToggle.value = manualDocsToggle.value === null ? !isDocsOpen.value : !manualDocsToggle.value
+  }
 }
 
+// Navigation helper. When navigating away from documents routes we reset manual override
 const go = (pathOrRoute) => {
   if (typeof pathOrRoute === 'string' && pathOrRoute.startsWith('/')) {
     router.visit(pathOrRoute)
   } else {
     router.visit(route(pathOrRoute))
   }
+
+  // Close sidebar on mobile
   if (isMobile) isOpen.value = false
 }
 
+// isActive helper unchanged
 const isActive = (nameOrPath) => {
-  const url = currentPath.value
+  const url = currentPath.value || ''
+
   if (!nameOrPath.startsWith('/')) {
     return route().current(nameOrPath) || props.activeMenu === nameOrPath
   }
+
   return url === nameOrPath
 }
 
-// Open pretty modal
+// Reset manual override when leaving documents routes so auto behavior resumes
+watch(currentPath, (newUrl) => {
+  if (!newUrl.startsWith('/documents')) {
+    manualDocsToggle.value = null
+  }
+})
+
+// ===== Logout modal helpers =====
 function openLogoutModal () {
   showLogoutModal.value = true
   nextTick(() => cancelBtn.value?.focus())
 }
 
-// Perform logout
 function doLogout () {
   router.post(route('logout'), { preserveScroll: true })
   showLogoutModal.value = false
@@ -56,6 +88,7 @@ function closeOnBackdrop (e) {
   if (e.target.classList.contains('ux-modal')) showLogoutModal.value = false
 }
 
+// Keyboard shortcut for sidebar
 onMounted(() => {
   window.addEventListener('keydown', (e) => {
     if (e.altKey && e.key.toLowerCase() === 's') {
@@ -68,7 +101,8 @@ onMounted(() => {
 <template>
   <div>
     <aside :class="['sidebar', { open: isOpen }]">
-      <!-- Logo / Branding -->
+
+      <!-- Branding -->
       <div class="logo" :title="branding.school_name">
         <img
           :src="branding.logo_url || '/images/school_logo.png'"
@@ -79,7 +113,7 @@ onMounted(() => {
         <div class="school-caption" v-text="branding.school_name" />
       </div>
 
-      <!-- Navigation Menu -->
+      <!-- Navigation -->
       <nav class="menu">
         <ul>
           <li>
@@ -100,14 +134,16 @@ onMounted(() => {
             </a>
           </li>
 
-          <!-- Documents -->
+          <!-- DOCUMENTS MENU -->
           <li>
             <a class="nav-link" @click="toggle('Documents')">
               <i class="bi bi-folder2-open"></i> Documents
-              <i class="bi bi-caret-left-fill caret-icon" :class="{ rotated: openDocs }"></i>
+              <i class="bi bi-caret-left-fill caret-icon" :class="{ rotated: isDocsOpen }"></i>
             </a>
 
-            <ul v-if="openDocs" class="dropdown">
+            <!-- Use the computed isDocsOpen -->
+            <ul v-if="isDocsOpen" class="dropdown">
+
               <li>
                 <a
                   @click="go('documents.teachers-profile')"
@@ -144,6 +180,7 @@ onMounted(() => {
                   <i class="bi bi-file-earmark-text"></i> RIS
                 </a>
               </li>
+
             </ul>
           </li>
 
@@ -173,6 +210,7 @@ onMounted(() => {
               <i class="bi bi-gear"></i> Settings
             </a>
           </li>
+
         </ul>
       </nav>
 
@@ -180,12 +218,13 @@ onMounted(() => {
       <div class="logout" @click="openLogoutModal">
         <i class="bi bi-box-arrow-right"></i> Logout
       </div>
+
     </aside>
 
-    <!-- Overlay for mobile -->
+    <!-- Mobile overlay -->
     <div v-if="isOpen && isMobile" class="overlay" @click="isOpen = false"></div>
 
-    <!-- ===== Pretty Logout Modal ===== -->
+    <!-- Logout Modal -->
     <transition name="fade">
       <div
         v-if="showLogoutModal"
@@ -194,18 +233,17 @@ onMounted(() => {
         @keyup.esc="showLogoutModal = false"
         tabindex="-1"
         role="dialog"
-        aria-modal="true"
       >
         <transition name="pop">
           <div class="ux-modal-card" role="document">
             <div class="ux-modal-header">
               <div class="ux-modal-icon">
-                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="currentColor">
+                <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" fill="currentColor">
                   <path d="M12 2a10 10 0 1 0 10 10A10.011 10.011 0 0 0 12 2Zm0 5a1.25 1.25 0 1 1-1.25 1.25A1.25 1.25 0 0 1 12 7Zm1.25 10h-2.5v-7h2.5Z"/>
                 </svg>
               </div>
               <h5 class="ux-modal-title">Confirm Logout</h5>
-              <button class="btn-close" @click="showLogoutModal = false" aria-label="Close"></button>
+              <button class="btn-close" @click="showLogoutModal = false"></button>
             </div>
 
             <div class="ux-modal-body">
@@ -216,6 +254,7 @@ onMounted(() => {
               <button ref="cancelBtn" class="btn btn-light" @click="showLogoutModal = false">Cancel</button>
               <button class="btn btn-danger" @click="doLogout">Logout</button>
             </div>
+
           </div>
         </transition>
       </div>

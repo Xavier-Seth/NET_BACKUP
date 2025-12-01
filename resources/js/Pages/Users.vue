@@ -15,6 +15,9 @@ const sortAsc = ref(true)
 const showDeleteModal = ref(false)
 const selectedUser = ref(null)
 
+const showEditModal = ref(false)         // <-- new: controls edit modal visibility
+const editModalUser = ref(null)          // <-- new: holds user being edited
+
 const currentUserId = usePage().props.auth.user.id
 
 const fetchUsers = async () => {
@@ -76,15 +79,28 @@ const sortUsers = key => {
   }
 }
 
+// open modal instead of browser confirm
 const confirmEdit = user => {
   if (!user?.id) {
-    alert('Invalid user selected.')
+    // simply ignore invalid selections (no native alert)
+    console.warn('Invalid user selected for edit.')
     return
   }
 
-  if (confirm(`Do you want to edit the profile of ${user.last_name}, ${user.first_name}?`)) {
-    router.get(route('admin.edit-user', { id: user.id }))
-  }
+  // set the modal data and open the modal
+  editModalUser.value = user
+  showEditModal.value = true
+}
+
+// called when user confirms inside the modal
+const proceedToEdit = () => {
+  if (!editModalUser.value?.id) return
+
+  // close modal first
+  showEditModal.value = false
+
+  // navigate to edit route
+  router.get(route('admin.edit-user', { id: editModalUser.value.id }))
 }
 
 const confirmDelete = user => {
@@ -190,6 +206,7 @@ onMounted(fetchUsers)
       </table>
     </div>
 
+    <!-- Delete Modal (unchanged) -->
     <div v-if="showDeleteModal" class="modal-backdrop">
       <div class="modal-box">
         <h5>Confirm Deletion</h5>
@@ -205,6 +222,27 @@ onMounted(fetchUsers)
           </button>
           <button class="btn btn-danger" @click="deleteUser">
             Yes, Delete
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <!-- EDIT Modal (new) -->
+    <div v-if="showEditModal" class="modal-backdrop">
+      <div class="modal-box">
+        <h5>Edit User</h5>
+
+        <p>
+          Do you want to edit the profile of
+          <strong>{{ editModalUser?.last_name }}, {{ editModalUser?.first_name }}</strong>?
+        </p>
+
+        <div class="modal-actions">
+          <button class="btn btn-secondary" @click="showEditModal = false">
+            Cancel
+          </button>
+          <button class="btn btn-danger" @click="proceedToEdit">
+            Edit
           </button>
         </div>
       </div>
