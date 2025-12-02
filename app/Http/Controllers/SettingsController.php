@@ -195,24 +195,40 @@ class SettingsController extends Controller
      */
     public function restoreFromUpload(Request $request, BackupService $backup)
     {
-        $validated = $request->validate([
-            'archive' => ['required', File::types(['zip'])->max(512000)], // ~500MB cap
+        // 1. Validate presence and size, BUT remove strict 'mimes:zip'
+        // We remove 'mimes:zip' because some browsers send zip files as 'application/octet-stream'
+        // which causes Laravel validation to fail even if the file is valid.
+        $request->validate([
+            'archive' => ['required', 'file', 'max:512000'],
             'is_encrypted' => ['nullable', 'boolean'],
             'confirm' => ['required', 'in:RESTORE'],
             'mode' => ['nullable', 'in:replace,merge'],
         ]);
+
+        // 2. Manual Check: Ensure it is actually a ZIP by extension
+        $extension = $request->file('archive')->getClientOriginalExtension();
+        if (strtolower($extension) !== 'zip') {
+            throw \Illuminate\Validation\ValidationException::withMessages([
+                'archive' => ['The uploaded file must be a .zip archive.'],
+            ]);
+        }
 
         // Store temporary uploaded file
         $tmp = $request->file('archive')->store('backups/tmp', 'local');
         $full = storage_path("app/{$tmp}");
 
         $opts = [
-            // For uploads, we still honor the user's choice (cannot infer from name reliably)
-            'encrypted' => (bool) ($validated['is_encrypted'] ?? false),
-            'mode' => $validated['mode'] ?? 'replace',
+            'encrypted' => (bool) ($request->input('is_encrypted', false)),
+            'mode' => $request->input('mode', 'replace'),
         ];
 
-        [$ok, $msg, $report] = $backup->restoreFromArchive($full, $opts);
+        try {
+            [$ok, $msg, $report] = $backup->restoreFromArchive($full, $opts);
+        } catch (\Exception $e) {
+            // Cleanup on crash
+            @unlink($full);
+            throw $e;
+        }
 
         // Cleanup temporary file
         @unlink($full);
@@ -291,9 +307,9 @@ class SettingsController extends Controller
 
     /**
      * Guess encryption type based on filename.
-     * - backupdecrypt_*.zip → decrypted
-     * - backup_*.zip        → encrypted
-     * - *-enc.zip           → encrypted
+     * - backupdecrypt_*.zip -> decrypted
+     * - backup_*.zip        -> encrypted
+     * - *-enc.zip           -> encrypted
      */
     protected function guessEncrypted(string $name): bool
     {

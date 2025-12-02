@@ -410,31 +410,73 @@ const archivesUrl = (page = 1, perPage = 10) => {
 }
 
 /* -------- CSRF helpers -------- */
+/* -------- CSRF helpers (robust) -------- */
 const getCsrf = async () => {
-  const r = await fetch(route('csrf.token'), { credentials: 'same-origin' })
-  const j = await r.json()
-  const m = document.querySelector('meta[name="csrf-token"]')
-  if (m) m.setAttribute('content', j.token)
-  return j.token
-}
+  // 1) Prefer meta token (Laravel default blade provides this)
+  const meta = document.querySelector('meta[name="csrf-token"]');
+  if (meta && meta.getAttribute('content')) {
+    return meta.getAttribute('content');
+  }
+
+  // 2) Fallback: try a fixed endpoint (no Ziggy dependency)
+  try {
+    // We avoid route('csrf.token') here to prevent Ziggy errors if the route list
+    // was not generated; use the fixed path instead.
+    const resp = await fetch('/csrf-token', {
+      credentials: 'same-origin',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
+
+    if (resp.ok) {
+      const j = await resp.json();
+      if (j && j.token) {
+        // update meta tag so subsequent requests use it
+        let m = document.querySelector('meta[name="csrf-token"]');
+        if (!m) {
+          m = document.createElement('meta');
+          m.setAttribute('name', 'csrf-token');
+          document.head.appendChild(m);
+        }
+        m.setAttribute('content', j.token);
+        return j.token;
+      }
+    }
+  } catch (e) {
+    // fallthrough
+    console.warn('getCsrf() fetch fallback failed', e);
+  }
+
+  // 3) Last-resort: if nothing available, return null
+  return null;
+};
 
 const securedFetch = async (input, init = {}, { retryOn419 = true } = {}) => {
-  const token =
-    document.querySelector('meta[name="csrf-token"]')?.getAttribute('content') ||
-    (await getCsrf())
+  const metaToken = document.querySelector('meta[name="csrf-token"]')?.getAttribute('content');
+  const token = metaToken || (await getCsrf());
 
-  const headers = new Headers(init.headers || {})
-  headers.set('X-CSRF-TOKEN', token)
-  headers.set('X-Requested-With', 'XMLHttpRequest')
-
-  const res = await fetch(input, { ...init, headers, credentials: 'same-origin' })
-  if (res.status === 419 && retryOn419) {
-    const fresh = await getCsrf()
-    headers.set('X-CSRF-TOKEN', fresh)
-    return fetch(input, { ...init, headers, credentials: 'same-origin' })
+  if (!token) {
+    // Fail fast with a clear error. The caller can catch this if needed.
+    throw new Error('CSRF token unavailable — please refresh the page or sign in again.');
   }
-  return res
-}
+
+  const headers = new Headers(init.headers || {});
+  headers.set('X-CSRF-TOKEN', token);
+  headers.set('X-Requested-With', 'XMLHttpRequest');
+
+  // Make the request
+  let res = await fetch(input, { ...init, headers, credentials: 'same-origin' });
+
+  // If we get 419, try to refresh token once and retry
+  if (res.status === 419 && retryOn419) {
+    const fresh = await getCsrf();
+    if (fresh) {
+      headers.set('X-CSRF-TOKEN', fresh);
+      res = await fetch(input, { ...init, headers, credentials: 'same-origin' });
+    }
+  }
+
+  return res;
+};
 
 /* -------- refresh shared props (branding) -------- */
 const refreshBranding = () => {

@@ -27,6 +27,11 @@ use App\Models\Category;
 | Guest Routes
 |--------------------------------------------------------------------------
 */
+
+Route::get('/csrf-token', function () {
+    return response()->json(['token' => csrf_token()]);
+})->name('csrf.token');
+
 Route::middleware('guest')->group(function () {
     Route::get('/', fn() => redirect()->route('login'));
 
