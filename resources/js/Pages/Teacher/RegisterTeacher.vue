@@ -3,7 +3,6 @@
     <Sidebar />
 
     <div class="flex-1">
-      <!-- Banner Section -->
       <div class="container d-flex justify-content-center">
         <div class="position-relative w-100" style="max-width: 1000px;">
           <img src="/images/rizal.jpg" class="w-100 rounded-top" style="height: 200px; object-fit: cover;" />
@@ -30,14 +29,12 @@
         </div>
       </div>
 
-      <!-- Form Section -->
       <div class="container d-flex justify-content-center">
         <div class="mt-1 form-wrapper bg-white shadow p-4" style="margin-top: 0px; max-width: 1000px; width: 100%; border-radius: 0 0 10px 10px;">
           <form @submit.prevent="handleSubmit">
-            <!-- Name -->
             <div class="row mb-3" style="margin-top: 5rem;">
               <div class="col-md-4">
-                <label class="form-label">First Name:</label>
+                <label class="form-label">First Name: <span class="text-danger">*</span></label>
                 <input
                   v-model="form.first_name"
                   data-field="first_name"
@@ -62,7 +59,7 @@
                 <div v-if="inputWarnings.middle_name" class="text-warning mt-1">{{ inputWarnings.middle_name }}</div>
               </div>
               <div class="col-md-4">
-                <label class="form-label">Last Name:</label>
+                <label class="form-label">Last Name: <span class="text-danger">*</span></label>
                 <input
                   v-model="form.last_name"
                   data-field="last_name"
@@ -76,7 +73,6 @@
               </div>
             </div>
 
-            <!-- Employment -->
             <div class="row mb-3">
               <div class="col-md-4">
                 <label class="form-label">Name Extension:</label>
@@ -90,65 +86,85 @@
                 />
                 <div v-if="inputWarnings.name_extension" class="text-warning mt-1">{{ inputWarnings.name_extension }}</div>
               </div>
+              
               <div class="col-md-4">
-                <label class="form-label">Employee ID:</label>
+                <label class="form-label">Employee ID: <span class="text-danger">*</span></label>
                 <input
                   v-model="form.employee_id"
                   data-field="employee_id"
                   type="text"
                   class="form-control"
                   @input="restrictToAlphaNumericDash"
+                  :class="{'is-invalid': localErrors.employee_id}"
                 />
+                <div v-if="localErrors.employee_id" class="text-danger mt-1">{{ localErrors.employee_id }}</div>
               </div>
+
               <div class="col-md-4">
-                <label class="form-label">Position:</label>
+                <label class="form-label">Position: <span class="text-danger">*</span></label>
                 <input
                   v-model="form.position"
                   data-field="position"
                   type="text"
                   class="form-control"
                   @input="restrictToAlphaNumericDash"
+                  :class="{'is-invalid': localErrors.position}"
                 />
+                <div v-if="localErrors.position" class="text-danger mt-1">{{ localErrors.position }}</div>
               </div>
             </div>
 
-            <!-- Details -->
             <div class="row mb-3">
               <div class="col-md-4">
-                <label class="form-label">Birthdate:</label>
-                <input v-model="form.birth_date" type="date" class="form-control" />
+                <label class="form-label">Birthdate: <span class="text-danger">*</span></label>
+                <input 
+                  v-model="form.birth_date" 
+                  type="date" 
+                  class="form-control" 
+                  :class="{'is-invalid': localErrors.birth_date}"
+                />
+                <div v-if="localErrors.birth_date" class="text-danger mt-1">{{ localErrors.birth_date }}</div>
               </div>
               <div class="col-md-4">
-                <label class="form-label">Department / Unit:</label>
+                <label class="form-label">Department / Unit: <span class="text-danger">*</span></label>
                 <input
                   v-model="form.department"
                   data-field="department"
                   type="text"
                   class="form-control"
                   @input="restrictToAlphaNumericDash"
+                  :class="{'is-invalid': localErrors.department}"
                 />
+                <div v-if="localErrors.department" class="text-danger mt-1">{{ localErrors.department }}</div>
               </div>
               <div class="col-md-4">
-                <label class="form-label">Date Hired:</label>
-                <input v-model="form.date_hired" type="date" class="form-control" />
+                <label class="form-label">Date Hired: <span class="text-danger">*</span></label>
+                <input 
+                  v-model="form.date_hired" 
+                  type="date" 
+                  class="form-control"
+                  :class="{'is-invalid': localErrors.date_hired}"
+                />
+                <div v-if="localErrors.date_hired" class="text-danger mt-1">{{ localErrors.date_hired }}</div>
               </div>
             </div>
 
-            <!-- Contact -->
             <div class="row mb-3">
               <div class="col-md-6">
-                <label class="form-label">Contact Number:</label>
+                <label class="form-label">Contact Number: <span class="text-danger">*</span></label>
                 <input
                   v-model="form.contact"
                   data-field="contact"
                   type="text"
                   class="form-control"
                   @input="restrictToNumbers"
+                  :class="{'is-invalid': localErrors.contact}"
                 />
+                <div v-if="localErrors.contact" class="text-danger mt-1">{{ localErrors.contact }}</div>
                 <div v-if="inputWarnings.contact" class="text-warning mt-1">{{ inputWarnings.contact }}</div>
               </div>
               <div class="col-md-6">
-                <label class="form-label">Email Address:</label>
+                <label class="form-label">Email Address: <span class="text-danger">*</span></label>
                 <input
                   v-model="form.email"
                   type="email"
@@ -159,15 +175,19 @@
               </div>
             </div>
 
-            <!-- Address -->
             <div class="row mb-3">
               <div class="col-md-12">
-                <label class="form-label">Permanent Address:</label>
-                <input v-model="form.address" type="text" class="form-control" />
+                <label class="form-label">Permanent Address: <span class="text-danger">*</span></label>
+                <input 
+                  v-model="form.address" 
+                  type="text" 
+                  class="form-control"
+                  :class="{'is-invalid': localErrors.address}"
+                />
+                <div v-if="localErrors.address" class="text-danger mt-1">{{ localErrors.address }}</div>
               </div>
             </div>
 
-            <!-- Remarks -->
             <div class="row mb-3">
               <div class="col-md-12">
                 <label class="form-label">Remarks:</label>
@@ -181,7 +201,6 @@
               </div>
             </div>
 
-            <!-- Upload -->
             <div class="row mb-3">
               <div class="col-md-6">
                 <label class="form-label">Upload PDS File:</label>
@@ -198,7 +217,6 @@
               </div>
             </div>
 
-            <!-- Submit -->
             <div class="text-end">
               <button class="btn btn-primary">Register Teacher</button>
             </div>
@@ -207,7 +225,6 @@
       </div>
     </div>
 
-    <!-- Confirm Modal -->
     <div v-if="modals.confirm" class="overlay" @keydown.esc="closeAll" tabindex="0">
       <div class="modal-card">
         <button class="close-btn" @click="closeAll">✕</button>
@@ -220,7 +237,6 @@
       </div>
     </div>
 
-    <!-- Info Modal (success / error / validation) -->
     <div v-if="info.show" class="overlay" @keydown.esc="closeAll" tabindex="0">
       <div class="modal-card">
         <button class="close-btn" @click="closeAll">✕</button>
@@ -248,12 +264,15 @@
 
 <script setup>
 import Sidebar from "@/Components/Sidebar.vue"
-import { ref, watch } from "vue"
+import { ref, watch, nextTick } from "vue" // Added nextTick import
 import { useForm } from "@inertiajs/vue3"
 
 const pdsRef = ref(null)
 const photoRef = ref(null)
 const photoPreview = ref(null)
+
+// Flag to pause validation during reset
+const isResetting = ref(false)
 
 const form = useForm({
   first_name: '',
@@ -278,6 +297,13 @@ const localErrors = ref({
   first_name: '',
   last_name: '',
   email: '',
+  employee_id: '',
+  position: '',
+  department: '',
+  birth_date: '',
+  date_hired: '',
+  contact: '',
+  address: ''
 })
 
 const inputWarnings = ref({
@@ -300,14 +326,21 @@ const showTemporaryWarning = (field, message, duration = 2500) => {
   setTimeout(() => { inputWarnings.value[field] = '' }, duration)
 }
 
-/* --- live validation --- */
+/* --- LIVE VALIDATION (Watchers) --- */
+/* Note: check isResetting to ensure errors don't appear when form is reset programmatically */
+
 watch(() => form.first_name, (val) => {
+  if (isResetting.value) return; 
   localErrors.value.first_name = (val || '').trim() === '' ? 'First name is required.' : ''
 })
+
 watch(() => form.last_name, (val) => {
+  if (isResetting.value) return;
   localErrors.value.last_name = (val || '').trim() === '' ? 'Last name is required.' : ''
 })
+
 watch(() => form.email, (val) => {
+  if (isResetting.value) return;
   if ((val || '').trim() === '') {
     localErrors.value.email = 'Email is required.'
   } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(val)) {
@@ -316,6 +349,42 @@ watch(() => form.email, (val) => {
     localErrors.value.email = ''
   }
 })
+
+watch(() => form.employee_id, (val) => {
+  if (isResetting.value) return;
+  localErrors.value.employee_id = (val || '').trim() === '' ? 'Employee ID is required.' : ''
+})
+
+watch(() => form.position, (val) => {
+  if (isResetting.value) return;
+  localErrors.value.position = (val || '').trim() === '' ? 'Position is required.' : ''
+})
+
+watch(() => form.department, (val) => {
+  if (isResetting.value) return;
+  localErrors.value.department = (val || '').trim() === '' ? 'Department is required.' : ''
+})
+
+watch(() => form.contact, (val) => {
+  if (isResetting.value) return;
+  localErrors.value.contact = (val || '').trim() === '' ? 'Contact number is required.' : ''
+})
+
+watch(() => form.birth_date, (val) => {
+  if (isResetting.value) return;
+  localErrors.value.birth_date = (val || '') === '' ? 'Birth date is required.' : ''
+})
+
+watch(() => form.date_hired, (val) => {
+  if (isResetting.value) return;
+  localErrors.value.date_hired = (val || '') === '' ? 'Date hired is required.' : ''
+})
+
+watch(() => form.address, (val) => {
+  if (isResetting.value) return;
+  localErrors.value.address = (val || '').trim() === '' ? 'Permanent address is required.' : ''
+})
+
 
 /* --- restrictions --- */
 const restrictToLettersWithDot = (e) => {
@@ -357,10 +426,37 @@ const handlePhotoUpload = (event) => {
 
 /* --- submit flow --- */
 const handleSubmit = () => {
-  if (localErrors.value.first_name || localErrors.value.last_name || localErrors.value.email) {
-    showInfo('Please Fix Errors', 'Kindly resolve the highlighted field errors before submitting.', 'error')
+  let isValid = true;
+
+  // 1. Check Names & Email (Required)
+  if (!form.first_name) { localErrors.value.first_name = 'First name is required.'; isValid = false; }
+  if (!form.last_name) { localErrors.value.last_name = 'Last name is required.'; isValid = false; }
+  
+  // Email Validation
+  if (!form.email) { 
+    localErrors.value.email = 'Email is required.'; 
+    isValid = false; 
+  } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(form.email)) {
+    localErrors.value.email = 'Invalid email format.'; 
+    isValid = false;
+  }
+
+  // 2. Check Newly Required Fields
+  if (!form.employee_id) { localErrors.value.employee_id = 'Employee ID is required.'; isValid = false; }
+  if (!form.position) { localErrors.value.position = 'Position is required.'; isValid = false; }
+  if (!form.contact) { localErrors.value.contact = 'Contact number is required.'; isValid = false; }
+  if (!form.department) { localErrors.value.department = 'Department is required.'; isValid = false; }
+  if (!form.birth_date) { localErrors.value.birth_date = 'Birth date is required.'; isValid = false; }
+  if (!form.date_hired) { localErrors.value.date_hired = 'Date hired is required.'; isValid = false; }
+  if (!form.address) { localErrors.value.address = 'Permanent address is required.'; isValid = false; }
+
+  // Stop if errors
+  if (!isValid) {
+    showInfo('Missing Fields', 'Please fill out all the required fields.', 'error')
     return
   }
+
+  // Proceed if valid
   modals.value.confirm = true
 }
 
@@ -372,11 +468,23 @@ const submit = () => {
   form.post("/teachers", {
     forceFormData: true,
     onSuccess: () => {
+      // 1. Enable reset flag to pause watchers
+      isResetting.value = true
+
       showInfo('Success', 'Teacher registered successfully!', 'success')
       form.reset()
+      
+      // 2. Explicitly clear errors just in case
+      Object.keys(localErrors.value).forEach(key => localErrors.value[key] = '')
+      
       if (pdsRef.value)  pdsRef.value.value = ''
       if (photoRef.value) photoRef.value.value = ''
       photoPreview.value = null
+
+      // 3. Disable reset flag after DOM update
+      nextTick(() => {
+        isResetting.value = false
+      })
     },
     onError: (errors) => {
       const firstKey = Object.keys(errors || {})[0]

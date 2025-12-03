@@ -121,7 +121,7 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::get('/settings/backup/download/{name}', [SettingsController::class, 'download'])->name('settings.backup.download');
         Route::post('/settings/backup/restore/existing/{name}', [SettingsController::class, 'restoreFromExisting'])->name('settings.backup.restore.existing');
         Route::post('/settings/backup/restore/upload', [SettingsController::class, 'restoreFromUpload'])->name('settings.backup.restore.upload');
-
+        Route::delete('/settings/backup/delete/{name}', [SettingsController::class, 'delete'])->name('settings.backup.delete');
         // Logs
         Route::get('/logs', [LogController::class, 'index'])->name('logs.index');
     });

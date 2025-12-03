@@ -401,4 +401,32 @@ class SettingsController extends Controller
             // ignore permission errors
         }
     }
+    public function delete(string $name)
+    {
+        // Security: Clean filename to prevent traversing directories
+        $name = basename($name);
+        $full = storage_path("app/backups/{$name}");
+
+        if (!file_exists($full)) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Backup not found.'
+            ], 404);
+        }
+
+        // Attempt deletion
+        try {
+            @unlink($full);
+        } catch (\Exception $e) {
+            return response()->json([
+                'ok' => false,
+                'message' => 'Could not delete file due to permission error.'
+            ], 500);
+        }
+
+        return response()->json([
+            'ok' => true,
+            'message' => 'Backup deleted successfully.',
+        ]);
+    }
 }
