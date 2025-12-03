@@ -92,6 +92,7 @@ class BackupService
             'zip' => $fullZip,
             'db_restored' => false,
             'files' => ['teacher' => ['ok' => 0, 'miss' => 0], 'property' => ['ok' => 0, 'miss' => 0]],
+            'misc_restored' => false,
             'warnings' => [],
         ];
 
@@ -137,6 +138,7 @@ class BackupService
         if (!is_dir($publicRoot))
             @mkdir($publicRoot, 0755, true);
 
+        // Root inside zip where public files were stored
         $rootInZip = $this->findDirCaseInsensitive($tmp, 'storage_public');
 
         $teacherDocs = Document::query()
@@ -204,31 +206,48 @@ class BackupService
         }
 
         // ✅ 5) Restore any "misc" public files (previews/, converted/, branding/, etc.)
-        // These were added under "storage_public/misc/{original-relative-path}"
-        $miscRoot = $this->findDirCaseInsensitive($tmp, 'storage_public/misc');
-        if ($miscRoot) {
-            $copyTree = function (string $src, string $dstBase) {
-                $it = new \RecursiveIteratorIterator(
-                    new \RecursiveDirectoryIterator($src, \FilesystemIterator::SKIP_DOTS),
-                    \RecursiveIteratorIterator::SELF_FIRST
-                );
-                foreach ($it as $node) {
-                    $rel = $it->getSubPathName(); // path relative to $src
-                    $to = rtrim($dstBase, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $rel;
-                    if ($node->isDir()) {
-                        if (!is_dir($to))
-                            @mkdir($to, 0755, true);
-                    } else {
-                        if (!is_dir(dirname($to)))
-                            @mkdir(dirname($to), 0755, true);
-                        @copy($node->getPathname(), $to);
-                    }
-                }
-            };
+        // Use findPathCaseInsensitive so nested segments like storage_public/misc are resolved correctly.
+        $miscRestored = false;
+        try {
+            // Try to find "storage_public/misc" path inside extracted tree
+            $miscRoot = $this->findPathCaseInsensitive($tmp, 'storage_public/misc');
 
-            // Copy everything under misc/ back to storage/app/public preserving paths
-            $copyTree($miscRoot, $publicRoot);
+            // If above fails, try to find "misc" anywhere under tmp (best-effort)
+            if (!$miscRoot) {
+                $miscRoot = $this->findDirCaseInsensitive($tmp, 'misc');
+            }
+
+            if ($miscRoot && is_dir($miscRoot)) {
+                $copyTree = function (string $src, string $dstBase) {
+                    $it = new \RecursiveIteratorIterator(
+                        new \RecursiveDirectoryIterator($src, \FilesystemIterator::SKIP_DOTS),
+                        \RecursiveIteratorIterator::SELF_FIRST
+                    );
+                    foreach ($it as $node) {
+                        $rel = $it->getSubPathName(); // path relative to $src
+                        $to = rtrim($dstBase, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $rel;
+                        if ($node->isDir()) {
+                            if (!is_dir($to))
+                                @mkdir($to, 0755, true);
+                        } else {
+                            if (!is_dir(dirname($to)))
+                                @mkdir(dirname($to), 0755, true);
+                            // Use copy which preserves binary bytes; suppress warnings
+                            @copy($node->getPathname(), $to);
+                        }
+                    }
+                };
+
+                $copyTree($miscRoot, $publicRoot);
+                $miscRestored = true;
+            }
+        } catch (\Throwable $e) {
+            // don't fail the whole restore for misc copy problem; log in report
+            $report['warnings'][] = 'Misc restore failed: ' . $e->getMessage();
+            $miscRestored = false;
         }
+
+        $report['misc_restored'] = $miscRestored;
 
         $zip->close();
         $this->rrmdir($tmp);
@@ -236,6 +255,9 @@ class BackupService
         $msg = 'Restore completed.';
         if ($report['files']['teacher']['miss'] || $report['files']['property']['miss']) {
             $msg .= ' Some files were not found in the archive.';
+        }
+        if (!$miscRestored) {
+            $msg .= ' (preview/misc files were not found or not restored.)';
         }
 
         return [true, $msg, $report];
@@ -256,6 +278,10 @@ class BackupService
         return null;
     }
 
+    /**
+     * Find a directory by name (case-insensitive) anywhere under $baseDir.
+     * Returns full path to the first match or null.
+     */
     protected function findDirCaseInsensitive(string $baseDir, string $dirName): ?string
     {
         $it = new \RecursiveIteratorIterator(
@@ -268,6 +294,52 @@ class BackupService
             }
         }
         return null;
+    }
+
+    /**
+     * Find a nested path inside $baseDir case-insensitively.
+     * Example: findPathCaseInsensitive($tmp, 'storage_public/misc')
+     * Returns full path of the matched directory or null.
+     */
+    protected function findPathCaseInsensitive(string $baseDir, string $path): ?string
+    {
+        $segments = array_filter(preg_split('#[\\/\\\\]+#', $path));
+        if (empty($segments)) {
+            return null;
+        }
+
+        $currentCandidates = [$baseDir];
+
+        foreach ($segments as $seg) {
+            $segLower = strtolower($seg);
+            $nextCandidates = [];
+            foreach ($currentCandidates as $cand) {
+                if (!is_dir($cand)) {
+                    continue;
+                }
+                $dh = @opendir($cand);
+                if ($dh === false) {
+                    continue;
+                }
+                while (($entry = readdir($dh)) !== false) {
+                    if ($entry === '.' || $entry === '..')
+                        continue;
+                    $full = $cand . DIRECTORY_SEPARATOR . $entry;
+                    if (is_dir($full) && strtolower($entry) === $segLower) {
+                        $nextCandidates[] = $full;
+                    }
+                }
+                closedir($dh);
+            }
+            if (empty($nextCandidates)) {
+                // no match for this segment under any candidate -> fail early
+                return null;
+            }
+            $currentCandidates = $nextCandidates;
+        }
+
+        // return first candidate that ended up matching all segments
+        return $currentCandidates[0] ?? null;
     }
 
     protected function buildTeacherOrganizedPath(?string $root, string $teacher, string $category, string $origName): ?string
