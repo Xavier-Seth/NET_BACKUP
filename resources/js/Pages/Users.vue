@@ -4,22 +4,25 @@ import { router, usePage } from '@inertiajs/vue3'
 import MainLayout from '@/Layouts/MainLayout.vue'
 import axios from 'axios'
 
+// --- State Variables ---
 const users = ref([])
 const loading = ref(true)
 const searchQuery = ref('')
-const statusFilter = ref('active')
-const selectedRoles = ref({ admin: false, adminStaff: false })
+const statusFilter = ref('active') // 'active' or 'inactive'
+const roleFilter = ref('All')      // 'All', 'Teacher', 'Admin', 'Admin Staff'
+
 const sortKey = ref('full_name')
 const sortAsc = ref(true)
 
+// Modals
 const showDeleteModal = ref(false)
 const selectedUser = ref(null)
-
-const showEditModal = ref(false)         // <-- new: controls edit modal visibility
-const editModalUser = ref(null)          // <-- new: holds user being edited
+const showEditModal = ref(false)
+const editModalUser = ref(null)
 
 const currentUserId = usePage().props.auth.user.id
 
+// --- API Calls ---
 const fetchUsers = async () => {
   try {
     const response = await axios.get('/api/users')
@@ -31,22 +34,29 @@ const fetchUsers = async () => {
   }
 }
 
+// --- Filtering & Sorting ---
 const toggleStatusFilter = () => {
   statusFilter.value = statusFilter.value === 'active' ? 'inactive' : 'active'
 }
 
 const filteredUsers = computed(() => {
   return users.value.filter(user => {
+    // 1. Search Logic
     const fullName = `${user.last_name} ${user.first_name} ${user.middle_name}`.toLowerCase()
     const search = searchQuery.value.toLowerCase()
-
     const matchesSearch = fullName.includes(search)
-    const matchesStatus = user.status.toLowerCase() === statusFilter.value
 
-    const matchesRole =
-      (!selectedRoles.value.admin && !selectedRoles.value.adminStaff) ||
-      (selectedRoles.value.admin && user.role.toLowerCase() === 'admin') ||
-      (selectedRoles.value.adminStaff && user.role.toLowerCase() === 'admin staff')
+    // 2. Status Logic (Case-Insensitive Fix)
+    // This ensures 'Inactive' (capitalized) matches 'inactive' (lowercase)
+    const userStatus = (user.status || '').toLowerCase()
+    const currentFilter = statusFilter.value.toLowerCase()
+    const matchesStatus = userStatus === currentFilter
+
+    // 3. Role Logic
+    let matchesRole = true
+    if (roleFilter.value !== 'All') {
+        matchesRole = user.role === roleFilter.value
+    }
 
     return matchesSearch && matchesStatus && matchesRole
   })
@@ -79,28 +89,32 @@ const sortUsers = key => {
   }
 }
 
-// open modal instead of browser confirm
-const confirmEdit = user => {
-  if (!user?.id) {
-    // simply ignore invalid selections (no native alert)
-    console.warn('Invalid user selected for edit.')
-    return
-  }
+// --- Actions (Edit & Delete) ---
 
-  // set the modal data and open the modal
+const confirmEdit = user => {
+  if (!user?.id) return
   editModalUser.value = user
   showEditModal.value = true
 }
 
-// called when user confirms inside the modal
 const proceedToEdit = () => {
   if (!editModalUser.value?.id) return
-
-  // close modal first
+  
+  // Close the modal first
   showEditModal.value = false
+  const user = editModalUser.value
 
-  // navigate to edit route
-  router.get(route('admin.edit-user', { id: editModalUser.value.id }))
+  if (user.role === 'Teacher') {
+    // If Teacher, go to the specialized Teacher Edit Page
+    // We use teacher_id if available (from your updated controller), otherwise user.id
+    const targetId = user.teacher_id || user.id
+    if (!user.teacher_id) console.warn("Warning: Using User ID instead of Teacher ID. Check Controller.")
+    
+    router.get(route('teachers.edit', { teacher: targetId }))
+  } else {
+    // If Admin/Staff, go to the generic Admin Edit User Page
+    router.get(route('admin.edit-user', { id: user.id }))
+  }
 }
 
 const confirmDelete = user => {
@@ -108,7 +122,6 @@ const confirmDelete = user => {
     alert('⚠️ You cannot delete your own account while logged in.')
     return
   }
-
   selectedUser.value = user
   showDeleteModal.value = true
 }
@@ -118,9 +131,9 @@ const deleteUser = async () => {
 
   try {
     await axios.delete(`/api/users/${selectedUser.value.id}`)
+    // Remove deleted user from list locally
     users.value = users.value.filter(u => u.id !== selectedUser.value.id)
     showDeleteModal.value = false
-
     alert(`${selectedUser.value.last_name}, ${selectedUser.value.first_name} was successfully deleted.`)
   } catch (error) {
     console.error('Delete failed:', error)
@@ -133,41 +146,64 @@ onMounted(fetchUsers)
 
 <template>
   <MainLayout>
-    <div class="filter-container">
-      <div class="filters">
-        <button
-          class="btn toggle-status-btn"
-          :class="statusFilter === 'active' ? 'btn-danger' : 'btn-success'"
-          @click="toggleStatusFilter"
-        >
-          {{ statusFilter === 'active' ? 'Inactive Users' : 'Active Users' }}
-        </button>
+    
+    <div class="filter-header d-flex justify-content-between align-items-center mb-3 mt-3">
+        
+        <div class="d-flex align-items-center gap-3 flex-wrap">
+            <button
+                class="btn toggle-status-btn text-white fw-bold"
+                :class="statusFilter === 'active' ? 'btn-danger' : 'btn-success'"
+                @click="toggleStatusFilter"
+            >
+                {{ statusFilter === 'active' ? 'Inactive Users' : 'Active Users' }}
+            </button>
 
-        <div class="role-filter">
-          <label class="form-check">
-            <input type="checkbox" class="form-check-input" v-model="selectedRoles.admin" />
-            <span>Admin</span>
-          </label>
-
-          <label class="form-check">
-            <input type="checkbox" class="form-check-input" v-model="selectedRoles.adminStaff" />
-            <span>Admin Staff</span>
-          </label>
+            <div class="role-pills d-flex gap-2">
+                <button 
+                    class="pill-btn" 
+                    :class="{ active: roleFilter === 'All' }" 
+                    @click="roleFilter = 'All'"
+                >
+                    All Users
+                </button>
+                <button 
+                    class="pill-btn" 
+                    :class="{ active: roleFilter === 'Teacher' }" 
+                    @click="roleFilter = 'Teacher'"
+                >
+                    Teachers
+                </button>
+                <button 
+                    class="pill-btn" 
+                    :class="{ active: roleFilter === 'Admin' }" 
+                    @click="roleFilter = 'Admin'"
+                >
+                    Admins
+                </button>
+                <button 
+                    class="pill-btn" 
+                    :class="{ active: roleFilter === 'Admin Staff' }" 
+                    @click="roleFilter = 'Admin Staff'"
+                >
+                    Staff
+                </button>
+            </div>
         </div>
-      </div>
 
-      <input
-        type="text"
-        v-model="searchQuery"
-        class="form-control search-bar"
-        placeholder="Search by full name (Last or First Name)"
-      />
+        <div class="search-wrapper">
+            <input
+                type="text"
+                v-model="searchQuery"
+                class="form-control search-bar"
+                placeholder="Search by full name..."
+            />
+        </div>
     </div>
 
     <div v-if="loading" class="loading">Loading users...</div>
 
-    <div v-else class="table-container mt-3">
-      <table class="table users-table">
+    <div v-else class="table-container shadow-sm">
+      <table class="table users-table mb-0">
         <thead>
           <tr>
             <th @click="sortUsers('full_name')">Name</th>
@@ -180,8 +216,14 @@ onMounted(fetchUsers)
 
         <tbody>
           <tr v-for="user in sortedUsers" :key="user.id">
-            <td>{{ user.last_name }}, {{ user.first_name }} {{ user.middle_name }}</td>
-            <td>{{ user.role }}</td>
+            <td class="fw-bold text-dark">
+                {{ user.last_name }}, {{ user.first_name }} {{ user.middle_name }}
+            </td>
+            
+            <td>
+                {{ user.role }}
+            </td>
+
             <td>{{ user.email }}</td>
 
             <td>
@@ -193,30 +235,47 @@ onMounted(fetchUsers)
             </td>
 
             <td>
-              <button class="btn btn-edit" @click="confirmEdit(user)">
+              <button class="btn btn-edit me-2" @click="confirmEdit(user)">
                 <i class="bi bi-pencil-square"></i>
               </button>
 
-              <button class="btn btn-delete ms-2" @click="confirmDelete(user)">
+              <button class="btn btn-delete" @click="confirmDelete(user)">
                 <i class="bi bi-trash"></i>
               </button>
             </td>
+          </tr>
+          <tr v-if="sortedUsers.length === 0">
+              <td colspan="5" class="text-center text-muted py-4">
+                  No {{ statusFilter }} users found matching criteria.
+              </td>
           </tr>
         </tbody>
       </table>
     </div>
 
-    <!-- Delete Modal (unchanged) -->
     <div v-if="showDeleteModal" class="modal-backdrop">
       <div class="modal-box">
-        <h5>Confirm Deletion</h5>
-
-        <p>
+        <div class="text-danger mb-2 text-center">
+            <i class="bi bi-exclamation-triangle-fill fs-1"></i>
+        </div>
+        <h5 class="text-center fw-bold">Confirm Deletion</h5>
+        
+        <p class="mb-3 text-center">
           Are you sure you want to delete
           <strong>{{ selectedUser?.last_name }}, {{ selectedUser?.first_name }}</strong>?
         </p>
 
-        <div class="modal-actions">
+        <div v-if="selectedUser?.role === 'Teacher'" class="alert alert-warning text-start" style="font-size: 0.9rem;">
+            <strong>⚠️ Critical Warning:</strong> This user is a <strong>Teacher</strong>. 
+            Deleting this account will also permanently delete:
+            <ul class="mb-0 mt-1 ps-3">
+                <li>Their <strong>Teacher Profile</strong></li>
+                <li>All <strong>Uploaded Documents</strong></li>
+                <li>All Logs associated with them</li>
+            </ul>
+        </div>
+
+        <div class="modal-actions d-flex justify-content-center gap-2 mt-4">
           <button class="btn btn-secondary" @click="showDeleteModal = false">
             Cancel
           </button>
@@ -227,21 +286,18 @@ onMounted(fetchUsers)
       </div>
     </div>
 
-    <!-- EDIT Modal (new) -->
     <div v-if="showEditModal" class="modal-backdrop">
       <div class="modal-box">
-        <h5>Edit User</h5>
-
+        <h5 class="fw-bold mb-3">Edit User</h5>
         <p>
           Do you want to edit the profile of
           <strong>{{ editModalUser?.last_name }}, {{ editModalUser?.first_name }}</strong>?
         </p>
-
-        <div class="modal-actions">
+        <div class="modal-actions d-flex justify-content-end gap-2 mt-4">
           <button class="btn btn-secondary" @click="showEditModal = false">
             Cancel
           </button>
-          <button class="btn btn-danger" @click="proceedToEdit">
+          <button class="btn btn-primary" @click="proceedToEdit">
             Edit
           </button>
         </div>
@@ -251,224 +307,126 @@ onMounted(fetchUsers)
 </template>
 
 <style scoped>
-/* (CSS was kept exactly the same — only spacing/indentation adjusted) */
-
-.filter-container {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 12px;
-  align-items: center;
-  justify-content: space-between;
-  margin-top: 10px;
+/* Filter Header Layout */
+.filter-header {
+    flex-wrap: wrap; 
+    gap: 15px;
 }
 
-.filters {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 10px;
-}
-
+/* Toggle Button */
 .toggle-status-btn {
-  min-width: 150px;
+    min-width: 140px;
+    border-radius: 8px;
+    font-size: 0.9rem;
 }
 
-.role-filter {
-  display: flex;
-  gap: 10px;
+/* Pill Buttons (The tabs) */
+.pill-btn {
+    border: 1px solid #e0e0e0;
+    background: white;
+    color: #6b7280;
+    padding: 6px 16px;
+    border-radius: 50px; /* Fully rounded pills */
+    font-size: 14px;
+    font-weight: 500;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+.pill-btn:hover {
+    background: #f9fafb;
+    border-color: #d1d5db;
+}
+.pill-btn.active {
+    background: #19184f; /* Your theme dark blue */
+    color: white;
+    border-color: #19184f;
+    font-weight: 600;
+    box-shadow: 0 2px 4px rgba(25, 24, 79, 0.2);
 }
 
-.form-check {
-  display: flex;
-  align-items: center;
-  gap: 5px;
-}
-
+/* Search Bar */
 .search-bar {
-  flex-grow: 1;
-  max-width: 300px;
-  padding: 8px;
-  border-radius: 8px;
-  border: 1px solid #ccc;
+    width: 300px; 
+    padding: 8px 12px; 
+    border-radius: 8px; 
+    border: 1px solid #ccc;
 }
-
 .search-bar:focus {
-  border-color: #007bff;
-  box-shadow: 0 0 5px rgba(0, 123, 255, 0.5);
+    border-color: #19184f;
+    box-shadow: 0 0 0 3px rgba(25, 24, 79, 0.1);
 }
 
-.table-container {
-  background: white;
-  padding: 10px;
-  border-radius: 10px;
-  overflow-x: auto;
-  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+/* Table Styling */
+.table-container { 
+    background: white; 
+    padding: 0; 
+    border-radius: 10px; 
+    overflow: hidden; /* Clips the table corners */
+}
+.users-table { 
+    width: 100%; 
+    border-collapse: collapse; 
+    min-width: 800px; 
+}
+.users-table th { 
+    background: #19184f; 
+    color: white; 
+    padding: 14px 16px; 
+    cursor: pointer; 
+    font-weight: 500;
+    text-transform: uppercase;
+    font-size: 0.85rem;
+    letter-spacing: 0.5px;
+}
+.users-table th:hover { background: #2a286e; }
+.users-table td { 
+    padding: 12px 16px; 
+    border-bottom: 1px solid #f0f0f0; 
+    vertical-align: middle; 
+    color: #374151;
+}
+.users-table tr:last-child td { border-bottom: none; }
+.users-table tr:hover { background-color: #f9fafb; }
+
+/* Buttons */
+.btn-edit { background: #ffc107; color: #212529; border: none; padding: 6px 10px; border-radius: 6px; }
+.btn-edit:hover { background: #e0a800; }
+.btn-delete { background: #dc3545; color: white; border: none; padding: 6px 10px; border-radius: 6px; }
+.btn-delete:hover { background: #bb2d3b; }
+
+/* Status Badge */
+.badge { 
+    font-size: 12px; 
+    padding: 6px 12px; 
+    border-radius: 20px; 
+    text-transform: capitalize; 
+    text-align: center; 
+    min-width: 80px; 
+    font-weight: 600; 
+    display: inline-block;
 }
 
-.users-table {
-  width: 100%;
-  border-collapse: collapse;
-  min-width: 800px;
-}
-
-.users-table th {
-  background: #19184f;
-  color: white;
-  padding: 12px;
-  cursor: pointer;
-}
-
-.users-table th:hover {
-  background: #3a35c4;
-}
-
-.users-table td {
-  padding: 10px;
-  border-bottom: 1px solid #ddd;
-}
-
-.btn-edit,
-.btn-delete {
-  border: none;
-  padding: 6px 10px;
-  border-radius: 5px;
-  font-size: 14px;
-  color: white;
-  cursor: pointer;
-}
-
-.btn-edit {
-  background: #ffc107;
-  color: black;
-}
-
-.btn-edit:hover {
-  background: #e0a800;
-}
-
-.btn-delete {
-  background: #dc3545;
-}
-
-.btn-delete:hover {
-  background: #c82333;
-}
-
-.badge {
-  font-size: 12px;
-  padding: 6px 12px;
-  border-radius: 20px;
-  text-transform: capitalize;
-  text-align: center;
-  min-width: 90px;
-  font-weight: 600;
-}
-
-/* Mobile */
-@media (max-width: 768px) {
-  .filter-container {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
+/* Mobile Responsive */
+@media (max-width: 992px) {
+  .filter-header {
+      flex-direction: column;
+      align-items: stretch !important;
   }
-
-  .filters {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
+  .search-wrapper { width: 100%; }
+  .search-bar { width: 100%; }
+  
+  .role-pills {
+      flex-wrap: wrap;
+      justify-content: start;
   }
-
-  .search-bar {
-    width: 100%;
-    max-width: 100%;
-  }
-
-  .users-table,
-  .users-table thead,
-  .users-table tbody,
-  .users-table th,
-  .users-table td,
-  .users-table tr {
-    display: block;
-  }
-
-  .users-table thead {
-    display: none;
-  }
-
-  .users-table tr {
-    margin-bottom: 15px;
-    border: 1px solid #eee;
-    border-radius: 10px;
-    padding: 10px;
-    background: #f9f9f9;
-  }
-
-  .users-table td {
-    position: relative;
-    padding-left: 50%;
-    text-align: left;
-    border-bottom: 1px solid #ddd;
-  }
-
-  .users-table td::before {
-    position: absolute;
-    top: 10px;
-    left: 10px;
-    width: 45%;
-    font-weight: bold;
-    white-space: nowrap;
-    color: #333;
-  }
-
-  .users-table td:nth-of-type(1)::before { content: "Name"; }
-  .users-table td:nth-of-type(2)::before { content: "Role"; }
-  .users-table td:nth-of-type(3)::before { content: "Email"; }
-  .users-table td:nth-of-type(4)::before { content: "Status"; }
-  .users-table td:nth-of-type(5)::before { content: "Actions"; }
+  
+  /* Scrollable table on mobile */
+  .table-container { overflow-x: auto; }
 }
 
-/* Modal */
-.modal-backdrop {
-  position: fixed;
-  top: 0;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  background: rgba(0, 0, 0, 0.5);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  z-index: 999;
-}
-
-.modal-box {
-  background: white;
-  padding: 20px 30px;
-  border-radius: 10px;
-  width: 90%;
-  max-width: 400px;
-  text-align: center;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: center;
-  gap: 20px;
-  margin-top: 20px;
-}
-
-.modal-actions .btn {
-  min-width: 110px;
-}
-
-.btn-secondary {
-  background: #6c757d;
-  color: white;
-}
-
-.btn-secondary:hover {
-  background: #5a6268;
-}
+/* Modal Styles */
+.modal-backdrop { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0, 0, 0, 0.5); display: flex; align-items: center; justify-content: center; z-index: 9999; }
+.modal-box { background: white; padding: 25px; border-radius: 12px; width: 90%; max-width: 420px; box-shadow: 0 10px 30px rgba(0,0,0,0.2); }
+.alert { padding: 12px; border-radius: 8px; border: 1px solid transparent; }
+.alert-warning { background-color: #fff3cd; color: #856404; border-color: #ffeeba; }
 </style>

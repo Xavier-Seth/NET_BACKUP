@@ -23,7 +23,7 @@ class User extends Authenticatable
         'password',
         'role',
         'status',
-        'photo_path', // 
+        'photo_path',
     ];
 
     protected $hidden = [
@@ -32,6 +32,15 @@ class User extends Authenticatable
     ];
 
     protected $casts = [
-        'date_of_birth' => 'date:Y-m-d', //Ensures proper date format
+        'date_of_birth' => 'date:Y-m-d', // Ensures proper date format
     ];
+
+    /**
+     * Relationship: Get the teacher profile associated with this user.
+     * This allows you to do: $user->teacher->employee_id
+     */
+    public function teacher()
+    {
+        return $this->hasOne(Teacher::class);
+    }
 }

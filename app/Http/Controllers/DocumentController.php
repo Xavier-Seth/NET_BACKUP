@@ -18,6 +18,9 @@ use App\Services\DocumentUploadService;
 use App\Services\CategorizationService;
 use App\Services\LogService;
 
+// --- 1. IMPORT NOTIFICATION CLASS ---
+use App\Notifications\DocumentUploaded;
+
 class DocumentController extends Controller
 {
     /** 📂 Main Teacher Documents Page */
@@ -260,6 +263,24 @@ class DocumentController extends Controller
 
                 LogService::record("Uploaded {$typeLabel} '{$doc->name}'{$teacherPart}{$categoryPart}.");
 
+                // --- 2. SEND NOTIFICATION TO TEACHER IF APPLICABLE ---
+                if ($teacherId) {
+                    $teacherProfile = Teacher::find($teacherId);
+                    // Check if this teacher has a linked User account
+                    if ($teacherProfile && $teacherProfile->user_id) {
+                        $teacherUser = User::find($teacherProfile->user_id);
+
+                        if ($teacherUser) {
+                            $teacherUser->notify(new DocumentUploaded([
+                                'message' => "New document uploaded: {$orig}",
+                                'document_name' => $orig,
+                                'by_user' => $user->first_name . ' ' . $user->last_name,
+                            ]));
+                        }
+                    }
+                }
+                // -----------------------------------------------------
+
                 $results[] = [
                     'name' => $orig,
                     'success' => true,
@@ -392,14 +413,48 @@ class DocumentController extends Controller
         $teacherPart = $document->teacher ? " for teacher {$document->teacher->full_name}" : '';
         $categoryPart = $document->category ? " under category '{$document->category->name}'" : '';
 
+        // 1. Log the action
         LogService::record("Updated metadata for document '{$document->name}'{$teacherPart}{$categoryPart}.");
+
+        // 2. --- SEND NOTIFICATION TO TEACHER (NEWLY ADDED) ---
+        // We notify the teacher currently assigned to the document
+        if ($document->teacher_id) {
+            $teacherProfile = Teacher::find($document->teacher_id);
+
+            // Check if this teacher has a linked User account
+            if ($teacherProfile && $teacherProfile->user_id) {
+                $teacherUser = User::find($teacherProfile->user_id);
+                $currentUser = auth()->user(); // Get the Admin/Staff doing the edit
+
+                if ($teacherUser) {
+                    $teacherUser->notify(new DocumentUploaded([
+                        'message' => "Document details updated: {$document->name}",
+                        'document_name' => $document->name,
+                        'by_user' => $currentUser->first_name . ' ' . $currentUser->last_name,
+                    ]));
+                }
+            }
+        }
+        // -----------------------------------------------------
 
         return back()->with('success', 'Document metadata updated.');
     }
 
-    /** 🗑 Delete document (with log) */
+    /** 🗑 Delete document (with log AND NOTIFICATION) */
     public function destroy(Document $document)
     {
+        // 1. Get info before deletion so we can construct the notification
+        $document->loadMissing(['teacher']);
+
+        $teacherUserToNotify = null;
+        if ($document->teacher && $document->teacher->user_id) {
+            $teacherUserToNotify = User::find($document->teacher->user_id);
+        }
+
+        $docName = $document->name;
+        $currentUser = auth()->user();
+
+        // 2. Perform Deletion
         if ($document->path && Storage::disk('public')->exists($document->path)) {
             Storage::disk('public')->delete($document->path);
         }
@@ -407,15 +462,21 @@ class DocumentController extends Controller
             Storage::disk('public')->delete($document->pdf_preview_path);
         }
 
-        $document->loadMissing(['teacher', 'category']);
-
-        $teacherPart = $document->teacher ? " belonging to teacher {$document->teacher->full_name}" : '';
-        $categoryPart = $document->category ? " under category '{$document->category->name}'" : '';
-        $docName = $document->name;
-
         $document->delete();
 
-        LogService::record("Deleted document '{$docName}'{$teacherPart}{$categoryPart}.");
+        // 3. Log it
+        $teacherPart = $document->teacher ? " belonging to teacher {$document->teacher->full_name}" : '';
+        LogService::record("Deleted document '{$docName}'{$teacherPart}.");
+
+        // 4. --- SEND NOTIFICATION TO TEACHER ---
+        if ($teacherUserToNotify) {
+            $teacherUserToNotify->notify(new DocumentUploaded([
+                'message' => "Document deleted: {$docName}",
+                'document_name' => $docName,
+                'by_user' => $currentUser->first_name . ' ' . $currentUser->last_name,
+            ]));
+        }
+        // ---------------------------------------
 
         return back()->with('success', 'Document deleted successfully.');
     }

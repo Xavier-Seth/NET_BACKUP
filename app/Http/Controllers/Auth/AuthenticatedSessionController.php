@@ -33,6 +33,28 @@ class AuthenticatedSessionController extends Controller
 
         $request->session()->regenerate();
 
+        // --- 1. SECURITY CHECK: Is the user active? ---
+        if ($request->user()->status !== 'active') {
+            // If not active, log them out immediately
+            Auth::guard('web')->logout();
+
+            $request->session()->invalidate();
+            $request->session()->regenerateToken();
+
+            // Redirect back to login with an error message
+            return redirect()->route('login')->withErrors([
+                'email' => 'Your account is inactive. Please contact the administrator.',
+            ]);
+        }
+
+        // --- 2. ROLE REDIRECTION: Where should they go? ---
+
+        // If the user is a Teacher, send them to their own profile view
+        if ($request->user()->role === 'Teacher') {
+            return redirect()->route('teacher.my-profile');
+        }
+
+        // Default redirect for Admin, Staff, or anyone else
         return redirect()->intended(route('dashboard', absolute: false));
     }
 

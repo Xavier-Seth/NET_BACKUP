@@ -39,7 +39,7 @@ class HandleInertiaRequests extends Middleware
         ];
 
         return array_merge(parent::share($request), [
-            // Authenticated user — now including photo_path
+            // Authenticated user data + Notifications
             'auth' => [
                 'user' => $request->user() ? [
                     'id' => $request->user()->id,
@@ -48,10 +48,16 @@ class HandleInertiaRequests extends Middleware
                     'role' => $request->user()->role,
                     'photo_path' => $request->user()->photo_path,
                 ] : null,
+
+                // --- NEW: Pass unread notifications to frontend ---
+                'notifications' => $request->user()
+                    ? $request->user()->unreadNotifications
+                    : [],
             ],
 
-            // Any flash error messages
+            // Any flash error/success messages
             'error' => Session::pull('error'),
+            'success' => Session::pull('success'), // Added success just in case
 
             // Teacher document types (global)
             'teacherDocumentTypes' => (new CategorizationService)->getTeacherDocumentTypes(),

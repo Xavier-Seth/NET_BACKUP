@@ -11,18 +11,19 @@
       </header>
 
       <nav class="tabs">
-        <button class="tab" :class="{ active: activeTab === 'general' }" @click="activeTab = 'general'">
+        <button v-if="isAdmin" class="tab" :class="{ active: activeTab === 'general' }" @click="activeTab = 'general'">
           <i class="bi bi-sliders"></i><span>General</span>
         </button>
-        <button class="tab" :class="{ active: activeTab === 'backup' }" @click="activeTab = 'backup'">
+        <button v-if="isAdmin" class="tab" :class="{ active: activeTab === 'backup' }" @click="activeTab = 'backup'">
           <i class="bi bi-hdd-stack"></i><span>Backup</span>
         </button>
+        
         <button class="tab" :class="{ active: activeTab === 'security' }" @click="activeTab = 'security'">
           <i class="bi bi-shield-lock"></i><span>Security</span>
         </button>
       </nav>
 
-      <section v-show="activeTab === 'general'" class="card">
+      <section v-if="isAdmin" v-show="activeTab === 'general'" class="card">
         <div class="card-h">
           <div>
             <h5 class="card-title"><i class="bi bi-gear me-2"></i>General</h5>
@@ -63,7 +64,7 @@
         </div>
       </section>
 
-      <section v-show="activeTab === 'backup'" class="card">
+      <section v-if="isAdmin" v-show="activeTab === 'backup'" class="card">
         <div class="card-h">
           <div>
             <h5 class="card-title"><i class="bi bi-hdd-network me-2"></i>Backup</h5>
@@ -256,11 +257,9 @@
       <div class="spinner"></div>
       <div class="txts">
         <h6 class="m-0">{{ backingUp ? 'Creating Backup…' : 'Restoring…' }}</h6>
-        
         <small class="text-muted">
           {{ backingUp ? 'Please wait while we archive your system.' : (restoreStep || 'Unpacking data...') }}
         </small>
-        
         <div v-if="restoring && restoringName" class="mt-1 small">
           <i class="bi bi-file-zip me-1"></i><strong>{{ restoringName }}</strong>
         </div>
@@ -341,7 +340,15 @@ import { usePage, router } from '@inertiajs/vue3'
 import Sidebar from '@/Components/Sidebar.vue'
 
 const page = usePage()
-const activeTab = ref('general')
+
+// --- USER ROLE CHECK ---
+const user = computed(() => page.props.auth.user)
+const isAdmin = computed(() => user.value && user.value.role === 'Admin')
+
+// --- ACTIVE TAB LOGIC ---
+// If Admin, start at 'general'. If Teacher, start at 'security'.
+const activeTab = ref(isAdmin.value ? 'general' : 'security')
+
 const loading = ref(false)
 
 const form = ref({
@@ -360,7 +367,7 @@ const successMsg = ref('')
 
 /* -------- Blocking UI States -------- */
 const restoring = ref(false)
-const backingUp = ref(false) // <--- NEW STATE
+const backingUp = ref(false) 
 
 const restoringName = ref('')
 const restoringSource = ref('')
@@ -523,7 +530,7 @@ const confirmAndRun = async () => {
   if (!confirm('Run a new backup now?')) return
   try {
     loading.value = true
-    backingUp.value = true // <--- Trigger Full Screen Block
+    backingUp.value = true 
     
     const res = await securedFetch(route('settings.backup.run'), { method: 'POST' })
     if (!res.ok) {
@@ -536,7 +543,7 @@ const confirmAndRun = async () => {
     setTimeout(() => refreshArchives(pagination.value.current_page), 1500)
   } finally {
     loading.value = false
-    backingUp.value = false // <--- Remove Full Screen Block
+    backingUp.value = false 
   }
 }
 
@@ -623,7 +630,7 @@ const executeRestore = async () => {
   showRestoreModal.value = false
   
   loading.value = true
-  restoring.value = true // Blocks UI via Overlay
+  restoring.value = true 
   restoreStep.value = 'Initializing restore...'
 
   try {
@@ -695,8 +702,15 @@ const onDownloadClick = (e, name) => {
   }
 }
 
-watch(activeTab, (tab) => { if (tab === 'backup') refreshArchives(pagination.value.current_page) })
-onMounted(() => { if (activeTab.value === 'backup') refreshArchives(1) })
+watch(activeTab, (tab) => { 
+  // Only refresh backup archives if user is Admin and backup tab selected
+  if (tab === 'backup' && isAdmin.value) refreshArchives(pagination.value.current_page) 
+})
+
+onMounted(() => { 
+  // Only refresh backup archives if user is Admin and backup tab selected
+  if (activeTab.value === 'backup' && isAdmin.value) refreshArchives(1) 
+})
 </script>
 
 <style scoped>

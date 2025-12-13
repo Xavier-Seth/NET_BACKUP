@@ -39,9 +39,9 @@ const submit = () => {
 
   // server request
   form.post(route('login'), {
-    onSuccess: () => {
-      router.visit(route('dashboard'));
-    },
+    // --- FIX: REMOVED onSuccess router.visit() ---
+    // Inertia will now automatically follow the server's redirect.
+    
     onError: () => {
       triggerFadeOut();
     },
@@ -74,15 +74,12 @@ const clearErrors = (field) => {
         <p class="text-light" style="font-size: 14px;">Document Archiving System</p>
       </div>
 
-      <!-- General backend login error -->
       <div v-if="showError && form.errors.email && !localErrors.email && !localErrors.password"
            class="alert alert-danger py-2 px-3 mb-3" role="alert" style="font-size: 13px;">
         {{ form.errors.email }}
       </div>
 
-      <!-- Disable native HTML validation -->
       <form @submit.prevent="submit" novalidate>
-        <!-- Email field -->
         <div class="mb-2">
           <div class="input-group">
             <span class="input-group-text bg-dark text-white border-0">
@@ -101,7 +98,6 @@ const clearErrors = (field) => {
           </small>
         </div>
 
-        <!-- Password field -->
         <div class="mb-2">
           <div class="input-group">
             <span class="input-group-text bg-dark text-white border-0">

@@ -30,7 +30,7 @@ use App\Models\Category;
 
 Route::get('/csrf-token', function () {
     return response()->json(['token' => csrf_token()]);
-})->name('csrf.token');
+});
 
 Route::middleware('guest')->group(function () {
     Route::get('/', fn() => redirect()->route('login'));
@@ -60,10 +60,10 @@ require __DIR__ . '/auth.php';
 */
 Route::middleware(['auth', 'verified'])->group(function () {
 
-    // Dashboard
+    // Dashboard (Everyone)
     Route::get('/dashboard', [DashboardController::class, 'index'])->name('dashboard');
 
-    // Profile (self)
+    // Profile (Everyone - Account Settings)
     Route::get('/profile', [ProfileController::class, 'edit'])->name('profile.edit');
     Route::post('/profile', [ProfileController::class, 'update'])->name('profile.update');
 
@@ -76,26 +76,22 @@ Route::middleware(['auth', 'verified'])->group(function () {
     Route::post('/upload', [DocumentController::class, 'upload'])->name('documents.upload');
     Route::post('/upload/scan', [DocumentController::class, 'scan'])->name('documents.scan');
 
-    // Documents
+    // Documents (Everyone has access to view, Controller handles permissions)
     Route::get('/documents', [DocumentController::class, 'index'])->name('documents.index');
     Route::get('/documents/dtr', [DocumentController::class, 'dtrIndex'])->name('documents.dtr');
-    Route::patch('/documents/{document}/update-metadata', [DocumentController::class, 'updateMetadata'])
-        ->name('documents.update-metadata');
+    Route::patch('/documents/{document}/update-metadata', [DocumentController::class, 'updateMetadata'])->name('documents.update-metadata');
     Route::get('/documents/{document}/preview', [DocumentController::class, 'preview'])->name('documents.preview');
     Route::get('/documents/{document}/download', [DocumentController::class, 'download'])->name('documents.download');
     Route::delete('/documents/{document}', [DocumentController::class, 'destroy'])->name('documents.destroy');
-    Route::get('/documents/teachers-profile', [DocumentController::class, 'index'])
-        ->name('documents.teachers-profile');
+    Route::get('/documents/teachers-profile', [DocumentController::class, 'index'])->name('documents.teachers-profile');
 
     // School Property Documents
-    Route::get('/documents/school-properties', [SchoolPropertyDocumentController::class, 'index'])
-        ->name('school_properties.index');
-    Route::get('/documents/school-properties/{schoolDocument}/download', [SchoolPropertyDocumentController::class, 'download'])
-        ->name('school_properties.download');
-    Route::delete('/documents/school-properties/{schoolDocument}', [SchoolPropertyDocumentController::class, 'destroy'])
-        ->name('school_properties.destroy');
+    Route::get('/documents/school-properties', [SchoolPropertyDocumentController::class, 'index'])->name('school_properties.index');
+    Route::get('/documents/school-properties/{schoolDocument}/download', [SchoolPropertyDocumentController::class, 'download'])->name('school_properties.download');
+    Route::delete('/documents/school-properties/{schoolDocument}', [SchoolPropertyDocumentController::class, 'destroy'])->name('school_properties.destroy');
 
-    // Teachers (Admin + Admin Staff)
+
+    // --- TEACHERS MANAGEMENT (Admin + Admin Staff) ---
     Route::middleware('role:Admin,Admin Staff')->group(function () {
         Route::get('/teachers', [TeacherController::class, 'index'])->name('teachers.index');
         Route::get('/teachers/register', fn() => Inertia::render('Teacher/RegisterTeacher'))->name('teachers.register');
@@ -107,13 +103,25 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::delete('/teachers/{teacher}', [TeacherController::class, 'destroy'])->name('teachers.destroy');
     });
 
-    // Settings & Logs (Admin Only)
-    Route::middleware('role:Admin')->group(function () {
-        // Settings
+
+    // --- SHARED ROUTES (Admin, Admin Staff AND Teacher) ---
+    Route::middleware('role:Admin,Admin Staff,Teacher')->group(function () {
+
+        // 1. Settings (View Page & Update Password)
         Route::get('/settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::patch('/settings/password', [SettingsController::class, 'updatePassword'])->name('settings.security.update');
 
-        // Backup & General
+        // 2. Logs (View)
+        Route::get('/logs', [LogController::class, 'index'])->name('logs.index');
+
+        // 3. NEW: Teacher's Personal Profile (Read-Only)
+        Route::get('/my-profile', [TeacherController::class, 'myProfile'])->name('teacher.my-profile');
+    });
+
+
+    // --- STRICT ADMIN ONLY (Backup, General Settings, User Management) ---
+    Route::middleware('role:Admin')->group(function () {
+        // Settings: General & Backup
         Route::post('/settings/general', [SettingsController::class, 'updateGeneral'])->name('settings.general.update');
         Route::post('/settings/backup/run', [SettingsController::class, 'runBackup'])->name('settings.backup.run');
         Route::get('/settings/backup/run-download', [SettingsController::class, 'runAndDownload'])->name('settings.backup.run_download');
@@ -122,12 +130,10 @@ Route::middleware(['auth', 'verified'])->group(function () {
         Route::post('/settings/backup/restore/existing/{name}', [SettingsController::class, 'restoreFromExisting'])->name('settings.backup.restore.existing');
         Route::post('/settings/backup/restore/upload', [SettingsController::class, 'restoreFromUpload'])->name('settings.backup.restore.upload');
         Route::delete('/settings/backup/delete/{name}', [SettingsController::class, 'delete'])->name('settings.backup.delete');
-        // Logs
-        Route::get('/logs', [LogController::class, 'index'])->name('logs.index');
-    });
 
-    // Admin-only API for user delete self-protection
-    Route::middleware('role:Admin')->delete('/api/users/{id}', [UserController::class, 'destroy']);
+        // Admin User Management
+        Route::delete('/api/users/{id}', [UserController::class, 'destroy']);
+    });
 });
 
 /*

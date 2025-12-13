@@ -10,6 +10,7 @@ class Teacher extends Model
     use HasFactory;
 
     protected $fillable = [
+        'user_id',       // <--- 1. ADD THIS HERE
         'full_name',
         'first_name',
         'middle_name',
@@ -26,8 +27,17 @@ class Teacher extends Model
         'remarks',
         'pds_file_path',
         'photo_path',
-        'status',        // newly fillable
+        'status',
     ];
+
+    /**
+     * Relationship: Get the User (login account) that owns this profile.
+     * This allows you to do: $teacher->user->email or $teacher->user->notify(...)
+     */
+    public function user() // <--- 2. ADD THIS FUNCTION
+    {
+        return $this->belongsTo(User::class);
+    }
 
     /**
      * Get all documents uploaded for this teacher.
