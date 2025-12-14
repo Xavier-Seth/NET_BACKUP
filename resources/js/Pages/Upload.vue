@@ -13,9 +13,11 @@
           >
             <i class="bi bi-cloud-arrow-up-fill upload-icon text-2xl md:text-3xl"></i>
             <h2 class="text-lg md:text-xl font-bold mt-3 md:mt-4">Drag and drop your files</h2>
+            
             <p class="text-gray-500 text-xs md:text-sm mt-2">
-              Supports: PDF, DOCX, XLSX, XLS, PNG, JPG, JPEG, DOC
+              Supports: PDF, PNG, JPG, JPEG
             </p>
+            
             <p class="text-gray-500 text-xs md:text-sm mt-2">Or</p>
 
             <p v-if="flaskOffline" class="text-red-600 font-bold mt-2 text-sm">
@@ -29,7 +31,6 @@
               {{ successMessage }}
             </p>
 
-            <!-- Browse -->
             <div class="flex gap-2 justify-center mt-4">
               <input
                 id="fileInput"
@@ -39,7 +40,7 @@
                 class="hidden"
                 multiple
                 @change="handleFileUpload"
-                accept=".pdf,.doc,.docx,.xls,.xlsx,.png,.jpg,.jpeg"
+                accept=".pdf,.png,.jpg,.jpeg"
               />
               <button
                 @click="!busy && browseFile()"
@@ -51,10 +52,8 @@
               </button>
             </div>
 
-            <!-- Global spinner -->
             <div v-if="busy" class="spinner mt-5"></div>
 
-            <!-- File list (paginated) -->
             <div v-if="files.length" class="selected-files mt-5 w-full text-left">
               <div class="flex items-center justify-between mb-2">
                 <p class="text-gray-700 font-bold text-sm md:text-base">Selected Files:</p>
@@ -98,7 +97,6 @@
                     </div>
                   </div>
 
-                  <!-- Status chip + override toggle -->
                   <div class="mt-1.5 flex flex-wrap items-center gap-2">
                     <span class="chip" :class="it.override ? 'chip-warn' : 'chip-ok'">
                       <i :class="it.override ? 'bi bi-pencil-square' : 'bi bi-check2-circle'"></i>
@@ -125,7 +123,6 @@
                     </button>
                   </div>
 
-                  <!-- Detected view (with teacher select when required) -->
                   <div v-if="!it.override" class="mt-2 grid gap-1">
                     <div v-if="it.detectedCategory" class="text-green-700 font-semibold text-[13px]">
                       Category: {{ it.detectedCategory }}
@@ -154,7 +151,6 @@
                     </div>
                   </div>
 
-                  <!-- Override (Reclassify) controls -->
                   <div v-if="it.override" class="mt-2 grid gap-2 md:grid-cols-2">
                     <div>
                       <label class="small-label">Category</label>
@@ -200,7 +196,6 @@
                     </div>
                   </div>
 
-                  <!-- Validation hint -->
                   <div class="mt-1 text-[12px] text-gray-500">
                     <span
                       v-if="it.requiresTeacher && (!it.teacher_id && (it.override || !it.detectedTeacher))"
@@ -212,7 +207,6 @@
                 </li>
               </ul>
 
-              <!-- Pagination controls -->
               <div class="mt-2 flex items-center justify-between text-sm text-gray-600">
                 <span>{{ showingRangeText }}</span>
                 <div class="flex items-center gap-2">
@@ -235,7 +229,6 @@
               </div>
             </div>
 
-            <!-- Upload button -->
             <button
               v-if="files.length"
               @click="uploadFiles"
@@ -250,7 +243,6 @@
       </div>
     </div>
 
-    <!-- Duplicate Modal -->
     <DuplicatePromptModal
       v-if="showDuplicateModal"
       :existing-name="duplicateDocName"
@@ -259,7 +251,6 @@
       @cancel="handleCancelDuplicate"
     />
 
-    <!-- Uncategorized Modal -->
     <div v-if="showUncatModal" class="modal-overlay" @click.self="closeUncatModal">
       <div class="modal-card">
         <div class="modal-head">
@@ -282,7 +273,6 @@
       </div>
     </div>
 
-    <!-- Missing Teacher Modal -->
     <div v-if="showTeacherReqModal" class="modal-overlay" @click.self="closeTeacherReqModal">
       <div class="modal-card">
         <div class="modal-head">
@@ -299,6 +289,26 @@
         </div>
         <div class="modal-foot">
           <button class="btn-primary" @click="closeTeacherReqModal">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <div v-if="showInvalidFileModal" class="modal-overlay" @click.self="closeInvalidFileModal">
+      <div class="modal-card">
+        <div class="modal-head">
+          <h3 class="text-red-600">⚠️ Invalid File Type</h3>
+        </div>
+        <div class="modal-body">
+          <p class="text-sm text-gray-700">
+            The following files were skipped because they are not supported. <br>
+            Please upload only <strong>PDF, PNG, JPG, or JPEG</strong> files.
+          </p>
+          <ul class="mt-3 list-disc pl-5 text-sm text-gray-800 max-h-40 overflow-y-auto">
+            <li v-for="name in invalidFileList" :key="name">{{ name }}</li>
+          </ul>
+        </div>
+        <div class="modal-foot">
+          <button class="btn-primary" @click="closeInvalidFileModal">OK</button>
         </div>
       </div>
     </div>
@@ -338,6 +348,9 @@ export default {
       // Missing-teacher modal
       showTeacherReqModal: false,
       teacherRequiredList: [],
+      // NEW: Invalid file modal
+      showInvalidFileModal: false,
+      invalidFileList: [],
       // ---------- Pagination ----------
       pageSize: 10,
       currentPage: 1,
@@ -396,12 +409,31 @@ export default {
         requiresTeacher: false,
       };
     },
+    
+    // UPDATED: Logic to enforce PDF/Image restriction & Show Modal
     addFiles(fileList) {
       const added = [];
+      const invalidFiles = [];
+      const allowedExtensions = ['pdf', 'png', 'jpg', 'jpeg'];
+
       Array.from(fileList || []).forEach(f => {
+        const ext = f.name.split('.').pop().toLowerCase();
+        
+        if (!allowedExtensions.includes(ext)) {
+          invalidFiles.push(f.name);
+          return; // Skip this file
+        }
+
         const exists = this.files.some(it => it.file.name === f.name && it.file.size === f.size);
         if (!exists) added.push(this.makeItem(f));
       });
+
+      // Show invalid files modal instead of alert
+      if (invalidFiles.length > 0) {
+        this.invalidFileList = invalidFiles;
+        this.showInvalidFileModal = true;
+      }
+
       if (added.length) {
         this.files.push(...added);
         this.successMessage = "";
@@ -410,6 +442,12 @@ export default {
           this.scanQueued();
         });
       }
+    },
+
+    // NEW Helper to close the modal
+    closeInvalidFileModal() {
+      this.showInvalidFileModal = false;
+      this.invalidFileList = [];
     },
 
     // ---------- UI ----------
@@ -487,18 +525,15 @@ export default {
     },
 
     // ---------- Name matching helpers (new) ----------
-    // Normalize: lowercase, remove punctuation, collapse spaces.
     normalizeNameJS(s) {
       if (!s) return "";
-      // Use Unicode-aware punctuation removal if supported; fallback to ASCII-safe regex
       try {
         return String(s)
           .toLowerCase()
-          .replace(/[^\p{L}\s]/gu, "")   // remove punctuation (unicode letters preserved)
+          .replace(/[^\p{L}\s]/gu, "")   
           .replace(/\s+/g, " ")
           .trim();
       } catch (err) {
-        // Fallback for environments without \p{L}
         return String(s)
           .toLowerCase()
           .replace(/[^\w\s]|_/g, "")
@@ -507,14 +542,11 @@ export default {
       }
     },
 
-    // Tokenize into word tokens
     tokenizeNameJS(s) {
       const n = this.normalizeNameJS(s);
       return n ? n.split(" ").filter(Boolean) : [];
     },
 
-    // Score expectedTokens vs ocrTokens
-    // exact token match: +2, prefix/startsWith match: +1
     scoreNameMatchJS(expectedTokens, ocrTokens) {
       let score = 0;
       for (const et of expectedTokens) {
@@ -532,7 +564,6 @@ export default {
       return score;
     },
 
-    // Find best teacher by OCR text (returns teacher object or null)
     findTeacherByText(ocrText) {
       if (!ocrText) return null;
       const ocrTokens = this.tokenizeNameJS(ocrText);
@@ -547,14 +578,12 @@ export default {
         const expectedTokens = this.tokenizeNameJS(fullName);
         if (!expectedTokens.length) continue;
 
-        // quick prefilter: require at least one token present (or prefix)
         const anyPresent = expectedTokens.some(et => ocrTokens.includes(et) || ocrTokens.some(ot => ot.startsWith(et)));
         if (!anyPresent) continue;
 
         const absoluteScore = this.scoreNameMatchJS(expectedTokens, ocrTokens);
-        const normalizedScore = absoluteScore / (expectedTokens.length * 2); // max 2 per token
+        const normalizedScore = absoluteScore / (expectedTokens.length * 2);
 
-        // prefer higher normalized score; break ties by absolute score
         if (normalizedScore > bestNormalizedScore || (normalizedScore === bestNormalizedScore && absoluteScore > bestAbsoluteScore)) {
           best = t;
           bestNormalizedScore = normalizedScore;
@@ -562,7 +591,6 @@ export default {
         }
       }
 
-      // Accept candidate only if above conservative thresholds to avoid false positives
       if (!best) return null;
       if (bestNormalizedScore >= 0.65 || bestAbsoluteScore >= 3) {
         return best;
@@ -604,13 +632,11 @@ export default {
 
         this.flaskOffline = !!res?.data?.fallback_used;
 
-        // Map category -> id if found
         if (serverCat) {
           const c = this.categories.find(x => x.name.trim().toLowerCase() === serverCat.trim().toLowerCase());
           if (c) it.category_id = c.id;
         }
 
-        // Robust teacher matching: prefer controller-provided teacher string, but run fuzzy search
         const candidateText = (res?.data?.teacher || it.scanned_text || res?.data?.text || "");
         const matched = this.findTeacherByText(candidateText);
 
@@ -618,13 +644,11 @@ export default {
           it.detectedTeacher = matched.full_name;
           it.teacher_id = matched.id;
         } else if (it.detectedTeacher) {
-          // fallback: normalized direct-equality (handles punctuation/casing differences)
           const dt = this.normalizeNameJS(it.detectedTeacher);
           const direct = this.teachers.find(x => this.normalizeNameJS(x.full_name) === dt);
           if (direct) it.teacher_id = direct.id;
         }
 
-        // If still missing teacher but category was chosen and category requires teacher, leave unset (UI will prompt)
         const catName = it.detectedCategory || this.canonicalCategoryNameById(it.category_id);
         it.requiresTeacher = this.requiresTeacherFor(catName);
 
@@ -646,7 +670,6 @@ export default {
         it.category_id = null;
       }
       if (it.detectedTeacher) {
-        // use normalized comparison rather than strict equality
         const dt = this.normalizeNameJS(it.detectedTeacher);
         const t = this.teachers.find(x => this.normalizeNameJS(x.full_name) === dt);
         it.teacher_id = t ? t.id : null;
@@ -838,6 +861,8 @@ export default {
       this.uncategorizedList = [];
       this.showTeacherReqModal = false;
       this.teacherRequiredList = [];
+      this.showInvalidFileModal = false; // Reset new modal
+      this.invalidFileList = [];       // Reset new modal list
       this.currentPage = 1;
     },
 
@@ -860,10 +885,6 @@ export default {
   }
 };
 </script>
-
-
-
-
 
 <style scoped>
 /* Container */
