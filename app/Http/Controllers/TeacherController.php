@@ -9,7 +9,6 @@ use App\Models\User;
 use Illuminate\Support\Facades\Storage;
 use App\Services\DocumentUploadService;
 use App\Services\LogService;
-use App\Notifications\DocumentUploaded;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -18,9 +17,6 @@ use Inertia\Inertia;
 
 class TeacherController extends Controller
 {
-    /**
-     * Display all teachers.
-     */
     public function index()
     {
         $teachers = Teacher::select('id', 'full_name', 'status', 'photo_path')
@@ -33,34 +29,39 @@ class TeacherController extends Controller
     }
 
     /**
-     * Show the edit form.
+     * ✅ FIX: load linked user email and pass as teacher.email
      */
     public function edit(Teacher $teacher)
     {
+        $teacher->load('user');
+
         return Inertia::render('Teacher/EditTeacher', [
-            'teacher' => $teacher,
+            'teacher' => array_merge($teacher->toArray(), [
+                'email' => optional($teacher->user)->email,
+            ]),
         ]);
     }
 
     /**
-     * View teacher profile (read-only) with their uploaded documents.
+     * ✅ FIX: same for show page (optional but recommended)
      */
     public function show(Teacher $teacher)
     {
+        $teacher->load('user');
+
         $documents = Document::with('category')
             ->where('teacher_id', $teacher->id)
             ->latest()
             ->get();
 
         return Inertia::render('Teacher/ViewTeacher', [
-            'teacher' => $teacher,
+            'teacher' => array_merge($teacher->toArray(), [
+                'email' => optional($teacher->user)->email,
+            ]),
             'documents' => $documents,
         ]);
     }
 
-    /**
-     * Store a newly registered teacher AND their User account.
-     */
     public function store(Request $request, DocumentUploadService $uploadService)
     {
         $validated = $request->validate([
@@ -90,7 +91,7 @@ class TeacherController extends Controller
 
         DB::transaction(function () use ($request, $validated, $uploadService, $currentUser) {
 
-            // A. Create the User Login Account
+            // Create user
             $user = User::create([
                 'first_name' => $validated['first_name'],
                 'last_name' => $validated['last_name'],
@@ -101,7 +102,7 @@ class TeacherController extends Controller
                 'phone_number' => $validated['contact'] ?? '',
             ]);
 
-            // B. Create the Teacher Profile LINKED to the User
+            // Create teacher (DO NOT store email here; email is in users)
             $teacher = Teacher::create(array_merge($validated, [
                 'user_id' => $user->id,
                 'pds_file_path' => null,
@@ -109,7 +110,7 @@ class TeacherController extends Controller
                 'status' => 'active',
             ]));
 
-            // C. Handle File Uploads
+            // PDS
             if ($request->hasFile('pds')) {
                 $category = Category::where('name', 'Personal Data Sheet')->first();
                 if ($category) {
@@ -123,6 +124,7 @@ class TeacherController extends Controller
                 }
             }
 
+            // Photo
             if ($request->hasFile('photo')) {
                 $photoPath = $request->file('photo')->store('teacher_photos', 'public');
                 $teacher->update(['photo_path' => $photoPath]);
@@ -134,9 +136,6 @@ class TeacherController extends Controller
         return back()->with('success', '✅ Teacher registered and account created successfully.');
     }
 
-    /**
-     * Update an existing teacher AND sync their User account.
-     */
     public function update(Request $request, Teacher $teacher, DocumentUploadService $uploadService)
     {
         $validated = $request->validate([
@@ -146,7 +145,7 @@ class TeacherController extends Controller
             'full_name' => 'required|string|max:255',
             'name_extension' => 'nullable|string|max:10',
 
-            // email belongs to users table; ignore current linked user
+            // ✅ updates users.email (ignore current linked user)
             'email' => 'required|email|unique:users,email,' . $teacher->user_id,
 
             'employee_id' => 'required|string|max:50|unique:teachers,employee_id,' . $teacher->id,
@@ -166,29 +165,27 @@ class TeacherController extends Controller
 
         DB::transaction(function () use ($request, $validated, $uploadService, $currentUser, $teacher) {
 
-            // 1. Update the Teacher Profile (exclude email because it's for User table)
+            // 1) Teacher update (exclude email)
             $teacherData = collect($validated)->except(['email'])->toArray();
             $teacher->update($teacherData);
 
-            // 2. Sync User Account
+            // 2) User update (email saved here)
             if ($teacher->user_id) {
                 $linkedUser = User::find($teacher->user_id);
-
                 if ($linkedUser) {
                     $linkedUser->update([
                         'first_name' => $validated['first_name'],
                         'last_name' => $validated['last_name'],
                         'email' => $validated['email'],
-                        'status' => strtolower($validated['status']), // active / inactive
+                        'status' => strtolower($validated['status']),
                     ]);
                 }
             }
 
-            // 3. Handle PDS upload (optional)
+            // 3) PDS upload
             if ($request->hasFile('pds')) {
                 $category = Category::where('name', 'Personal Data Sheet')->first();
                 if ($category) {
-                    // Optional: delete old PDS file if you want cleanup
                     if ($teacher->pds_file_path && Storage::disk('public')->exists($teacher->pds_file_path)) {
                         Storage::disk('public')->delete($teacher->pds_file_path);
                     }
@@ -204,17 +201,13 @@ class TeacherController extends Controller
                 }
             }
 
-            // 4. ✅ Handle PHOTO upload (this fixes your “old image comes back after reload”)
+            // 4) Photo upload
             if ($request->hasFile('photo')) {
-                // delete old photo
                 if ($teacher->photo_path && Storage::disk('public')->exists($teacher->photo_path)) {
                     Storage::disk('public')->delete($teacher->photo_path);
                 }
 
-                // store new photo
                 $photoPath = $request->file('photo')->store('teacher_photos', 'public');
-
-                // save to DB
                 $teacher->update(['photo_path' => $photoPath]);
             }
 
@@ -224,26 +217,16 @@ class TeacherController extends Controller
         return back()->with('success', '✅ Teacher profile and User account synced successfully.');
     }
 
-    /**
-     * Delete a teacher, their documents, AND their User account.
-     */
     public function destroy(Teacher $teacher)
     {
         DB::beginTransaction();
         try {
-            // 1. Delete Documents
             $teacher->documents()->delete();
 
-            // 2. Find Linked User
-            $linkedUser = null;
-            if ($teacher->user_id) {
-                $linkedUser = User::find($teacher->user_id);
-            }
+            $linkedUser = $teacher->user_id ? User::find($teacher->user_id) : null;
 
-            // 3. Delete Teacher Profile
             $teacher->delete();
 
-            // 4. Delete User Account (Cleanup)
             if ($linkedUser) {
                 $linkedUser->delete();
             }
@@ -258,21 +241,22 @@ class TeacherController extends Controller
         }
     }
 
-    /**
-     * Display the logged-in teacher's OWN profile.
-     */
     public function myProfile()
     {
         $user = Auth::user();
-
         $teacher = Teacher::where('user_id', $user->id)->first();
 
         if (!$teacher) {
             return redirect()->route('dashboard')->with('error', 'Teacher profile not found.');
         }
 
+        // ✅ ensure email is from user
+        $teacher->load('user');
+
         return Inertia::render('Teacher/UserTeacherProfile', [
-            'teacher' => $teacher,
+            'teacher' => array_merge($teacher->toArray(), [
+                'email' => optional($teacher->user)->email,
+            ]),
         ]);
     }
 }

@@ -62,4 +62,5 @@ class Teacher extends Model
     {
         return $query->where('status', 'Inactive');
     }
+
 }
