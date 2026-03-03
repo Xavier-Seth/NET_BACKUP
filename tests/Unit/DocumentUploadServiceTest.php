@@ -2,14 +2,11 @@
 
 namespace Database\Factories;
 
-use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 use Illuminate\Support\Facades\Hash;
 
 class UserFactory extends Factory
 {
-    protected $model = User::class;
-
     public function definition(): array
     {
         return [
@@ -17,18 +14,15 @@ class UserFactory extends Factory
             'last_name' => $this->faker->lastName(),
             'middle_name' => $this->faker->optional()->firstName(),
 
-            'sex' => $this->faker->randomElement(['Male', 'Female']),
-            'civil_status' => $this->faker->randomElement(['Single', 'Married']),
-            'date_of_birth' => $this->faker->date('Y-m-d'),
+            'sex' => 'Male',
+            'civil_status' => 'Single',
+            'date_of_birth' => '1995-01-01',
             'religion' => 'Roman Catholic',
-            'phone_number' => '09' . $this->faker->numberBetween(100000000, 999999999),
+            'phone_number' => '09123456789',
 
             'email' => $this->faker->unique()->safeEmail(),
             'password' => Hash::make('password'),
 
-            'role' => 'admin',
-            'status' => 'active',
-            'photo_path' => null,
             'email_verified_at' => now(),
         ];
     }
