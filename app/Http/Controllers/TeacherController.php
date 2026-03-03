@@ -6,9 +6,10 @@ use App\Models\Teacher;
 use App\Models\Category;
 use App\Models\Document;
 use App\Models\User;
+use Illuminate\Support\Facades\Storage;
 use App\Services\DocumentUploadService;
 use App\Services\LogService;
-use App\Notifications\DocumentUploaded; // <--- 1. IMPORT NOTIFICATION
+use App\Notifications\DocumentUploaded;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\DB;
@@ -105,7 +106,7 @@ class TeacherController extends Controller
                 'user_id' => $user->id,
                 'pds_file_path' => null,
                 'photo_path' => null,
-                'status' => 'active', // changed to 'active' to match user status style
+                'status' => 'active',
             ]));
 
             // C. Handle File Uploads
@@ -145,8 +146,7 @@ class TeacherController extends Controller
             'full_name' => 'required|string|max:255',
             'name_extension' => 'nullable|string|max:10',
 
-            // 👇 ADD THIS LINE! (We need to validate email to get it in the $validated array)
-            // We use $teacher->user_id to ignore the unique check for this specific user
+            // email belongs to users table; ignore current linked user
             'email' => 'required|email|unique:users,email,' . $teacher->user_id,
 
             'employee_id' => 'required|string|max:50|unique:teachers,employee_id,' . $teacher->id,
@@ -166,9 +166,7 @@ class TeacherController extends Controller
 
         DB::transaction(function () use ($request, $validated, $uploadService, $currentUser, $teacher) {
 
-            // 1. Update the Teacher Profile
-            // We remove 'email' from $validated before updating Teacher, 
-            // because 'email' belongs to the User table, not the Teacher table.
+            // 1. Update the Teacher Profile (exclude email because it's for User table)
             $teacherData = collect($validated)->except(['email'])->toArray();
             $teacher->update($teacherData);
 
@@ -180,19 +178,52 @@ class TeacherController extends Controller
                     $linkedUser->update([
                         'first_name' => $validated['first_name'],
                         'last_name' => $validated['last_name'],
-                        'email' => $validated['email'], // ✅ Now this will work!
-                        'status' => strtolower($validated['status']),
+                        'email' => $validated['email'],
+                        'status' => strtolower($validated['status']), // active / inactive
                     ]);
-
-                    // Optional: Notify logic...
                 }
             }
 
-            // ... (rest of your file logic remains the same)
+            // 3. Handle PDS upload (optional)
+            if ($request->hasFile('pds')) {
+                $category = Category::where('name', 'Personal Data Sheet')->first();
+                if ($category) {
+                    // Optional: delete old PDS file if you want cleanup
+                    if ($teacher->pds_file_path && Storage::disk('public')->exists($teacher->pds_file_path)) {
+                        Storage::disk('public')->delete($teacher->pds_file_path);
+                    }
+
+                    $document = $uploadService->handle(
+                        $request->file('pds'),
+                        $teacher->id,
+                        $category->id,
+                        $currentUser
+                    );
+
+                    $teacher->update(['pds_file_path' => $document->path]);
+                }
+            }
+
+            // 4. ✅ Handle PHOTO upload (this fixes your “old image comes back after reload”)
+            if ($request->hasFile('photo')) {
+                // delete old photo
+                if ($teacher->photo_path && Storage::disk('public')->exists($teacher->photo_path)) {
+                    Storage::disk('public')->delete($teacher->photo_path);
+                }
+
+                // store new photo
+                $photoPath = $request->file('photo')->store('teacher_photos', 'public');
+
+                // save to DB
+                $teacher->update(['photo_path' => $photoPath]);
+            }
+
+            LogService::record("Updated teacher '{$teacher->full_name}' (Employee ID: {$teacher->employee_id}) and synced User account.");
         });
 
         return back()->with('success', '✅ Teacher profile and User account synced successfully.');
     }
+
     /**
      * Delete a teacher, their documents, AND their User account.
      */
@@ -234,11 +265,9 @@ class TeacherController extends Controller
     {
         $user = Auth::user();
 
-        // Find the teacher record linked to this user
         $teacher = Teacher::where('user_id', $user->id)->first();
 
         if (!$teacher) {
-            // Fallback if no profile exists yet
             return redirect()->route('dashboard')->with('error', 'Teacher profile not found.');
         }
 
